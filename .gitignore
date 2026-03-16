@@ -1,0 +1,24 @@
+# Next.js
+.next/
+out/
+build/
+
+# Node
+node_modules/
+
+# DB locale (ne jamais pousser sur GitHub)
+prisma/dev.db
+prisma/dev.db-journal
+prisma/*.db
+
+# Env
+.env
+.env.local
+.env.production.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

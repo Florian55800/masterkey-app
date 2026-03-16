@@ -1,0 +1,115 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  pin       String
+  color     String
+  photo     String?
+  createdAt DateTime @default(now())
+  teamGoals TeamGoal[]
+}
+
+model Owner {
+  id             Int                 @id @default(autoincrement())
+  name           String
+  phone          String?
+  email          String?
+  notes          String?
+  photo          String?
+  lastContact    DateTime?
+  relanceDate    DateTime?
+  relanceNote    String?
+  source         String?
+  properties     Property[]
+  satisfactions  SatisfactionScore[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+}
+
+model Property {
+  id             Int       @id @default(autoincrement())
+  name           String
+  address        String
+  city           String
+  type           String
+  ownerId        Int
+  owner          Owner     @relation(fields: [ownerId], references: [id])
+  commissionRate Float
+  photo          String?
+  dateSigned     DateTime
+  dateLost       DateTime?
+  status         String    @default("active")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model SatisfactionScore {
+  id        Int      @id @default(autoincrement())
+  ownerId   Int
+  owner     Owner    @relation(fields: [ownerId], references: [id])
+  score     Int
+  quarter   Int
+  year      Int
+  createdAt DateTime @default(now())
+}
+
+model MonthlyReport {
+  id               Int       @id @default(autoincrement())
+  month            Int
+  year             Int
+  caBrut           Float     @default(0)
+  commissions      Float     @default(0)
+  activeProperties Int       @default(0)
+  totalNights      Int       @default(0)
+  newSignatures    Int       @default(0)
+  lostProperties   Int       @default(0)
+  netProfit        Float     @default(0)
+  notes            String?
+  targetMargin     Float?
+  expenses         Expense[]
+  teamGoals        TeamGoal[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  @@unique([month, year])
+}
+
+model Expense {
+  id          Int           @id @default(autoincrement())
+  reportId    Int
+  report      MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  category    String
+  description String?
+  amount      Float
+  isRecurring Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+}
+
+model TeamGoal {
+  id               Int           @id @default(autoincrement())
+  userId           Int
+  user             User          @relation(fields: [userId], references: [id])
+  reportId         Int
+  report           MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  propertiesSigned Int           @default(0)
+  appointmentsMade Int           @default(0)
+  personalGoal     String?
+  goalStatus       String        @default("en_cours")
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  @@unique([userId, reportId])
+}
+
+model City {
+  id       Int     @id @default(autoincrement())
+  name     String  @unique
+  isActive Boolean @default(false)
+}
