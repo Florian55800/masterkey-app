@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAuthUser } from '@/lib/auth'
+import { getSession } from '@/lib/auth'
 import bcrypt from 'bcryptjs'
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const authUser = await getAuthUser(req)
+  const authUser = await getSession(req)
   if (!authUser) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   const id = parseInt(params.id)
