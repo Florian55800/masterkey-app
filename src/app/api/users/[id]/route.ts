@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
-import bcrypt from 'bcryptjs'
+import { hashPin } from '@/lib/hash'
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const authUser = await getSession(req)
@@ -17,7 +17,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (color) data.color = color
   if (photo !== undefined) data.photo = photo
   if (pin && pin.length === 4) {
-    data.pin = await bcrypt.hash(pin, 10)
+    data.pin = hashPin(pin)
   }
 
   const user = await prisma.user.update({ where: { id }, data })

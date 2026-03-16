@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createSession } from '@/lib/auth'
-import bcrypt from 'bcryptjs'
+import { comparePin } from '@/lib/hash'
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 404 })
     }
 
-    const valid = await bcrypt.compare(pin, user.pin)
+    const valid = comparePin(pin, user.pin)
 
     if (!valid) {
       return NextResponse.json({ error: 'PIN incorrect' }, { status: 401 })

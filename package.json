@@ -15,7 +15,6 @@
     "@libsql/client": "^0.17.0",
     "@prisma/adapter-libsql": "^7.5.0",
     "@prisma/client": "^5.10.2",
-    "bcryptjs": "^2.4.3",
     "canvas-confetti": "^1.9.2",
     "clsx": "^2.1.0",
     "date-fns": "^3.3.1",
@@ -28,7 +27,6 @@
     "tailwind-merge": "^2.2.1"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
     "@types/canvas-confetti": "^1.6.4",
     "@types/node": "^20",
     "@types/react": "^18",
