@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['bcryptjs', '@libsql/client', '@prisma/adapter-libsql'],
+  experimental: {
+    serverComponentsExternalPackages: ['bcryptjs', '@libsql/client', '@prisma/adapter-libsql', '@prisma/client'],
+  },
 };
 export default nextConfig;
