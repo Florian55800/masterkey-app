@@ -1,12 +1,13 @@
-import { PrismaClient } from '@prisma/client'
+import type { PrismaClient } from '@prisma/client'
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
-}
+let _client: PrismaClient | undefined
 
-function makePrismaClient(): PrismaClient {
-  // En production sur Vercel avec Turso
+function getClient(): PrismaClient {
+  if (_client) return _client
+
   if (process.env.TURSO_DATABASE_URL) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { PrismaClient } = require('@prisma/client')
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { createClient } = require('@libsql/client')
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -16,13 +17,19 @@ function makePrismaClient(): PrismaClient {
       authToken: process.env.TURSO_AUTH_TOKEN,
     })
     const adapter = new PrismaLibSQL(libsql)
-    return new PrismaClient({ adapter })
+    _client = new PrismaClient({ adapter })
+  } else {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { PrismaClient } = require('@prisma/client')
+    _client = new PrismaClient()
   }
-  // En local : SQLite fichier
-  return new PrismaClient()
+
+  return _client!
 }
 
-export const prisma: PrismaClient =
-  globalForPrisma.prisma ?? makePrismaClient()
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+// Proxy lazy : le client n'est créé qu'au premier appel DB (pas à l'import)
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_: PrismaClient, prop: string | symbol) {
+    return (getClient() as unknown as Record<string | symbol, unknown>)[prop]
+  },
+})

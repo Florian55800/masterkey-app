@@ -1,7 +1,21 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ['bcryptjs', '@libsql/client', '@prisma/adapter-libsql', '@prisma/client'],
+    serverComponentsExternalPackages: [
+      '@libsql/client',
+      '@prisma/adapter-libsql',
+      '@prisma/client',
+    ],
   },
-};
-export default nextConfig;
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals = [
+        ...(Array.isArray(config.externals) ? config.externals : []),
+        '@libsql/client',
+        '@prisma/adapter-libsql',
+      ]
+    }
+    return config
+  },
+}
+export default nextConfig
