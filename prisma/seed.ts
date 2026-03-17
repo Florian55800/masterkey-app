@@ -1,7 +1,12 @@
 import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 
 const prisma = new PrismaClient()
+const SALT = process.env.JWT_SECRET || 'masterkey-dashboard-secret-2024-very-long-secret-key'
+
+function hashPin(pin: string): string {
+  return crypto.createHash('sha256').update(pin + SALT).digest('hex')
+}
 
 async function main() {
   console.log('🌱 Seeding database...')
@@ -17,8 +22,8 @@ async function main() {
   await prisma.city.deleteMany()
 
   // Create Users
-  const florianPin = await bcrypt.hash('1234', 10)
-  const lucasPin = await bcrypt.hash('5678', 10)
+  const florianPin = hashPin('1234')
+  const lucasPin = hashPin('5678')
 
   const florian = await prisma.user.create({
     data: {
