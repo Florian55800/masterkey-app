@@ -95,19 +95,18 @@ export async function GET() {
       orderBy: { month: 'asc' },
     })
 
-    const yearOverview = Array.from({ length: 12 }, (_, i) => {
-      const m = i + 1
-      const report = allYearReports.find((r) => r.month === m)
-      return {
-        month: m,
-        year: currentYear,
-        hasReport: !!report,
-        caBrut: report?.caBrut ?? 0,
-        commissions: report?.commissions ?? 0,
-        netProfit: report?.netProfit ?? 0,
-        newSignatures: report?.newSignatures ?? 0,
-      }
-    })
+    const yearOverview = allYearReports.map((report) => ({
+      month: report.month,
+      year: currentYear,
+      hasReport: true,
+      caBrut: report.caBrut,
+      commissions: report.commissions,
+      netProfit: report.netProfit,
+      newSignatures: report.newSignatures,
+      activeProperties: report.activeProperties,
+      totalNights: report.totalNights,
+      notes: report.notes,
+    }))
 
     return NextResponse.json({
       currentMonth: {

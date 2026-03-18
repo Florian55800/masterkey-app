@@ -51,6 +51,9 @@ interface DashboardData {
     commissions: number
     netProfit: number
     newSignatures: number
+    activeProperties: number
+    totalNights: number
+    notes: string | null
   }>
   upcomingRelances: Array<{
     id: number
@@ -87,6 +90,94 @@ const PROPERTY_MILESTONES = [
 function calcTrend(current: number, prev: number | null | undefined): number | undefined {
   if (!prev || prev === 0) return undefined
   return ((current - prev) / prev) * 100
+}
+
+function HistoriqueSection({ yearOverview, currentMonth, currentYear }: {
+  yearOverview: DashboardData['yearOverview']
+  currentMonth: number
+  currentYear: number
+}) {
+  const [selected, setSelected] = useState<number | null>(null)
+  const selectedData = yearOverview.find((m) => m.month === selected)
+
+  return (
+    <Card>
+      <div className="flex items-center gap-2 mb-5">
+        <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+          <CalendarDays className="w-4 h-4 text-blue-400" />
+        </div>
+        <h3 className="text-white font-semibold">Historique {currentYear}</h3>
+      </div>
+
+      {/* Mois avec rapports */}
+      <div className="flex flex-wrap gap-2 mb-5">
+        {yearOverview.map((m) => (
+          <button
+            key={m.month}
+            onClick={() => setSelected(selected === m.month ? null : m.month)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all ${
+              selected === m.month
+                ? 'bg-[#D4AF37] text-black'
+                : m.month === currentMonth
+                ? 'border border-[#D4AF37]/40 text-[#D4AF37] bg-[#D4AF37]/5'
+                : 'border border-white/[0.06] text-white/50 hover:text-white hover:border-white/20'
+            }`}
+          >
+            {getMonthName(m.month).slice(0, 3)} {m.year}
+          </button>
+        ))}
+      </div>
+
+      {/* Détails du mois sélectionné */}
+      {selectedData && (
+        <div className="border border-white/[0.06] rounded-2xl p-5 space-y-4">
+          <p className="text-white font-semibold">{getMonthName(selectedData.month)} {selectedData.year}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div>
+              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">CA Brut</p>
+              <p className="text-white font-bold text-lg">{formatCurrency(selectedData.caBrut)}</p>
+            </div>
+            <div>
+              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Dépenses</p>
+              <p className="text-red-400 font-bold text-lg">{formatCurrency(selectedData.commissions)}</p>
+            </div>
+            <div>
+              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Bénéfice Net</p>
+              <p className={`font-bold text-lg ${selectedData.netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {formatCurrency(selectedData.netProfit)}
+              </p>
+            </div>
+            <div>
+              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Signatures</p>
+              <p className="text-amber-400 font-bold text-lg">{selectedData.newSignatures}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-2 border-t border-white/[0.06]">
+            <div>
+              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Logements actifs</p>
+              <p className="text-blue-400 font-semibold">{selectedData.activeProperties}</p>
+            </div>
+            <div>
+              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Nuits totales</p>
+              <p className="text-white font-semibold">{selectedData.totalNights}</p>
+            </div>
+            <div>
+              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Taux de marge</p>
+              <p className="text-white font-semibold">
+                {selectedData.caBrut > 0 ? formatPercent((selectedData.netProfit / selectedData.caBrut) * 100) : '—'}
+              </p>
+            </div>
+          </div>
+          {selectedData.notes && (
+            <div className="pt-2 border-t border-white/[0.06]">
+              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Notes</p>
+              <p className="text-white/70 text-sm">{selectedData.notes}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  )
 }
 
 export default function DashboardPage() {
@@ -328,46 +419,14 @@ export default function DashboardPage() {
         )}
       </Card>
 
-      {/* Aperçu mensuel de l'année */}
-      <Card>
-        <div className="flex items-center gap-2 mb-6">
-          <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-            <CalendarDays className="w-4 h-4 text-blue-400" />
-          </div>
-          <h3 className="text-white font-semibold">Aperçu {currentMonth.year}</h3>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-          {yearOverview.map((m) => (
-            <div
-              key={m.month}
-              className={`rounded-xl p-3 border transition-all ${
-                m.month === currentMonth.month
-                  ? 'border-[#D4AF37]/40 bg-[#D4AF37]/5'
-                  : m.hasReport
-                  ? 'border-white/[0.06] bg-[#1a1a1a]'
-                  : 'border-white/[0.03] bg-[#161616] opacity-50'
-              }`}
-            >
-              <p className={`text-xs font-semibold uppercase tracking-wider mb-2 ${
-                m.month === currentMonth.month ? 'text-[#D4AF37]' : 'text-white/40'
-              }`}>
-                {getMonthName(m.month).slice(0, 3)}
-              </p>
-              {m.hasReport ? (
-                <div className="space-y-1">
-                  <p className="text-white text-sm font-bold">{formatCurrency(m.caBrut)}</p>
-                  <p className={`text-xs font-medium ${m.netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {formatCurrency(m.netProfit)}
-                  </p>
-                  <p className="text-white/30 text-xs">{m.newSignatures} sign.</p>
-                </div>
-              ) : (
-                <p className="text-white/20 text-xs mt-2">—</p>
-              )}
-            </div>
-          ))}
-        </div>
-      </Card>
+      {/* Historique mensuel */}
+      {yearOverview.length > 0 && (
+        <HistoriqueSection
+          yearOverview={yearOverview}
+          currentMonth={currentMonth.month}
+          currentYear={currentMonth.year}
+        />
+      )}
 
       {/* Quick stats row */}
       {report && (
