@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Search, Users, Phone, Mail, Edit2, Bell, Star } from 'lucide-react'
+import { Plus, Search, Users, Phone, Mail, Edit2, Bell, Star, Trash2 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -136,6 +136,12 @@ export default function ProprietairesPage() {
     })
     setError('')
     setIsModalOpen(true)
+  }
+
+  const handleDelete = async (id: number, name: string) => {
+    if (!confirm(`Supprimer définitivement le client "${name}" ? Cette action est irréversible.`)) return
+    await fetch(`/api/owners/${id}`, { method: 'DELETE' })
+    await loadOwners()
   }
 
   const handleSave = async () => {
@@ -345,13 +351,21 @@ export default function ProprietairesPage() {
                   <p className="text-gray-400 text-xs italic mb-3 line-clamp-2">"{owner.notes}"</p>
                 )}
 
-                <button
-                  onClick={() => openEditModal(owner)}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-[#2e2e2e] text-gray-400 hover:text-white hover:border-[#D4AF37]/30 transition-all text-sm"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                  Modifier
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => openEditModal(owner)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-[#2e2e2e] text-gray-400 hover:text-white hover:border-[#D4AF37]/30 transition-all text-sm"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    Modifier
+                  </button>
+                  <button
+                    onClick={() => handleDelete(owner.id, owner.name)}
+                    className="px-3 py-2 rounded-lg border border-[#2e2e2e] text-gray-500 hover:text-red-400 hover:border-red-500/20 transition-all"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </Card>
             )
           })}
