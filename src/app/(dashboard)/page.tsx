@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Building2, TrendingUp, Euro, Star, Bell, Phone, Calculator } from 'lucide-react'
+import { Building2, TrendingUp, Euro, Star, Bell, Phone, Calculator, CalendarDays } from 'lucide-react'
 import { KPICard } from '@/components/dashboard/KPICard'
 import { MilestoneWidget } from '@/components/dashboard/MilestoneWidget'
 import { TeamChallengeWidget } from '@/components/dashboard/TeamChallengeWidget'
@@ -41,6 +41,15 @@ interface DashboardData {
     commissions: number
     netProfit: number
     activeProperties: number
+    newSignatures: number
+  }>
+  yearOverview: Array<{
+    month: number
+    year: number
+    hasReport: boolean
+    caBrut: number
+    commissions: number
+    netProfit: number
     newSignatures: number
   }>
   upcomingRelances: Array<{
@@ -107,7 +116,7 @@ export default function DashboardPage() {
   if (loading) return <LoadingPage />
   if (!data) return <div className="text-gray-400">Erreur de chargement</div>
 
-  const { currentMonth, historical, upcomingRelances, overdueRelances, prevReport } = data
+  const { currentMonth, historical, upcomingRelances, overdueRelances, prevReport, yearOverview } = data
   const report = currentMonth.report
   const caData = historical.map((h) => h.caBrut)
   const propData = historical.map((h) => h.activeProperties)
@@ -317,6 +326,47 @@ export default function DashboardPage() {
             </p>
           </div>
         )}
+      </Card>
+
+      {/* Aperçu mensuel de l'année */}
+      <Card>
+        <div className="flex items-center gap-2 mb-6">
+          <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+            <CalendarDays className="w-4 h-4 text-blue-400" />
+          </div>
+          <h3 className="text-white font-semibold">Aperçu {currentMonth.year}</h3>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+          {yearOverview.map((m) => (
+            <div
+              key={m.month}
+              className={`rounded-xl p-3 border transition-all ${
+                m.month === currentMonth.month
+                  ? 'border-[#D4AF37]/40 bg-[#D4AF37]/5'
+                  : m.hasReport
+                  ? 'border-white/[0.06] bg-[#1a1a1a]'
+                  : 'border-white/[0.03] bg-[#161616] opacity-50'
+              }`}
+            >
+              <p className={`text-xs font-semibold uppercase tracking-wider mb-2 ${
+                m.month === currentMonth.month ? 'text-[#D4AF37]' : 'text-white/40'
+              }`}>
+                {getMonthName(m.month).slice(0, 3)}
+              </p>
+              {m.hasReport ? (
+                <div className="space-y-1">
+                  <p className="text-white text-sm font-bold">{formatCurrency(m.caBrut)}</p>
+                  <p className={`text-xs font-medium ${m.netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {formatCurrency(m.netProfit)}
+                  </p>
+                  <p className="text-white/30 text-xs">{m.newSignatures} sign.</p>
+                </div>
+              ) : (
+                <p className="text-white/20 text-xs mt-2">—</p>
+              )}
+            </div>
+          ))}
+        </div>
       </Card>
 
       {/* Quick stats row */}

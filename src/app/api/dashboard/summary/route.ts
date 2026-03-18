@@ -89,6 +89,26 @@ export async function GET() {
       }
     })
 
+    // All 12 months of current year for overview
+    const allYearReports = await prisma.monthlyReport.findMany({
+      where: { year: currentYear },
+      orderBy: { month: 'asc' },
+    })
+
+    const yearOverview = Array.from({ length: 12 }, (_, i) => {
+      const m = i + 1
+      const report = allYearReports.find((r) => r.month === m)
+      return {
+        month: m,
+        year: currentYear,
+        hasReport: !!report,
+        caBrut: report?.caBrut ?? 0,
+        commissions: report?.commissions ?? 0,
+        netProfit: report?.netProfit ?? 0,
+        newSignatures: report?.newSignatures ?? 0,
+      }
+    })
+
     return NextResponse.json({
       currentMonth: {
         month: currentMonth,
@@ -100,6 +120,7 @@ export async function GET() {
       upcomingRelances,
       overdueRelances,
       prevReport,
+      yearOverview,
     })
   } catch (error) {
     console.error('Dashboard summary error:', error)
