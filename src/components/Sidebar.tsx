@@ -14,6 +14,8 @@ import {
   LogOut,
   UserSearch,
   Settings,
+  Menu,
+  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -36,10 +38,19 @@ const navItems = [
   { href: '/parametres', label: 'Paramètres', icon: Settings },
 ]
 
+// Items shown directly in the bottom bar (most used)
+const bottomBarItems = [
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/logements', label: 'Logements', icon: Building2 },
+  { href: '/proprietaires', label: 'Clients', icon: Users },
+  { href: '/leads', label: 'Leads', icon: UserSearch },
+]
+
 export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -50,6 +61,11 @@ export function Sidebar() {
       .catch(() => {})
   }, [])
 
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [pathname])
+
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/login')
@@ -58,7 +74,7 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Desktop Sidebar */}
+      {/* ─── Desktop Sidebar ─── */}
       <aside
         className="hidden lg:flex flex-col w-64 h-screen fixed left-0 top-0 z-40"
         style={{
@@ -95,9 +111,7 @@ export function Sidebar() {
                 href={item.href}
                 className={cn(
                   'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative',
-                  isActive
-                    ? 'text-[#D4AF37]'
-                    : 'text-white/40 hover:text-white/80'
+                  isActive ? 'text-[#D4AF37]' : 'text-white/40 hover:text-white/80'
                 )}
                 style={isActive ? {
                   background: 'rgba(212,175,55,0.1)',
@@ -162,17 +176,122 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {/* Mobile Bottom Navigation */}
+      {/* ─── Mobile: Full-screen drawer overlay ─── */}
+      {mobileMenuOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-50 flex flex-col"
+          style={{ background: '#111111' }}
+        >
+          {/* Drawer header */}
+          <div
+            className="flex items-center justify-between px-5 py-4 flex-shrink-0"
+            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className="w-8 h-8 rounded-xl flex items-center justify-center"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(212,175,55,0.2) 0%, rgba(212,175,55,0.08) 100%)',
+                  border: '1px solid rgba(212,175,55,0.25)',
+                }}
+              >
+                <span className="text-xs font-bold text-gold-gradient">MK</span>
+              </div>
+              <div>
+                <p className="text-white font-semibold text-sm">MasterKey</p>
+                <p className="text-white/30 text-xs">Conciergerie</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setMobileMenuOpen(false)}
+              className="w-9 h-9 flex items-center justify-center rounded-xl text-white/40 hover:text-white transition-colors"
+              style={{ background: 'rgba(255,255,255,0.05)' }}
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Nav items */}
+          <nav className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
+            {navItems.map((item) => {
+              const Icon = item.icon
+              const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    'flex items-center gap-4 px-4 py-3.5 rounded-2xl text-base font-medium transition-all',
+                    isActive ? 'text-[#D4AF37]' : 'text-white/50 hover:text-white'
+                  )}
+                  style={isActive ? {
+                    background: 'rgba(212,175,55,0.1)',
+                    border: '1px solid rgba(212,175,55,0.2)',
+                  } : {
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid transparent',
+                  }}
+                >
+                  <Icon className={cn('w-5 h-5 flex-shrink-0', isActive ? 'text-[#D4AF37]' : 'text-white/30')} />
+                  {item.label}
+                  {isActive && (
+                    <div
+                      className="w-2 h-2 rounded-full ml-auto"
+                      style={{ background: '#D4AF37', boxShadow: '0 0 8px rgba(212,175,55,0.8)' }}
+                    />
+                  )}
+                </Link>
+              )
+            })}
+          </nav>
+
+          {/* User + logout */}
+          <div className="px-4 pb-6 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
+            {user && (
+              <div
+                className="flex items-center gap-3 px-4 py-3 rounded-2xl mb-3"
+                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+              >
+                {user.photo ? (
+                  <img src={user.photo} alt={user.name} className="w-9 h-9 rounded-xl object-cover flex-shrink-0" />
+                ) : (
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+                    style={{ backgroundColor: user.color }}
+                  >
+                    {user.name.charAt(0)}
+                  </div>
+                )}
+                <div>
+                  <p className="text-white font-medium text-sm">{user.name}</p>
+                  <p className="text-white/30 text-xs">Connecté</p>
+                </div>
+              </div>
+            )}
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-base font-medium text-white/40 hover:text-red-400 transition-all"
+              style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}
+            >
+              <LogOut className="w-5 h-5 flex-shrink-0" />
+              Déconnexion
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Mobile Bottom Bar ─── */}
       <nav
         className="lg:hidden fixed bottom-0 left-0 right-0 z-40"
         style={{
-          background: 'rgba(17,17,17,0.95)',
-          borderTop: '1px solid rgba(255,255,255,0.06)',
-          backdropFilter: 'blur(20px)',
+          background: 'rgba(15,15,15,0.97)',
+          borderTop: '1px solid rgba(255,255,255,0.07)',
+          backdropFilter: 'blur(24px)',
         }}
       >
-        <div className="flex items-center justify-around py-2">
-          {navItems.slice(0, 5).map((item) => {
+        <div className="flex items-center justify-around px-2 py-1.5">
+          {/* 4 fixed shortcut items */}
+          {bottomBarItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
             return (
@@ -180,15 +299,27 @@ export function Sidebar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-all',
+                  'flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all min-w-0',
                   isActive ? 'text-[#D4AF37]' : 'text-white/30'
                 )}
               >
-                <Icon className="w-5 h-5" />
-                <span className="text-[10px] font-medium">{item.label.split(' ')[0]}</span>
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                <span className="text-[9px] font-medium leading-none">{item.label}</span>
               </Link>
             )
           })}
+
+          {/* Menu button */}
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className={cn(
+              'flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all',
+              mobileMenuOpen ? 'text-[#D4AF37]' : 'text-white/30 hover:text-white/60'
+            )}
+          >
+            <Menu className="w-5 h-5 flex-shrink-0" />
+            <span className="text-[9px] font-medium leading-none">Menu</span>
+          </button>
         </div>
       </nav>
     </>
