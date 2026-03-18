@@ -40,6 +40,7 @@ export async function GET() {
         id: user.id,
         name: user.name,
         color: user.color,
+        photo: user.photo ?? null,
         totalSigned,
         totalAppointments,
         goalsAchieved,

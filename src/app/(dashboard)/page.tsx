@@ -60,6 +60,22 @@ interface DashboardData {
     relanceNote: string | null
     properties: Array<{ id: number; name: string }>
   }>
+  upcomingLeadRelances: Array<{
+    id: number
+    nom: string
+    telephone: string | null
+    relanceDate: string
+    relanceNote: string | null
+    statut: string
+  }>
+  overdueLeadRelances: Array<{
+    id: number
+    nom: string
+    telephone: string | null
+    relanceDate: string
+    relanceNote: string | null
+    statut: string
+  }>
   prevReport: {
     caBrut: number
     netProfit: number
@@ -119,11 +135,12 @@ export default function DashboardPage() {
   if (loading) return <LoadingPage />
   if (!data) return <div className="text-gray-400">Erreur de chargement</div>
 
-  const { currentMonth, historical, upcomingRelances, overdueRelances, prevReport, availableMonths } = data
+  const { currentMonth, historical, upcomingRelances, overdueRelances, upcomingLeadRelances, overdueLeadRelances, prevReport, availableMonths } = data
   const report = currentMonth.report
   const caData = historical.map((h) => h.caBrut)
   const propData = historical.map((h) => h.activeProperties)
   const allRelances = [...overdueRelances, ...upcomingRelances]
+  const allLeadRelances = [...(overdueLeadRelances ?? []), ...(upcomingLeadRelances ?? [])]
   const currentMonthLabel = `${getMonthName(currentMonth.month)} ${currentMonth.year}`
   const isCurrentMonth = selectedMonth === now.getMonth() + 1 && selectedYear === now.getFullYear()
 
@@ -262,20 +279,20 @@ export default function DashboardPage() {
               <Bell className="w-4 h-4 text-amber-400" />
             </div>
             <h3 className="text-white font-semibold">Relances à venir</h3>
-            {allRelances.length > 0 && (
+            {(allRelances.length + allLeadRelances.length) > 0 && (
               <span className="ml-auto bg-amber-500/20 text-amber-400 text-xs font-medium px-2 py-0.5 rounded-full">
-                {allRelances.length}
+                {allRelances.length + allLeadRelances.length}
               </span>
             )}
           </div>
-          {allRelances.length === 0 ? (
+          {allRelances.length === 0 && allLeadRelances.length === 0 ? (
             <p className="text-gray-500 text-sm text-center py-8">Aucune relance dans les 7 prochains jours</p>
           ) : (
             <div className="space-y-3">
               {allRelances.map((owner) => {
                 const isOverdue = new Date(owner.relanceDate) < new Date()
                 return (
-                  <div key={owner.id} className={`flex items-start gap-3 p-3 rounded-xl border ${isOverdue ? 'border-red-500/20 bg-red-500/5' : 'border-amber-500/20 bg-amber-500/5'}`}>
+                  <div key={`owner-${owner.id}`} className={`flex items-start gap-3 p-3 rounded-xl border ${isOverdue ? 'border-red-500/20 bg-red-500/5' : 'border-amber-500/20 bg-amber-500/5'}`}>
                     <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${isOverdue ? 'bg-red-400' : 'bg-amber-400'}`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-medium text-sm">{owner.name}</p>
@@ -286,6 +303,29 @@ export default function DashboardPage() {
                     </div>
                     {owner.phone && (
                       <a href={`tel:${owner.phone}`} className="text-gray-400 hover:text-white flex-shrink-0 p-1 rounded-lg hover:bg-[#2e2e2e] transition-colors">
+                        <Phone className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
+                )
+              })}
+              {allLeadRelances.map((lead) => {
+                const isOverdue = new Date(lead.relanceDate) < new Date()
+                return (
+                  <div key={`lead-${lead.id}`} className={`flex items-start gap-3 p-3 rounded-xl border ${isOverdue ? 'border-red-500/20 bg-red-500/5' : 'border-blue-500/20 bg-blue-500/5'}`}>
+                    <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${isOverdue ? 'bg-red-400' : 'bg-blue-400'}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-white font-medium text-sm">{lead.nom}</p>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-medium">Lead</span>
+                      </div>
+                      {lead.relanceNote && <p className="text-gray-400 text-xs mt-0.5 truncate">{lead.relanceNote}</p>}
+                      <p className={`text-xs mt-1 ${isOverdue ? 'text-red-400' : 'text-blue-400'}`}>
+                        {isOverdue ? 'En retard · ' : ''}{format(new Date(lead.relanceDate), "d MMM", { locale: fr })}
+                      </p>
+                    </div>
+                    {lead.telephone && (
+                      <a href={`tel:${lead.telephone}`} className="text-gray-400 hover:text-white flex-shrink-0 p-1 rounded-lg hover:bg-[#2e2e2e] transition-colors">
                         <Phone className="w-3.5 h-3.5" />
                       </a>
                     )}

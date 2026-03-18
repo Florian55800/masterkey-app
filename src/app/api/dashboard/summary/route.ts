@@ -44,6 +44,16 @@ export async function GET(req: NextRequest) {
       orderBy: { relanceDate: 'asc' },
     })
 
+    // Lead relances
+    const upcomingLeadRelances = await prisma.lead.findMany({
+      where: { relanceDate: { gte: today, lte: nextWeek }, statut: { not: 'Mort' } },
+      orderBy: { relanceDate: 'asc' },
+    })
+    const overdueLeadRelances = await prisma.lead.findMany({
+      where: { relanceDate: { lt: today }, statut: { not: 'Mort' } },
+      orderBy: { relanceDate: 'asc' },
+    })
+
     // Previous month for comparison
     const prevMonthDate = new Date(selectedYear, selectedMonth - 2, 1)
     const prevReport = await prisma.monthlyReport.findUnique({
@@ -79,6 +89,8 @@ export async function GET(req: NextRequest) {
       historical: historicalData,
       upcomingRelances,
       overdueRelances,
+      upcomingLeadRelances,
+      overdueLeadRelances,
       prevReport,
       availableMonths: allReports,
     })

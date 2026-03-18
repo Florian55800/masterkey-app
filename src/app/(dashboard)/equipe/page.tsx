@@ -62,14 +62,14 @@ export default function EquipePage() {
   const [saving, setSaving] = useState(false)
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<TeamUser | null>(null)
-  const [userForm, setUserForm] = useState({ name: '', color: '', photo: '' })
+  const [userForm, setUserForm] = useState({ name: '', color: '', photo: '', pin: '' })
   const [savingUser, setSavingUser] = useState(false)
 
   const COLORS = ['#D4AF37', '#3B82F6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4']
 
   const openUserModal = (user: TeamUser) => {
     setEditingUser(user)
-    setUserForm({ name: user.name, color: user.color, photo: user.photo ?? '' })
+    setUserForm({ name: user.name, color: user.color, photo: user.photo ?? '', pin: '' })
     setIsUserModalOpen(true)
   }
 
@@ -418,6 +418,26 @@ export default function EquipePage() {
                   }} />
               ))}
             </div>
+          </div>
+
+          <div>
+            <label className="text-sm text-white/40 font-medium block mb-1.5">Nouveau code PIN (4 chiffres)</label>
+            <input
+              type="password"
+              maxLength={4}
+              inputMode="numeric"
+              pattern="[0-9]{4}"
+              value={userForm.pin}
+              onChange={(e) => setUserForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+              placeholder="Laisser vide pour ne pas changer"
+              className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#D4AF37]/40 transition-colors text-sm tracking-widest"
+            />
+            {userForm.pin.length > 0 && userForm.pin.length < 4 && (
+              <p className="text-amber-400 text-xs mt-1">{4 - userForm.pin.length} chiffre(s) restant(s)</p>
+            )}
+            {userForm.pin.length === 4 && (
+              <p className="text-green-400 text-xs mt-1">✓ PIN valide</p>
+            )}
           </div>
 
           <div className="flex gap-3 justify-end pt-2">
