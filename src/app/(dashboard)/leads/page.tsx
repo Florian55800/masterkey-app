@@ -278,7 +278,7 @@ export default function LeadsPage() {
           </div>
 
           <div className="flex gap-3 pt-2">
-            <Button variant="secondary" onClick={() => setIsModalOpen(false)} className="flex-1">Annuler</Button>
+            <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="flex-1">Annuler</Button>
             <Button onClick={handleSave} disabled={saving} className="flex-1">{saving ? 'Enregistrement...' : 'Enregistrer'}</Button>
           </div>
         </div>
