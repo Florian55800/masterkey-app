@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Building2, TrendingUp, Euro, Star, Bell, Phone, Calculator, CalendarDays } from 'lucide-react'
+import { useEffect, useState, useRef } from 'react'
+import { Building2, TrendingUp, Euro, Star, Bell, Phone, Calculator, ChevronDown } from 'lucide-react'
 import { KPICard } from '@/components/dashboard/KPICard'
 import { MilestoneWidget } from '@/components/dashboard/MilestoneWidget'
 import { TeamChallengeWidget } from '@/components/dashboard/TeamChallengeWidget'
@@ -43,18 +43,7 @@ interface DashboardData {
     activeProperties: number
     newSignatures: number
   }>
-  yearOverview: Array<{
-    month: number
-    year: number
-    hasReport: boolean
-    caBrut: number
-    commissions: number
-    netProfit: number
-    newSignatures: number
-    activeProperties: number
-    totalNights: number
-    notes: string | null
-  }>
+  availableMonths: Array<{ month: number; year: number }>
   upcomingRelances: Array<{
     id: number
     name: string
@@ -92,126 +81,51 @@ function calcTrend(current: number, prev: number | null | undefined): number | u
   return ((current - prev) / prev) * 100
 }
 
-function HistoriqueSection({ yearOverview, currentMonth, currentYear }: {
-  yearOverview: DashboardData['yearOverview']
-  currentMonth: number
-  currentYear: number
-}) {
-  const [selected, setSelected] = useState<number | null>(null)
-  const selectedData = yearOverview.find((m) => m.month === selected)
-
-  return (
-    <Card>
-      <div className="flex items-center gap-2 mb-5">
-        <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-          <CalendarDays className="w-4 h-4 text-blue-400" />
-        </div>
-        <h3 className="text-white font-semibold">Historique {currentYear}</h3>
-      </div>
-
-      {/* Mois avec rapports */}
-      <div className="flex flex-wrap gap-2 mb-5">
-        {yearOverview.map((m) => (
-          <button
-            key={m.month}
-            onClick={() => setSelected(selected === m.month ? null : m.month)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all ${
-              selected === m.month
-                ? 'bg-[#D4AF37] text-black'
-                : m.month === currentMonth
-                ? 'border border-[#D4AF37]/40 text-[#D4AF37] bg-[#D4AF37]/5'
-                : 'border border-white/[0.06] text-white/50 hover:text-white hover:border-white/20'
-            }`}
-          >
-            {getMonthName(m.month).slice(0, 3)} {m.year}
-          </button>
-        ))}
-      </div>
-
-      {/* Détails du mois sélectionné */}
-      {selectedData && (
-        <div className="border border-white/[0.06] rounded-2xl p-5 space-y-4">
-          <p className="text-white font-semibold">{getMonthName(selectedData.month)} {selectedData.year}</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div>
-              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">CA Brut</p>
-              <p className="text-white font-bold text-lg">{formatCurrency(selectedData.caBrut)}</p>
-            </div>
-            <div>
-              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Dépenses</p>
-              <p className="text-red-400 font-bold text-lg">{formatCurrency(selectedData.commissions)}</p>
-            </div>
-            <div>
-              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Bénéfice Net</p>
-              <p className={`font-bold text-lg ${selectedData.netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                {formatCurrency(selectedData.netProfit)}
-              </p>
-            </div>
-            <div>
-              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Signatures</p>
-              <p className="text-amber-400 font-bold text-lg">{selectedData.newSignatures}</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-2 border-t border-white/[0.06]">
-            <div>
-              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Logements actifs</p>
-              <p className="text-blue-400 font-semibold">{selectedData.activeProperties}</p>
-            </div>
-            <div>
-              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Nuits totales</p>
-              <p className="text-white font-semibold">{selectedData.totalNights}</p>
-            </div>
-            <div>
-              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Taux de marge</p>
-              <p className="text-white font-semibold">
-                {selectedData.caBrut > 0 ? formatPercent((selectedData.netProfit / selectedData.caBrut) * 100) : '—'}
-              </p>
-            </div>
-          </div>
-          {selectedData.notes && (
-            <div className="pt-2 border-t border-white/[0.06]">
-              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Notes</p>
-              <p className="text-white/70 text-sm">{selectedData.notes}</p>
-            </div>
-          )}
-        </div>
-      )}
-    </Card>
-  )
-}
-
 export default function DashboardPage() {
+  const now = new Date()
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1)
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear())
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [commission, setCommission] = useState({ revenue: '', rate: '20' })
   const [commissionResult, setCommissionResult] = useState<number | null>(null)
+  const [showMonthPicker, setShowMonthPicker] = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    fetch('/api/dashboard/summary')
+    setLoading(true)
+    fetch(`/api/dashboard/summary?month=${selectedMonth}&year=${selectedYear}`)
       .then((r) => r.json())
-      .then((d) => {
-        setData(d)
-        setLoading(false)
-      })
+      .then((d) => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))
+  }, [selectedMonth, selectedYear])
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowMonthPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
   const simulateCommission = () => {
     const rev = parseFloat(commission.revenue)
     const rate = parseFloat(commission.rate)
-    if (!isNaN(rev) && !isNaN(rate)) {
-      setCommissionResult((rev * rate) / 100)
-    }
+    if (!isNaN(rev) && !isNaN(rate)) setCommissionResult((rev * rate) / 100)
   }
 
   if (loading) return <LoadingPage />
   if (!data) return <div className="text-gray-400">Erreur de chargement</div>
 
-  const { currentMonth, historical, upcomingRelances, overdueRelances, prevReport, yearOverview } = data
+  const { currentMonth, historical, upcomingRelances, overdueRelances, prevReport, availableMonths } = data
   const report = currentMonth.report
   const caData = historical.map((h) => h.caBrut)
   const propData = historical.map((h) => h.activeProperties)
   const allRelances = [...overdueRelances, ...upcomingRelances]
+  const currentMonthLabel = `${getMonthName(currentMonth.month)} ${currentMonth.year}`
+  const isCurrentMonth = selectedMonth === now.getMonth() + 1 && selectedYear === now.getFullYear()
 
   const teamMembers = report?.teamGoals.map((g) => ({
     id: g.user.id,
@@ -221,8 +135,6 @@ export default function DashboardPage() {
     appointmentsMade: g.appointmentsMade,
     goalStatus: g.goalStatus,
   })) ?? []
-
-  const currentMonthLabel = `${getMonthName(currentMonth.month)} ${currentMonth.year}`
 
   return (
     <div className="space-y-8">
@@ -234,8 +146,47 @@ export default function DashboardPage() {
             {format(new Date(), "EEEE d MMMM yyyy", { locale: fr })}
           </p>
         </div>
-        <div className="hidden sm:flex items-center gap-2 bg-[#D4AF37]/10 border border-[#D4AF37]/20 rounded-xl px-4 py-2">
-          <span className="text-[#D4AF37] font-semibold text-sm">{currentMonthLabel}</span>
+
+        {/* Month picker */}
+        <div className="relative" ref={pickerRef}>
+          <button
+            onClick={() => setShowMonthPicker(!showMonthPicker)}
+            className="flex items-center gap-2 bg-[#D4AF37]/10 border border-[#D4AF37]/20 rounded-xl px-4 py-2 hover:bg-[#D4AF37]/20 transition-all"
+          >
+            <span className="text-[#D4AF37] font-semibold text-sm">{currentMonthLabel}</span>
+            <ChevronDown className={`w-4 h-4 text-[#D4AF37] transition-transform ${showMonthPicker ? 'rotate-180' : ''}`} />
+          </button>
+
+          {showMonthPicker && (
+            <div className="absolute right-0 top-12 z-50 bg-[#1c1c1c] border border-white/[0.08] rounded-2xl shadow-2xl p-2 min-w-[180px] max-h-64 overflow-y-auto">
+              {/* Current month always available */}
+              <button
+                onClick={() => { setSelectedMonth(now.getMonth() + 1); setSelectedYear(now.getFullYear()); setShowMonthPicker(false) }}
+                className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-all ${
+                  isCurrentMonth ? 'bg-[#D4AF37] text-black font-semibold' : 'text-white/70 hover:bg-white/5'
+                }`}
+              >
+                {getMonthName(now.getMonth() + 1)} {now.getFullYear()}
+                {isCurrentMonth && <span className="ml-2 text-xs opacity-70">En cours</span>}
+              </button>
+              {availableMonths
+                .filter((m) => !(m.month === now.getMonth() + 1 && m.year === now.getFullYear()))
+                .map((m) => {
+                  const isSelected = m.month === selectedMonth && m.year === selectedYear
+                  return (
+                    <button
+                      key={`${m.year}-${m.month}`}
+                      onClick={() => { setSelectedMonth(m.month); setSelectedYear(m.year); setShowMonthPicker(false) }}
+                      className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-all ${
+                        isSelected ? 'bg-[#D4AF37] text-black font-semibold' : 'text-white/70 hover:bg-white/5'
+                      }`}
+                    >
+                      {getMonthName(m.month)} {m.year}
+                    </button>
+                  )
+                })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -283,7 +234,6 @@ export default function DashboardPage() {
 
       {/* Charts + Widgets Row */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Seasonality Chart */}
         <div className="xl:col-span-2">
           <Card>
             <div className="flex items-center justify-between mb-4">
@@ -293,8 +243,6 @@ export default function DashboardPage() {
             <SeasonalityChart data={historical} />
           </Card>
         </div>
-
-        {/* Milestone */}
         <div>
           <MilestoneWidget
             current={currentMonth.activeProperties}
@@ -307,10 +255,7 @@ export default function DashboardPage() {
 
       {/* Team Challenge + Relances */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Team Challenge */}
         <TeamChallengeWidget members={teamMembers} month={currentMonthLabel} />
-
-        {/* Relances */}
         <Card>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
@@ -323,40 +268,24 @@ export default function DashboardPage() {
               </span>
             )}
           </div>
-
           {allRelances.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-8">
-              Aucune relance dans les 7 prochains jours
-            </p>
+            <p className="text-gray-500 text-sm text-center py-8">Aucune relance dans les 7 prochains jours</p>
           ) : (
             <div className="space-y-3">
               {allRelances.map((owner) => {
                 const isOverdue = new Date(owner.relanceDate) < new Date()
                 return (
-                  <div
-                    key={owner.id}
-                    className={`flex items-start gap-3 p-3 rounded-xl border ${
-                      isOverdue
-                        ? 'border-red-500/20 bg-red-500/5'
-                        : 'border-amber-500/20 bg-amber-500/5'
-                    }`}
-                  >
+                  <div key={owner.id} className={`flex items-start gap-3 p-3 rounded-xl border ${isOverdue ? 'border-red-500/20 bg-red-500/5' : 'border-amber-500/20 bg-amber-500/5'}`}>
                     <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${isOverdue ? 'bg-red-400' : 'bg-amber-400'}`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-medium text-sm">{owner.name}</p>
-                      {owner.relanceNote && (
-                        <p className="text-gray-400 text-xs mt-0.5 truncate">{owner.relanceNote}</p>
-                      )}
+                      {owner.relanceNote && <p className="text-gray-400 text-xs mt-0.5 truncate">{owner.relanceNote}</p>}
                       <p className={`text-xs mt-1 ${isOverdue ? 'text-red-400' : 'text-amber-400'}`}>
-                        {isOverdue ? 'En retard · ' : ''}
-                        {format(new Date(owner.relanceDate), "d MMM", { locale: fr })}
+                        {isOverdue ? 'En retard · ' : ''}{format(new Date(owner.relanceDate), "d MMM", { locale: fr })}
                       </p>
                     </div>
                     {owner.phone && (
-                      <a
-                        href={`tel:${owner.phone}`}
-                        className="text-gray-400 hover:text-white flex-shrink-0 p-1 rounded-lg hover:bg-[#2e2e2e] transition-colors"
-                      >
+                      <a href={`tel:${owner.phone}`} className="text-gray-400 hover:text-white flex-shrink-0 p-1 rounded-lg hover:bg-[#2e2e2e] transition-colors">
                         <Phone className="w-3.5 h-3.5" />
                       </a>
                     )}
@@ -376,86 +305,44 @@ export default function DashboardPage() {
           </div>
           <h3 className="text-white font-semibold">Simulateur de commission</h3>
         </div>
-
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
           <div className="space-y-1.5">
             <label className="text-sm text-gray-400">CA mensuel estimé (€)</label>
-            <input
-              type="number"
-              value={commission.revenue}
-              onChange={(e) => setCommission({ ...commission, revenue: e.target.value })}
-              placeholder="Ex: 10000"
-              className="w-full bg-[#1b1b1b] border border-[#2e2e2e] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#D4AF37] transition-colors"
-            />
+            <input type="number" value={commission.revenue} onChange={(e) => setCommission({ ...commission, revenue: e.target.value })} placeholder="Ex: 10000" className="w-full bg-[#1b1b1b] border border-[#2e2e2e] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#D4AF37] transition-colors" />
           </div>
           <div className="space-y-1.5">
             <label className="text-sm text-gray-400">Taux de commission (%)</label>
-            <input
-              type="number"
-              value={commission.rate}
-              onChange={(e) => setCommission({ ...commission, rate: e.target.value })}
-              placeholder="Ex: 20"
-              className="w-full bg-[#1b1b1b] border border-[#2e2e2e] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#D4AF37] transition-colors"
-            />
+            <input type="number" value={commission.rate} onChange={(e) => setCommission({ ...commission, rate: e.target.value })} placeholder="Ex: 20" className="w-full bg-[#1b1b1b] border border-[#2e2e2e] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#D4AF37] transition-colors" />
           </div>
-          <button
-            onClick={simulateCommission}
-            className="bg-[#D4AF37] text-black font-semibold px-6 py-3 rounded-xl hover:bg-[#E8C84D] transition-colors"
-          >
-            Calculer
-          </button>
+          <button onClick={simulateCommission} className="bg-[#D4AF37] text-black font-semibold px-6 py-3 rounded-xl hover:bg-[#E8C84D] transition-colors">Calculer</button>
         </div>
-
         {commissionResult !== null && (
           <div className="mt-4 p-4 bg-[#D4AF37]/10 border border-[#D4AF37]/20 rounded-xl">
             <p className="text-gray-400 text-sm">Commission estimée</p>
-            <p className="text-[#D4AF37] text-3xl font-bold mt-1">
-              {formatCurrency(commissionResult)}
-            </p>
-            <p className="text-gray-500 text-xs mt-1">
-              = {formatPercent(parseFloat(commission.rate))} de {formatCurrency(parseFloat(commission.revenue))}
-            </p>
+            <p className="text-[#D4AF37] text-3xl font-bold mt-1">{formatCurrency(commissionResult)}</p>
+            <p className="text-gray-500 text-xs mt-1">= {formatPercent(parseFloat(commission.rate))} de {formatCurrency(parseFloat(commission.revenue))}</p>
           </div>
         )}
       </Card>
 
-      {/* Historique mensuel */}
-      {yearOverview.length > 0 && (
-        <HistoriqueSection
-          yearOverview={yearOverview}
-          currentMonth={currentMonth.month}
-          currentYear={currentMonth.year}
-        />
-      )}
-
-      {/* Quick stats row */}
+      {/* Quick stats */}
       {report && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <Card padding="sm" className="text-center">
             <p className="text-gray-400 text-xs mb-1">Taux de marge</p>
-            <p className="text-white font-bold text-lg">
-              {report.caBrut > 0 ? formatPercent((report.netProfit / report.caBrut) * 100) : '—'}
-            </p>
+            <p className="text-white font-bold text-lg">{report.caBrut > 0 ? formatPercent((report.netProfit / report.caBrut) * 100) : '—'}</p>
           </Card>
           <Card padding="sm" className="text-center">
             <p className="text-gray-400 text-xs mb-1">Dépenses</p>
-            <p className="text-red-400 font-bold text-lg">
-              {formatCurrency(report.commissions)}
-            </p>
+            <p className="text-red-400 font-bold text-lg">{formatCurrency(report.commissions)}</p>
           </Card>
           <Card padding="sm" className="text-center">
             <p className="text-gray-400 text-xs mb-1">Taux commission</p>
-            <p className="text-white font-bold text-lg">
-              {report.caBrut > 0 ? formatPercent((report.commissions / report.caBrut) * 100) : '—'}
-            </p>
+            <p className="text-white font-bold text-lg">{report.caBrut > 0 ? formatPercent((report.commissions / report.caBrut) * 100) : '—'}</p>
           </Card>
           <Card padding="sm" className="text-center">
             <p className="text-gray-400 text-xs mb-1">CA / logement</p>
-            <p className="text-white font-bold text-lg">
-              {currentMonth.activeProperties > 0
-                ? formatCurrency(report.caBrut / currentMonth.activeProperties)
-                : '—'}
-            </p>
+            <p className="text-white font-bold text-lg">{currentMonth.activeProperties > 0 ? formatCurrency(report.caBrut / currentMonth.activeProperties) : '—'}</p>
           </Card>
         </div>
       )}

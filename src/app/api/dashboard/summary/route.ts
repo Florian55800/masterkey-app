@@ -1,83 +1,57 @@
 export const dynamic = 'force-dynamic'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const { searchParams } = new URL(req.url)
     const now = new Date()
-    const currentMonth = now.getMonth() + 1
-    const currentYear = now.getFullYear()
+    const selectedMonth = parseInt(searchParams.get('month') ?? String(now.getMonth() + 1))
+    const selectedYear = parseInt(searchParams.get('year') ?? String(now.getFullYear()))
 
-    // Get current month report
+    // Get selected month report
     const currentReport = await prisma.monthlyReport.findUnique({
-      where: { month_year: { month: currentMonth, year: currentYear } },
+      where: { month_year: { month: selectedMonth, year: selectedYear } },
       include: { expenses: true, teamGoals: { include: { user: true } } },
     })
 
-    // Get last 6 months of reports
+    // Get last 6 months relative to selected month
     const last6Months = []
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(currentYear, currentMonth - 1 - i, 1)
+      const d = new Date(selectedYear, selectedMonth - 1 - i, 1)
       last6Months.push({ month: d.getMonth() + 1, year: d.getFullYear() })
     }
 
     const historicalReports = await prisma.monthlyReport.findMany({
-      where: {
-        OR: last6Months.map((m) => ({ month: m.month, year: m.year })),
-      },
+      where: { OR: last6Months.map((m) => ({ month: m.month, year: m.year })) },
       orderBy: [{ year: 'asc' }, { month: 'asc' }],
     })
 
-    // Get active properties count
-    const activeProperties = await prisma.property.count({
-      where: { status: 'active' },
-    })
+    // Active properties count
+    const activeProperties = await prisma.property.count({ where: { status: 'active' } })
 
-    // Get upcoming relances (next 7 days)
+    // Relances (always based on today)
     const today = new Date()
     const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
     const upcomingRelances = await prisma.owner.findMany({
-      where: {
-        relanceDate: {
-          gte: today,
-          lte: nextWeek,
-        },
-      },
-      include: {
-        properties: { where: { status: 'active' } },
-      },
+      where: { relanceDate: { gte: today, lte: nextWeek } },
+      include: { properties: { where: { status: 'active' } } },
       orderBy: { relanceDate: 'asc' },
     })
-
-    // Get overdue relances
     const overdueRelances = await prisma.owner.findMany({
-      where: {
-        relanceDate: {
-          lt: today,
-        },
-      },
-      include: {
-        properties: { where: { status: 'active' } },
-      },
+      where: { relanceDate: { lt: today } },
+      include: { properties: { where: { status: 'active' } } },
       orderBy: { relanceDate: 'asc' },
     })
 
     // Previous month for comparison
-    const prevMonthDate = new Date(currentYear, currentMonth - 2, 1)
+    const prevMonthDate = new Date(selectedYear, selectedMonth - 2, 1)
     const prevReport = await prisma.monthlyReport.findUnique({
-      where: {
-        month_year: {
-          month: prevMonthDate.getMonth() + 1,
-          year: prevMonthDate.getFullYear(),
-        },
-      },
+      where: { month_year: { month: prevMonthDate.getMonth() + 1, year: prevMonthDate.getFullYear() } },
     })
 
-    // Build historical data array with proper ordering
     const historicalData = last6Months.map((m) => {
-      const report = historicalReports.find(
-        (r) => r.month === m.month && r.year === m.year
-      )
+      const report = historicalReports.find((r) => r.month === m.month && r.year === m.year)
       return {
         month: m.month,
         year: m.year,
@@ -89,29 +63,16 @@ export async function GET() {
       }
     })
 
-    // All 12 months of current year for overview
-    const allYearReports = await prisma.monthlyReport.findMany({
-      where: { year: currentYear },
-      orderBy: { month: 'asc' },
+    // All reports for month picker (all years)
+    const allReports = await prisma.monthlyReport.findMany({
+      orderBy: [{ year: 'desc' }, { month: 'desc' }],
+      select: { month: true, year: true },
     })
-
-    const yearOverview = allYearReports.map((report) => ({
-      month: report.month,
-      year: currentYear,
-      hasReport: true,
-      caBrut: report.caBrut,
-      commissions: report.commissions,
-      netProfit: report.netProfit,
-      newSignatures: report.newSignatures,
-      activeProperties: report.activeProperties,
-      totalNights: report.totalNights,
-      notes: report.notes,
-    }))
 
     return NextResponse.json({
       currentMonth: {
-        month: currentMonth,
-        year: currentYear,
+        month: selectedMonth,
+        year: selectedYear,
         report: currentReport,
         activeProperties,
       },
@@ -119,7 +80,7 @@ export async function GET() {
       upcomingRelances,
       overdueRelances,
       prevReport,
-      yearOverview,
+      availableMonths: allReports,
     })
   } catch (error) {
     console.error('Dashboard summary error:', error)

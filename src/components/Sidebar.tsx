@@ -19,6 +19,7 @@ interface User {
   id: number
   name: string
   color: string
+  photo?: string | null
 }
 
 const navItems = [
@@ -122,12 +123,16 @@ export function Sidebar() {
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl mb-2"
               style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}
             >
-              <div
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0"
-                style={{ backgroundColor: user.color, boxShadow: `0 2px 8px ${user.color}50` }}
-              >
-                {user.name.charAt(0)}
-              </div>
+              {user.photo ? (
+                <img src={user.photo} alt={user.name} className="w-7 h-7 rounded-lg object-cover flex-shrink-0" />
+              ) : (
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0"
+                  style={{ backgroundColor: user.color, boxShadow: `0 2px 8px ${user.color}50` }}
+                >
+                  {user.name.charAt(0)}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <p className="text-white text-sm font-medium truncate leading-none mb-0.5">{user.name}</p>
                 <p className="text-white/25 text-xs">Connecté</p>
