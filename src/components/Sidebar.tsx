@@ -27,7 +27,7 @@ const navItems = [
   { href: '/', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/rapports', label: 'Rapports', icon: FileBarChart },
   { href: '/logements', label: 'Logements', icon: Building2 },
-  { href: '/proprietaires', label: 'Propriétaires', icon: Users },
+  { href: '/proprietaires', label: 'Clients', icon: Users },
   { href: '/equipe', label: 'Équipe', icon: TrendingUp },
   { href: '/objectifs', label: 'Objectifs', icon: Target },
   { href: '/depenses', label: 'Dépenses', icon: CreditCard },

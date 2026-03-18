@@ -85,9 +85,14 @@ export default function ProprietairesPage() {
     setLoading(false)
   }
 
-  const tabOwners = owners.filter((o) =>
-    o.properties.some((p) => (p.typeGestion || 'conciergerie') === typeGestionTab)
-  )
+  const tabOwners = owners.filter((o) => {
+    // In "conciergerie" tab: show owners with conciergerie properties + owners with no properties yet
+    if (typeGestionTab === 'conciergerie') {
+      return o.properties.length === 0 || o.properties.some((p) => (p.typeGestion || 'conciergerie') === 'conciergerie')
+    }
+    // In "sous-location" tab: show only owners with sous-location properties
+    return o.properties.some((p) => p.typeGestion === 'sous-location')
+  })
 
   const filteredOwners = tabOwners.filter((o) =>
     o.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -169,9 +174,9 @@ export default function ProprietairesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Propriétaires</h1>
+          <h1 className="text-2xl font-bold text-white">Clients</h1>
           <p className="text-gray-400 mt-1">
-            {owners.length} propriétaire(s) · {activeOwnersCount} actif(s)
+            {owners.length} client(s) · {activeOwnersCount} actif(s)
           </p>
         </div>
         <Button onClick={openCreateModal}>
@@ -183,7 +188,9 @@ export default function ProprietairesPage() {
       {/* TypeGestion Tabs */}
       <div className="flex items-center bg-[#1a1a1a] border border-[#2e2e2e] rounded-2xl p-1 w-fit">
         {(['conciergerie', 'sous-location'] as const).map((tab) => {
-          const count = owners.filter((o) => o.properties.some((p) => (p.typeGestion || 'conciergerie') === tab)).length
+          const count = tab === 'conciergerie'
+            ? owners.filter((o) => o.properties.length === 0 || o.properties.some((p) => (p.typeGestion || 'conciergerie') === 'conciergerie')).length
+            : owners.filter((o) => o.properties.some((p) => p.typeGestion === 'sous-location')).length
           return (
             <button
               key={tab}
@@ -232,7 +239,7 @@ export default function ProprietairesPage() {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Rechercher un propriétaire..."
+          placeholder="Rechercher un client..."
           className="w-full bg-[#242424] border border-[#2e2e2e] rounded-xl pl-11 pr-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#D4AF37] transition-colors"
         />
       </div>
@@ -241,9 +248,9 @@ export default function ProprietairesPage() {
       {filteredOwners.length === 0 ? (
         <EmptyState
           icon={Users}
-          title="Aucun propriétaire trouvé"
-          description="Ajoutez vos premiers propriétaires pour gérer vos relations."
-          actionLabel="Ajouter un propriétaire"
+          title="Aucun client trouvé"
+          description="Ajoutez vos premiers clients pour gérer vos relations."
+          actionLabel="Ajouter un client"
           onAction={openCreateModal}
         />
       ) : (
@@ -355,7 +362,7 @@ export default function ProprietairesPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingOwner ? 'Modifier le propriétaire' : 'Nouveau propriétaire'}
+        title={editingOwner ? 'Modifier le client' : 'Nouveau client'}
         size="lg"
       >
         <div className="space-y-4">
@@ -455,7 +462,7 @@ export default function ProprietairesPage() {
           <div className="flex gap-3 justify-end">
             <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Annuler</Button>
             <Button isLoading={saving} onClick={handleSave}>
-              {editingOwner ? 'Enregistrer' : 'Ajouter le propriétaire'}
+              {editingOwner ? 'Enregistrer' : 'Ajouter le client'}
             </Button>
           </div>
         </div>
