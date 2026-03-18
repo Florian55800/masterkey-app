@@ -26,6 +26,7 @@ interface Property {
   address: string
   city: string
   type: string
+  typeGestion: string
   ownerId: number
   owner: Owner
   commissionRate: number
@@ -48,6 +49,7 @@ export default function LogementsPage() {
   const [properties, setProperties] = useState<Property[]>([])
   const [owners, setOwners] = useState<Owner[]>([])
   const [loading, setLoading] = useState(true)
+  const [typeGestionTab, setTypeGestionTab] = useState<'conciergerie' | 'sous-location'>('conciergerie')
   const [filter, setFilter] = useState<'tous' | 'actifs' | 'inactifs'>('actifs')
   const [cityFilter, setCityFilter] = useState('tous')
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -57,6 +59,7 @@ export default function LogementsPage() {
     address: '',
     city: '',
     type: 'Appartement',
+    typeGestion: 'conciergerie',
     ownerId: '',
     commissionRate: '20',
     dateSigned: format(new Date(), 'yyyy-MM-dd'),
@@ -90,9 +93,10 @@ export default function LogementsPage() {
   }
 
   const activeProperties = properties.filter((p) => p.status === 'active')
-  const cities = Array.from(new Set(properties.map((p) => p.city))).sort()
+  const tabProperties = properties.filter((p) => (p.typeGestion || 'conciergerie') === typeGestionTab)
+  const cities = Array.from(new Set(tabProperties.map((p) => p.city))).sort()
 
-  const filteredProperties = properties.filter((p) => {
+  const filteredProperties = tabProperties.filter((p) => {
     const statusMatch =
       filter === 'tous' ? true : filter === 'actifs' ? p.status === 'active' : p.status !== 'active'
     const cityMatch = cityFilter === 'tous' ? true : p.city === cityFilter
@@ -106,6 +110,7 @@ export default function LogementsPage() {
       address: '',
       city: '',
       type: 'Appartement',
+      typeGestion: typeGestionTab,
       ownerId: owners[0]?.id ? String(owners[0].id) : '',
       commissionRate: '20',
       dateSigned: format(new Date(), 'yyyy-MM-dd'),
@@ -123,6 +128,7 @@ export default function LogementsPage() {
       address: property.address,
       city: property.city,
       type: property.type,
+      typeGestion: property.typeGestion || 'conciergerie',
       ownerId: String(property.ownerId),
       commissionRate: String(property.commissionRate),
       dateSigned: format(new Date(property.dateSigned), 'yyyy-MM-dd'),
@@ -196,21 +202,44 @@ export default function LogementsPage() {
         </Button>
       </div>
 
+      {/* TypeGestion Tabs */}
+      <div className="flex items-center bg-[#1a1a1a] border border-[#2e2e2e] rounded-2xl p-1 w-fit">
+        {(['conciergerie', 'sous-location'] as const).map((tab) => {
+          const count = properties.filter((p) => (p.typeGestion || 'conciergerie') === tab).length
+          return (
+            <button
+              key={tab}
+              onClick={() => { setTypeGestionTab(tab); setCityFilter('tous') }}
+              className={`px-5 py-2 rounded-xl text-sm font-medium transition-all capitalize flex items-center gap-2 ${
+                typeGestionTab === tab
+                  ? 'bg-[#D4AF37] text-black'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {tab === 'conciergerie' ? 'Conciergerie' : 'Sous-location'}
+              <span className={`text-xs px-1.5 py-0.5 rounded-md font-semibold ${typeGestionTab === tab ? 'bg-black/20 text-black/70' : 'bg-[#2e2e2e] text-gray-500'}`}>
+                {count}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
       {/* Stats Row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Card padding="sm" className="text-center">
           <p className="text-gray-400 text-xs mb-1">Actifs</p>
-          <p className="text-[#D4AF37] font-bold text-2xl">{activeProperties.length}</p>
+          <p className="text-[#D4AF37] font-bold text-2xl">{tabProperties.filter(p => p.status === 'active').length}</p>
         </Card>
         <Card padding="sm" className="text-center">
           <p className="text-gray-400 text-xs mb-1">Inactifs</p>
-          <p className="text-red-400 font-bold text-2xl">{properties.filter((p) => p.status !== 'active').length}</p>
+          <p className="text-red-400 font-bold text-2xl">{tabProperties.filter((p) => p.status !== 'active').length}</p>
         </Card>
         <Card padding="sm" className="text-center">
           <p className="text-gray-400 text-xs mb-1">Comm. moy.</p>
           <p className="text-white font-bold text-2xl">
-            {activeProperties.length > 0
-              ? formatPercent(activeProperties.reduce((s, p) => s + p.commissionRate, 0) / activeProperties.length)
+            {tabProperties.filter(p => p.status === 'active').length > 0
+              ? formatPercent(tabProperties.filter(p => p.status === 'active').reduce((s, p) => s + p.commissionRate, 0) / tabProperties.filter(p => p.status === 'active').length)
               : '—'}
           </p>
         </Card>
@@ -391,6 +420,15 @@ export default function LogementsPage() {
               ))}
             </Select>
           </div>
+
+          <Select
+            label="Type de gestion"
+            value={form.typeGestion}
+            onChange={(e) => setForm({ ...form, typeGestion: e.target.value })}
+          >
+            <option value="conciergerie">Conciergerie</option>
+            <option value="sous-location">Sous-location</option>
+          </Select>
 
           <Input
             label="Adresse"

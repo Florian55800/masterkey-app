@@ -12,6 +12,7 @@ import {
   TrendingUp,
   CreditCard,
   LogOut,
+  UserSearch,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -30,6 +31,7 @@ const navItems = [
   { href: '/equipe', label: 'Équipe', icon: TrendingUp },
   { href: '/objectifs', label: 'Objectifs', icon: Target },
   { href: '/depenses', label: 'Dépenses', icon: CreditCard },
+  { href: '/leads', label: 'Leads', icon: UserSearch },
 ]
 
 export function Sidebar() {

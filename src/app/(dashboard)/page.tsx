@@ -87,8 +87,8 @@ export default function DashboardPage() {
   const [selectedYear, setSelectedYear] = useState(now.getFullYear())
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [commission, setCommission] = useState({ revenue: '', rate: '20' })
-  const [commissionResult, setCommissionResult] = useState<number | null>(null)
+  const [simulator, setSimulator] = useState({ nbLogements: '', prixMoyen: '' })
+  const [simulatorResult, setSimulatorResult] = useState<number | null>(null)
   const [showMonthPicker, setShowMonthPicker] = useState(false)
   const pickerRef = useRef<HTMLDivElement>(null)
 
@@ -110,10 +110,10 @@ export default function DashboardPage() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  const simulateCommission = () => {
-    const rev = parseFloat(commission.revenue)
-    const rate = parseFloat(commission.rate)
-    if (!isNaN(rev) && !isNaN(rate)) setCommissionResult((rev * rate) / 100)
+  const runSimulator = () => {
+    const nb = parseFloat(simulator.nbLogements)
+    const prix = parseFloat(simulator.prixMoyen)
+    if (!isNaN(nb) && !isNaN(prix)) setSimulatorResult(nb * prix)
   }
 
   if (loading) return <LoadingPage />
@@ -297,30 +297,30 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Commission Simulator */}
+      {/* Revenue Simulator */}
       <Card>
         <div className="flex items-center gap-2 mb-6">
           <div className="w-8 h-8 rounded-lg bg-[#D4AF37]/20 flex items-center justify-center">
             <Calculator className="w-4 h-4 text-[#D4AF37]" />
           </div>
-          <h3 className="text-white font-semibold">Simulateur de commission</h3>
+          <h3 className="text-white font-semibold">Simulateur de revenus</h3>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
           <div className="space-y-1.5">
-            <label className="text-sm text-gray-400">CA mensuel estimé (€)</label>
-            <input type="number" value={commission.revenue} onChange={(e) => setCommission({ ...commission, revenue: e.target.value })} placeholder="Ex: 10000" className="w-full bg-[#1b1b1b] border border-[#2e2e2e] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#D4AF37] transition-colors" />
+            <label className="text-sm text-gray-400">Nombre de logements</label>
+            <input type="number" value={simulator.nbLogements} onChange={(e) => setSimulator({ ...simulator, nbLogements: e.target.value })} placeholder="Ex: 15" className="w-full bg-[#1b1b1b] border border-[#2e2e2e] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#D4AF37] transition-colors" />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm text-gray-400">Taux de commission (%)</label>
-            <input type="number" value={commission.rate} onChange={(e) => setCommission({ ...commission, rate: e.target.value })} placeholder="Ex: 20" className="w-full bg-[#1b1b1b] border border-[#2e2e2e] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#D4AF37] transition-colors" />
+            <label className="text-sm text-gray-400">Prix moyen / logement (€)</label>
+            <input type="number" value={simulator.prixMoyen} onChange={(e) => setSimulator({ ...simulator, prixMoyen: e.target.value })} placeholder="Ex: 800" className="w-full bg-[#1b1b1b] border border-[#2e2e2e] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#D4AF37] transition-colors" />
           </div>
-          <button onClick={simulateCommission} className="bg-[#D4AF37] text-black font-semibold px-6 py-3 rounded-xl hover:bg-[#E8C84D] transition-colors">Calculer</button>
+          <button onClick={runSimulator} className="bg-[#D4AF37] text-black font-semibold px-6 py-3 rounded-xl hover:bg-[#E8C84D] transition-colors">Calculer</button>
         </div>
-        {commissionResult !== null && (
+        {simulatorResult !== null && (
           <div className="mt-4 p-4 bg-[#D4AF37]/10 border border-[#D4AF37]/20 rounded-xl">
-            <p className="text-gray-400 text-sm">Commission estimée</p>
-            <p className="text-[#D4AF37] text-3xl font-bold mt-1">{formatCurrency(commissionResult)}</p>
-            <p className="text-gray-500 text-xs mt-1">= {formatPercent(parseFloat(commission.rate))} de {formatCurrency(parseFloat(commission.revenue))}</p>
+            <p className="text-gray-400 text-sm">CA mensuel estimé</p>
+            <p className="text-[#D4AF37] text-3xl font-bold mt-1">{formatCurrency(simulatorResult)}</p>
+            <p className="text-gray-500 text-xs mt-1">= {simulator.nbLogements} logements × {formatCurrency(parseFloat(simulator.prixMoyen))}</p>
           </div>
         )}
       </Card>

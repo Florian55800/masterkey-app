@@ -41,6 +41,7 @@ model Property {
   address        String
   city           String
   type           String
+  typeGestion    String    @default("conciergerie")
   ownerId        Int
   owner          Owner     @relation(fields: [ownerId], references: [id])
   commissionRate Float
@@ -112,4 +113,24 @@ model City {
   id       Int     @id @default(autoincrement())
   name     String  @unique
   isActive Boolean @default(false)
+}
+
+model Lead {
+  id           Int       @id @default(autoincrement())
+  nom          String
+  email        String?
+  telephone    String?
+  adresseBien  String?
+  ville        String?
+  typeBien     String?
+  nbChambres   String?
+  surface      Float?
+  lienAnnonce  String?
+  statut       String    @default("À contacter")
+  commentaires String?
+  dateContact  DateTime  @default(now())
+  relanceDate  DateTime?
+  relanceNote  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }

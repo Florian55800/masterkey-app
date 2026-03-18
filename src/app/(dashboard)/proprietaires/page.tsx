@@ -26,6 +26,7 @@ interface Property {
   id: number
   name: string
   status: string
+  typeGestion: string
 }
 
 interface Owner {
@@ -47,6 +48,7 @@ const SOURCES = ['Recommandation', 'Réseaux sociaux', 'Bouche à oreille', 'Pro
 export default function ProprietairesPage() {
   const [owners, setOwners] = useState<Owner[]>([])
   const [loading, setLoading] = useState(true)
+  const [typeGestionTab, setTypeGestionTab] = useState<'conciergerie' | 'sous-location'>('conciergerie')
   const [search, setSearch] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingOwner, setEditingOwner] = useState<Owner | null>(null)
@@ -83,7 +85,11 @@ export default function ProprietairesPage() {
     setLoading(false)
   }
 
-  const filteredOwners = owners.filter((o) =>
+  const tabOwners = owners.filter((o) =>
+    o.properties.some((p) => (p.typeGestion || 'conciergerie') === typeGestionTab)
+  )
+
+  const filteredOwners = tabOwners.filter((o) =>
     o.name.toLowerCase().includes(search.toLowerCase()) ||
     o.email?.toLowerCase().includes(search.toLowerCase()) ||
     o.phone?.includes(search)
@@ -152,9 +158,9 @@ export default function ProprietairesPage() {
     }
   }
 
-  const overdueCount = owners.filter((o) => getRelanceStatus(o) === 'overdue').length
-  const upcomingCount = owners.filter((o) => getRelanceStatus(o) === 'upcoming').length
-  const activeOwnersCount = owners.filter((o) => o.properties.some((p) => p.status === 'active')).length
+  const overdueCount = tabOwners.filter((o) => getRelanceStatus(o) === 'overdue').length
+  const upcomingCount = tabOwners.filter((o) => getRelanceStatus(o) === 'upcoming').length
+  const activeOwnersCount = tabOwners.filter((o) => o.properties.some((p) => p.status === 'active')).length
 
   if (loading) return <LoadingPage />
 
@@ -172,6 +178,29 @@ export default function ProprietairesPage() {
           <Plus className="w-4 h-4" />
           Ajouter
         </Button>
+      </div>
+
+      {/* TypeGestion Tabs */}
+      <div className="flex items-center bg-[#1a1a1a] border border-[#2e2e2e] rounded-2xl p-1 w-fit">
+        {(['conciergerie', 'sous-location'] as const).map((tab) => {
+          const count = owners.filter((o) => o.properties.some((p) => (p.typeGestion || 'conciergerie') === tab)).length
+          return (
+            <button
+              key={tab}
+              onClick={() => { setTypeGestionTab(tab); setSearch('') }}
+              className={`px-5 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
+                typeGestionTab === tab
+                  ? 'bg-[#D4AF37] text-black'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {tab === 'conciergerie' ? 'Conciergerie' : 'Sous-location'}
+              <span className={`text-xs px-1.5 py-0.5 rounded-md font-semibold ${typeGestionTab === tab ? 'bg-black/20 text-black/70' : 'bg-[#2e2e2e] text-gray-500'}`}>
+                {count}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Alert badges */}

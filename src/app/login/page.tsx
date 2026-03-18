@@ -7,6 +7,7 @@ interface User {
   id: number
   name: string
   color: string
+  photo?: string | null
 }
 
 export default function LoginPage() {
@@ -146,12 +147,16 @@ export default function LoginPage() {
                     ;(e.currentTarget as HTMLElement).style.border = '1px solid rgba(255,255,255,0.06)'
                   }}
                 >
-                  <div
-                    className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-base flex-shrink-0"
-                    style={{ backgroundColor: user.color, boxShadow: `0 4px 12px ${user.color}40` }}
-                  >
-                    {user.name.charAt(0)}
-                  </div>
+                  {user.photo ? (
+                    <img src={user.photo} alt={user.name} className="w-11 h-11 rounded-xl object-cover flex-shrink-0" style={{ boxShadow: `0 4px 12px rgba(0,0,0,0.3)` }} />
+                  ) : (
+                    <div
+                      className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-base flex-shrink-0"
+                      style={{ backgroundColor: user.color, boxShadow: `0 4px 12px ${user.color}40` }}
+                    >
+                      {user.name.charAt(0)}
+                    </div>
+                  )}
                   <span className="text-white font-medium text-base flex-1">
                     {user.name}
                   </span>
@@ -188,12 +193,16 @@ export default function LoginPage() {
             </button>
 
             <div className="flex items-center gap-3 mb-8">
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0"
-                style={{ backgroundColor: selectedUser.color, boxShadow: `0 4px 16px ${selectedUser.color}40` }}
-              >
-                {selectedUser.name.charAt(0)}
-              </div>
+              {selectedUser.photo ? (
+                <img src={selectedUser.photo} alt={selectedUser.name} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" style={{ boxShadow: `0 4px 16px rgba(0,0,0,0.3)` }} />
+              ) : (
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0"
+                  style={{ backgroundColor: selectedUser.color, boxShadow: `0 4px 16px ${selectedUser.color}40` }}
+                >
+                  {selectedUser.name.charAt(0)}
+                </div>
+              )}
               <div>
                 <p className="text-white font-semibold">{selectedUser.name}</p>
                 <p className="text-white/35 text-sm">Entrez votre code PIN</p>
