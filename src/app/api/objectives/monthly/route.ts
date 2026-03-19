@@ -41,6 +41,11 @@ export async function GET() {
       select: { createdAt: true, statut: true },
     })
 
+    // Live count of active conciergerie properties (exclude sous-location — different business model)
+    const conciergerieCount = await prisma.property.count({
+      where: { status: 'active', typeGestion: 'conciergerie' },
+    })
+
     const result = periods.map((period) => {
       const stored = storedObjectives.find(
         (o) => o.month === period.month && o.year === period.year
@@ -64,21 +69,21 @@ export async function GET() {
           return d.getMonth() + 1 === period.month && d.getFullYear() === period.year
         }).length
 
-        // Visites + appels: sum across team members for this report
+        // Visites: sum across team members for this report
         const teamGoalsForMonth = report ? report.teamGoals : []
         const totalVisites = teamGoalsForMonth.reduce((s, g) => s + g.appointmentsMade, 0)
-        const totalAppels = teamGoalsForMonth.reduce((s, g) => s + ((g as any).callsMade || 0), 0)
 
         actuals = {
           leads: leadsThisMonth,
           signatures: report?.newSignatures ?? 0,
           visites: totalVisites,
-          appels: totalAppels,
+          appels: 0,
+          // caParLogement uses only conciergerie properties (sous-location excluded)
           caParLogement:
-            report && report.activeProperties > 0
-              ? Math.round(report.caBrut / report.activeProperties)
+            report && conciergerieCount > 0
+              ? Math.round(report.caBrut / conciergerieCount)
               : null,
-          logements: report?.activeProperties ?? null,
+          logements: conciergerieCount,
         }
       } else {
         // Annual 2027: no actuals yet

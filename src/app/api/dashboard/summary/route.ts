@@ -30,7 +30,8 @@ export async function GET(req: NextRequest) {
     // Active properties count:
     // For historical months, use the stored value in the report (snapshot at time of report).
     // For the current month (or if no report exists), count live from DB.
-    const liveActiveProperties = await prisma.property.count({ where: { status: 'active' } })
+    // Only count conciergerie properties (sous-location is a separate business, excluded from commission KPIs)
+    const liveActiveProperties = await prisma.property.count({ where: { status: 'active', typeGestion: 'conciergerie' } })
     const activeProperties = currentReport?.activeProperties ?? liveActiveProperties
 
     // Relances (always based on today)

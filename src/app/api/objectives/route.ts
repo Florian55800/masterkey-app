@@ -5,15 +5,16 @@ import { prisma } from '@/lib/prisma'
 export async function GET() {
   try {
     const [activeProperties, cities, reports, propertyCities] = await Promise.all([
-      prisma.property.count({ where: { status: 'active' } }),
+      // Only count conciergerie properties (sous-location is a different business model)
+      prisma.property.count({ where: { status: 'active', typeGestion: 'conciergerie' } }),
       prisma.city.findMany({ orderBy: { name: 'asc' } }),
       prisma.monthlyReport.findMany({
         orderBy: [{ year: 'desc' }, { month: 'desc' }],
         take: 12,
       }),
-      // Count distinct cities from active properties (source of truth)
+      // Count distinct cities from active conciergerie properties (source of truth)
       prisma.property.findMany({
-        where: { status: 'active' },
+        where: { status: 'active', typeGestion: 'conciergerie' },
         select: { city: true },
         distinct: ['city'],
       }),

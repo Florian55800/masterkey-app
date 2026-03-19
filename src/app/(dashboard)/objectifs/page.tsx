@@ -140,7 +140,7 @@ function KPIObjectiveCard({
 }) {
   const Icon = config.icon
   const hasTarget = target !== null && target > 0
-  const hasActual = actual !== null
+  const hasActual = actual !== null && actual !== undefined
   const percent = hasTarget && hasActual ? (actual! / target!) * 100 : 0
   const isAchieved = percent >= 100
 
@@ -152,8 +152,18 @@ function KPIObjectiveCard({
     ? 'bg-amber-500'
     : 'bg-white/20'
 
+  const textColor = isAchieved
+    ? 'text-green-400'
+    : percent >= 70
+    ? 'text-[#D4AF37]'
+    : percent >= 40
+    ? 'text-amber-500'
+    : config.color
+
   return (
-    <div className="bg-[#181818] border border-white/[0.06] rounded-2xl p-4 flex flex-col gap-3">
+    <div className={`bg-[#181818] border rounded-2xl p-4 flex flex-col gap-3 transition-all ${
+      isAchieved ? 'border-green-500/20' : 'border-white/[0.06]'
+    }`}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -163,39 +173,51 @@ function KPIObjectiveCard({
           <span className="text-white/60 text-sm font-medium">{config.label}</span>
         </div>
         {isAchieved && hasActual && (
-          <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center">
+          <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 rounded-full px-2 py-0.5">
             <Check className="w-3 h-3 text-green-400" />
+            <span className="text-green-400 text-[10px] font-medium">Atteint</span>
           </div>
         )}
       </div>
 
-      {/* Values */}
-      <div className="flex items-end justify-between">
+      {/* Fraction X / Y — central, prominent */}
+      {hasTarget ? (
+        <div className="flex items-baseline gap-1.5">
+          <span className={`text-3xl font-bold leading-none ${hasActual ? textColor : 'text-white/20'}`}>
+            {hasActual ? config.formatValue(actual!) : '0'}
+          </span>
+          <span className="text-white/25 text-xl font-light">/</span>
+          <span className="text-white/50 text-xl font-semibold">
+            {config.formatValue(target!)}
+          </span>
+        </div>
+      ) : (
         <div>
-          <p className={`text-2xl font-bold ${hasActual ? config.color : 'text-white/20'}`}>
+          <p className={`text-3xl font-bold ${hasActual ? config.color : 'text-white/20'}`}>
             {hasActual ? config.formatValue(actual!) : '—'}
           </p>
-          <p className="text-white/30 text-xs mt-0.5">réalisé</p>
+          <p className="text-white/30 text-xs mt-0.5">Pas de cible définie</p>
         </div>
-        <div className="text-right">
-          <p className={`text-lg font-semibold ${hasTarget ? 'text-white/60' : 'text-white/20'}`}>
-            {hasTarget ? config.formatValue(target!) : 'Pas de cible'}
-          </p>
-          <p className="text-white/30 text-xs mt-0.5">objectif</p>
-        </div>
-      </div>
+      )}
 
       {/* Progress bar */}
       {hasTarget && (
         <>
-          <ProgressBar percent={percent} color={barColor} />
-          <p className="text-white/40 text-xs">
-            {hasActual
-              ? isAchieved
-                ? `✓ Objectif atteint (${Math.round(percent)}%)`
-                : `${Math.round(percent)}% — ${config.formatValue(target! - actual!)} restant${config.key === 'caParLogement' ? '' : 's'}`
-              : 'Pas encore de données'}
-          </p>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-white/30 text-[11px]">
+                {hasActual
+                  ? isAchieved
+                    ? '✓ Objectif atteint !'
+                    : `${config.formatValue(target! - actual!)} restant${config.key === 'caParLogement' ? '' : 's'}`
+                  : 'Aucune donnée'}
+              </span>
+              <span className={`text-[11px] font-semibold ${hasActual && percent > 0 ? textColor : 'text-white/20'}`}>
+                {hasActual ? `${Math.round(percent)}%` : '0%'}
+              </span>
+            </div>
+            <ProgressBar percent={percent} color={barColor} />
+          </div>
         </>
       )}
     </div>
