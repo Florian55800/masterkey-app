@@ -10,6 +10,7 @@ export async function POST(request: NextRequest) {
       reportId,
       propertiesSigned,
       appointmentsMade,
+      callsMade,
       personalGoal,
       goalStatus,
     } = body
@@ -25,6 +26,7 @@ export async function POST(request: NextRequest) {
       update: {
         propertiesSigned: propertiesSigned !== undefined ? Number(propertiesSigned) : undefined,
         appointmentsMade: appointmentsMade !== undefined ? Number(appointmentsMade) : undefined,
+        callsMade: callsMade !== undefined ? Number(callsMade) : undefined,
         personalGoal: personalGoal !== undefined ? personalGoal : undefined,
         goalStatus: goalStatus !== undefined ? goalStatus : undefined,
       },
@@ -33,6 +35,7 @@ export async function POST(request: NextRequest) {
         reportId: Number(reportId),
         propertiesSigned: Number(propertiesSigned) || 0,
         appointmentsMade: Number(appointmentsMade) || 0,
+        callsMade: Number(callsMade) || 0,
         personalGoal: personalGoal || null,
         goalStatus: goalStatus || 'en_cours',
       },

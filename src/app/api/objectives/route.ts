@@ -4,16 +4,23 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    const [activeProperties, cities, reports] = await Promise.all([
+    const [activeProperties, cities, reports, propertyCities] = await Promise.all([
       prisma.property.count({ where: { status: 'active' } }),
       prisma.city.findMany({ orderBy: { name: 'asc' } }),
       prisma.monthlyReport.findMany({
         orderBy: [{ year: 'desc' }, { month: 'desc' }],
         take: 12,
       }),
+      // Count distinct cities from active properties (source of truth)
+      prisma.property.findMany({
+        where: { status: 'active' },
+        select: { city: true },
+        distinct: ['city'],
+      }),
     ])
 
-    const activeCities = cities.filter((c) => c.isActive).length
+    // activeCities = distinct cities from active properties (not manual toggle)
+    const activeCities = propertyCities.length
     const totalReports = reports.length
     const totalRevenue = reports.reduce((sum, r) => sum + r.caBrut, 0)
     const totalNights = reports.reduce((sum, r) => sum + r.totalNights, 0)

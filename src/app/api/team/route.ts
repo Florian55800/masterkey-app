@@ -32,6 +32,7 @@ export async function GET() {
     const usersWithStats = users.map((user) => {
       const totalSigned = user.teamGoals.reduce((sum, g) => sum + g.propertiesSigned, 0)
       const totalAppointments = user.teamGoals.reduce((sum, g) => sum + g.appointmentsMade, 0)
+      const totalCalls = user.teamGoals.reduce((sum, g) => sum + (g.callsMade ?? 0), 0)
       const goalsAchieved = user.teamGoals.filter((g) => g.goalStatus === 'atteint').length
       const currentGoal = user.teamGoals.find(
         (g) => g.report.month === currentMonth && g.report.year === currentYear
@@ -43,6 +44,7 @@ export async function GET() {
         photo: user.photo ?? null,
         totalSigned,
         totalAppointments,
+        totalCalls,
         goalsAchieved,
         currentGoal: currentGoal || null,
       }

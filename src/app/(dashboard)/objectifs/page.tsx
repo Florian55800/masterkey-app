@@ -1,378 +1,513 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Trophy, MapPin, Lock, Unlock, Calculator, Star } from 'lucide-react'
+import { useEffect, useState, useMemo } from 'react'
+import {
+  Target, UserSearch, PenSquare, Phone, Calendar, Building2,
+  Euro, TrendingUp, Trophy, Lock, ChevronRight, Edit2, X, Check
+} from 'lucide-react'
 import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
 import { LoadingPage } from '@/components/ui/LoadingSpinner'
-import { formatCurrency, formatPercent, getMilestoneProgress } from '@/lib/utils'
+import { formatCurrency, getMilestoneProgress } from '@/lib/utils'
 
-interface City {
-  id: number
-  name: string
-  isActive: boolean
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface PeriodTargets {
+  leads: number
+  signatures: number
+  visites: number
+  appels: number
+  caParLogement: number
+  logements: number
 }
 
-interface MilestoneItem {
-  value: number
+interface PeriodActuals {
+  leads: number
+  signatures: number
+  visites: number
+  appels: number
+  caParLogement: number | null
+  logements: number | null
+}
+
+interface Period {
+  month: number
+  year: number
   label: string
-  unlocked: boolean
-}
-
-interface MilestoneCategory {
-  current: number
-  milestones: MilestoneItem[]
+  isAnnual: boolean
+  targets: PeriodTargets | null
+  actuals: PeriodActuals | null
 }
 
 interface ObjectivesData {
-  milestones: {
-    properties: MilestoneCategory
-    cities: MilestoneCategory
-    revenue: MilestoneCategory
-  }
-  cities: City[]
   activeProperties: number
   activeCities: number
   totalRevenue: number
-  totalNights: number
 }
 
-const BADGES = [
-  { id: 'first_property', label: 'Premier logement', description: 'Signer votre 1er logement', threshold: 1, metric: 'properties', icon: '🏠' },
-  { id: 'five_properties', label: '5 logements', description: 'Atteindre 5 logements actifs', threshold: 5, metric: 'properties', icon: '⭐' },
-  { id: 'ten_properties', label: '10 logements', description: 'Atteindre 10 logements actifs', threshold: 10, metric: 'properties', icon: '🔥' },
-  { id: 'twentyfive_properties', label: '25 logements', description: 'Atteindre 25 logements actifs', threshold: 25, metric: 'properties', icon: '💫' },
-  { id: 'fifty_properties', label: '50 logements', description: 'Atteindre 50 logements actifs', threshold: 50, metric: 'properties', icon: '🚀' },
-  { id: 'hundred_properties', label: '100 logements', description: 'Atteindre 100 logements', threshold: 100, metric: 'properties', icon: '👑' },
-  { id: 'first_city', label: 'Première ville', description: 'Couvrir une ville', threshold: 1, metric: 'cities', icon: '🌆' },
-  { id: 'three_cities', label: '3 villes', description: 'Couvrir 3 villes', threshold: 3, metric: 'cities', icon: '🗺️' },
-  { id: 'five_cities', label: '5 villes', description: 'Couvrir toute la Lorraine', threshold: 5, metric: 'cities', icon: '🏆' },
-  { id: 'revenue_10k', label: '10 000€ CA', description: 'Atteindre 10k€ de CA cumulé', threshold: 10000, metric: 'revenue', icon: '💰' },
-  { id: 'revenue_50k', label: '50 000€ CA', description: 'Atteindre 50k€ de CA cumulé', threshold: 50000, metric: 'revenue', icon: '💎' },
-  { id: 'revenue_100k', label: '100 000€ CA', description: 'Atteindre 100k€ de CA cumulé', threshold: 100000, metric: 'revenue', icon: '🌟' },
+// ─── KPI Config ───────────────────────────────────────────────────────────────
+
+const KPI_CONFIG = [
+  {
+    key: 'leads' as const,
+    label: 'Leads générés',
+    icon: UserSearch,
+    color: 'text-blue-400',
+    bg: 'bg-blue-400/10',
+    unit: 'leads',
+    formatValue: (v: number) => String(v),
+  },
+  {
+    key: 'signatures' as const,
+    label: 'Signatures',
+    icon: PenSquare,
+    color: 'text-[#D4AF37]',
+    bg: 'bg-[#D4AF37]/10',
+    unit: 'signatures',
+    formatValue: (v: number) => String(v),
+  },
+  {
+    key: 'visites' as const,
+    label: 'Visites / RDV',
+    icon: Calendar,
+    color: 'text-purple-400',
+    bg: 'bg-purple-400/10',
+    unit: 'visites',
+    formatValue: (v: number) => String(v),
+  },
+  {
+    key: 'appels' as const,
+    label: 'Appels passés',
+    icon: Phone,
+    color: 'text-green-400',
+    bg: 'bg-green-400/10',
+    unit: 'appels',
+    formatValue: (v: number) => String(v),
+  },
+  {
+    key: 'caParLogement' as const,
+    label: 'CA / logement',
+    icon: Euro,
+    color: 'text-amber-400',
+    bg: 'bg-amber-400/10',
+    unit: '€',
+    formatValue: (v: number) => formatCurrency(v),
+  },
+  {
+    key: 'logements' as const,
+    label: 'Logements actifs',
+    icon: Building2,
+    color: 'text-indigo-400',
+    bg: 'bg-indigo-400/10',
+    unit: 'logements',
+    formatValue: (v: number) => String(v),
+  },
 ]
 
-const PROPERTY_MILESTONES = [5, 10, 25, 50, 100]
-const CITY_MILESTONES = [1, 3, 5]
+const PROPERTY_MILESTONES = [
+  { value: 5, label: 'Premier pas' },
+  { value: 10, label: 'En route' },
+  { value: 25, label: 'En croissance' },
+  { value: 50, label: 'Leader local' },
+  { value: 100, label: 'Référence' },
+]
 
-export default function ObjectifsPage() {
-  const [data, setData] = useState<ObjectivesData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [togglingCity, setTogglingCity] = useState<number | null>(null)
-  const [commission, setCommission] = useState({
-    avgRevenue: '10000',
-    properties: '5',
-    rate: '20',
-    months: '12',
+// ─── Progress Ring ─────────────────────────────────────────────────────────────
+
+function ProgressBar({ percent, color }: { percent: number; color: string }) {
+  const pct = Math.min(100, Math.max(0, percent))
+  return (
+    <div className="h-1.5 bg-[#1b1b1b] rounded-full overflow-hidden mt-3">
+      <div
+        className={`h-full rounded-full transition-all duration-500 ${color}`}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  )
+}
+
+// ─── KPI Card ──────────────────────────────────────────────────────────────────
+
+function KPIObjectiveCard({
+  config,
+  target,
+  actual,
+}: {
+  config: (typeof KPI_CONFIG)[0]
+  target: number | null
+  actual: number | null
+}) {
+  const Icon = config.icon
+  const hasTarget = target !== null && target > 0
+  const hasActual = actual !== null
+  const percent = hasTarget && hasActual ? (actual! / target!) * 100 : 0
+  const isAchieved = percent >= 100
+
+  const barColor = isAchieved
+    ? 'bg-green-400'
+    : percent >= 70
+    ? 'bg-[#D4AF37]'
+    : percent >= 40
+    ? 'bg-amber-500'
+    : 'bg-white/20'
+
+  return (
+    <div className="bg-[#181818] border border-white/[0.06] rounded-2xl p-4 flex flex-col gap-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${config.bg}`}>
+            <Icon className={`w-4 h-4 ${config.color}`} />
+          </div>
+          <span className="text-white/60 text-sm font-medium">{config.label}</span>
+        </div>
+        {isAchieved && hasActual && (
+          <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center">
+            <Check className="w-3 h-3 text-green-400" />
+          </div>
+        )}
+      </div>
+
+      {/* Values */}
+      <div className="flex items-end justify-between">
+        <div>
+          <p className={`text-2xl font-bold ${hasActual ? config.color : 'text-white/20'}`}>
+            {hasActual ? config.formatValue(actual!) : '—'}
+          </p>
+          <p className="text-white/30 text-xs mt-0.5">réalisé</p>
+        </div>
+        <div className="text-right">
+          <p className={`text-lg font-semibold ${hasTarget ? 'text-white/60' : 'text-white/20'}`}>
+            {hasTarget ? config.formatValue(target!) : 'Pas de cible'}
+          </p>
+          <p className="text-white/30 text-xs mt-0.5">objectif</p>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      {hasTarget && (
+        <>
+          <ProgressBar percent={percent} color={barColor} />
+          <p className="text-white/40 text-xs">
+            {hasActual
+              ? isAchieved
+                ? `✓ Objectif atteint (${Math.round(percent)}%)`
+                : `${Math.round(percent)}% — ${config.formatValue(target! - actual!)} restant${config.key === 'caParLogement' ? '' : 's'}`
+              : 'Pas encore de données'}
+          </p>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Edit Modal ───────────────────────────────────────────────────────────────
+
+function EditObjectiveModal({
+  isOpen,
+  onClose,
+  period,
+  onSave,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  period: Period | null
+  onSave: (targets: PeriodTargets) => Promise<void>
+}) {
+  const [form, setForm] = useState<PeriodTargets>({
+    leads: 0, signatures: 0, visites: 0, appels: 0, caParLogement: 0, logements: 0,
   })
-  const [simResult, setSimResult] = useState<{
-    annualCA: number
-    annualCommission: number
-    monthlyCommission: number
-  } | null>(null)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    loadData()
+    if (period?.targets) {
+      setForm(period.targets)
+    } else {
+      setForm({ leads: 0, signatures: 0, visites: 0, appels: 0, caParLogement: 0, logements: 0 })
+    }
+  }, [period])
+
+  const handleSave = async () => {
+    setSaving(true)
+    await onSave(form)
+    setSaving(false)
+    onClose()
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Objectifs — ${period?.label ?? ''}`}>
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          {KPI_CONFIG.map((kpi) => (
+            <div key={kpi.key} className="space-y-1.5">
+              <label className="text-sm text-white/40 flex items-center gap-1.5">
+                <kpi.icon className={`w-3.5 h-3.5 ${kpi.color}`} />
+                {kpi.label}
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={form[kpi.key] || ''}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, [kpi.key]: parseFloat(e.target.value) || 0 }))
+                }
+                placeholder="0"
+                className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40 transition-colors"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-3 justify-end pt-2">
+          <Button variant="ghost" onClick={onClose}>Annuler</Button>
+          <Button isLoading={saving} onClick={handleSave}>Enregistrer</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function ObjectifsPage() {
+  const [periods, setPeriods] = useState<Period[]>([])
+  const [overviewData, setOverviewData] = useState<ObjectivesData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [selectedIdx, setSelectedIdx] = useState(0)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+
+  useEffect(() => {
+    loadAll()
   }, [])
 
-  const loadData = async () => {
-    const res = await fetch('/api/objectives')
-    const d = await res.json()
-    setData(d)
+  const loadAll = async () => {
+    const [monthlyRes, overviewRes] = await Promise.all([
+      fetch('/api/objectives/monthly'),
+      fetch('/api/objectives'),
+    ])
+    const [monthlyData, overview] = await Promise.all([monthlyRes.json(), overviewRes.json()])
+    setPeriods(monthlyData.periods ?? [])
+    setOverviewData(overview)
     setLoading(false)
   }
 
-  const handleToggleCity = async (cityId: number) => {
-    setTogglingCity(cityId)
-    await fetch(`/api/objectives/cities/${cityId}`, { method: 'POST' })
-    await loadData()
-    setTogglingCity(null)
+  const selectedPeriod = periods[selectedIdx] ?? null
+
+  const handleSaveTargets = async (targets: PeriodTargets) => {
+    if (!selectedPeriod) return
+    await fetch('/api/objectives/monthly', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ month: selectedPeriod.month, year: selectedPeriod.year, targets }),
+    })
+    await loadAll()
   }
 
-  const simulate = () => {
-    const avg = parseFloat(commission.avgRevenue)
-    const props = parseFloat(commission.properties)
-    const rate = parseFloat(commission.rate)
-    const months = parseFloat(commission.months)
-
-    if (!isNaN(avg) && !isNaN(props) && !isNaN(rate) && !isNaN(months)) {
-      const monthlyCA = avg * props
-      const annualCA = monthlyCA * months
-      const annualCommission = (annualCA * rate) / 100
-      setSimResult({ annualCA, annualCommission, monthlyCommission: annualCommission / 12 })
-    }
-  }
+  const propProgress = useMemo(() => {
+    if (!overviewData) return { percent: 0, next: null }
+    return getMilestoneProgress(overviewData.activeProperties, PROPERTY_MILESTONES)
+  }, [overviewData])
 
   if (loading) return <LoadingPage />
-  if (!data) return null
-
-  const { milestones, cities } = data
-
-  const propProgress = getMilestoneProgress(
-    data.activeProperties,
-    PROPERTY_MILESTONES.map((v, i) => ({ value: v, label: ['Premier pas', 'En route', 'En croissance', 'Leader local', 'Référence'][i] }))
-  )
-  const cityProgress = getMilestoneProgress(
-    data.activeCities,
-    CITY_MILESTONES.map((v, i) => ({ value: v, label: ['Première ville', 'Expansion', 'Lorraine'][i] }))
-  )
-
-  const getBadgeUnlocked = (badge: typeof BADGES[0]) => {
-    if (badge.metric === 'properties') return data.activeProperties >= badge.threshold
-    if (badge.metric === 'cities') return data.activeCities >= badge.threshold
-    if (badge.metric === 'revenue') return data.totalRevenue >= badge.threshold
-    return false
-  }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white">Objectifs & Croissance</h1>
-        <p className="text-gray-400 mt-1">Suivez vos paliers et progressez vers l'excellence</p>
-      </div>
-
-      {/* Progress Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <p className="text-gray-400 text-sm mb-3">Logements actifs</p>
-          <div className="flex items-end justify-between mb-3">
-            <span className="text-4xl font-bold text-[#D4AF37]">{data.activeProperties}</span>
-            {propProgress.next && (
-              <span className="text-gray-400 text-sm">/ {propProgress.next.value}</span>
-            )}
-          </div>
-          <div className="h-2 bg-[#1b1b1b] rounded-full overflow-hidden mb-2">
-            <div
-              className="h-full bg-gradient-to-r from-[#B8962B] to-[#D4AF37] rounded-full transition-all duration-700"
-              style={{ width: `${propProgress.percent}%` }}
-            />
-          </div>
-          <p className="text-gray-500 text-xs">
-            {propProgress.next ? `${propProgress.percent}% vers "${propProgress.next.label}"` : 'Tous paliers atteints!'}
-          </p>
-        </Card>
-
-        <Card>
-          <p className="text-gray-400 text-sm mb-3">Villes couvertes</p>
-          <div className="flex items-end justify-between mb-3">
-            <span className="text-4xl font-bold text-blue-400">{data.activeCities}</span>
-            {cityProgress.next && (
-              <span className="text-gray-400 text-sm">/ {cityProgress.next.value}</span>
-            )}
-          </div>
-          <div className="h-2 bg-[#1b1b1b] rounded-full overflow-hidden mb-2">
-            <div
-              className="h-full bg-gradient-to-r from-blue-700 to-blue-400 rounded-full transition-all duration-700"
-              style={{ width: `${cityProgress.percent}%` }}
-            />
-          </div>
-          <p className="text-gray-500 text-xs">
-            {cityProgress.next ? `${cityProgress.percent}% vers "${cityProgress.next.label}"` : 'Couverture complète!'}
-          </p>
-        </Card>
-
-        <Card>
-          <p className="text-gray-400 text-sm mb-3">CA Total cumulé</p>
-          <p className="text-4xl font-bold text-green-400 mb-3">{formatCurrency(data.totalRevenue)}</p>
-          <div className="space-y-1">
-            {milestones.revenue.milestones.map((m) => (
-              <div key={m.value} className="flex items-center gap-2 text-sm">
-                <div className={`w-2 h-2 rounded-full ${m.unlocked ? 'bg-green-400' : 'bg-[#2e2e2e]'}`} />
-                <span className={m.unlocked ? 'text-green-400' : 'text-gray-600'}>
-                  {formatCurrency(m.value)} — {m.label}
-                </span>
-                {m.unlocked && <span className="ml-auto text-green-400 text-xs">✓</span>}
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      {/* Milestones Timeline */}
-      <Card>
-        <div className="flex items-center gap-2 mb-6">
-          <Trophy className="w-5 h-5 text-[#D4AF37]" />
-          <h3 className="text-white font-semibold">Paliers de logements</h3>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Objectifs & Performance</h1>
+          <p className="text-white/40 mt-1">Cibles mensuelles et suivi de progression</p>
         </div>
-        <div className="relative">
-          {/* Track */}
-          <div className="absolute top-5 left-0 right-0 h-0.5 bg-[#2e2e2e]" />
-          <div
-            className="absolute top-5 left-0 h-0.5 bg-gradient-to-r from-[#B8962B] to-[#D4AF37] transition-all duration-700"
-            style={{
-              width: `${Math.min(100, (data.activeProperties / 100) * 100)}%`,
-            }}
-          />
-          <div className="relative flex justify-between">
-            {PROPERTY_MILESTONES.map((milestone) => {
-              const unlocked = data.activeProperties >= milestone
-              return (
-                <div key={milestone} className="flex flex-col items-center">
-                  <div
-                    className={`w-10 h-10 rounded-full border-2 flex items-center justify-center z-10 relative transition-all ${
-                      unlocked
-                        ? 'border-[#D4AF37] bg-[#D4AF37] text-black glow-gold-sm'
-                        : 'border-[#2e2e2e] bg-[#1b1b1b] text-gray-600'
-                    }`}
-                  >
-                    {unlocked ? (
-                      <span className="text-sm font-bold">{milestone >= 100 ? '★' : milestone >= 50 ? '◆' : '✓'}</span>
-                    ) : (
-                      <Lock className="w-3.5 h-3.5" />
-                    )}
-                  </div>
-                  <div className="mt-3 text-center">
-                    <p className={`font-bold text-sm ${unlocked ? 'text-[#D4AF37]' : 'text-gray-600'}`}>{milestone}</p>
-                    <p className={`text-xs ${unlocked ? 'text-gray-400' : 'text-gray-700'}`}>
-                      {['Premier pas', 'En route', 'En croissance', 'Leader local', 'Référence'][PROPERTY_MILESTONES.indexOf(milestone)]}
-                    </p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </Card>
-
-      {/* Cities Coverage */}
-      <Card>
-        <div className="flex items-center gap-2 mb-5">
-          <MapPin className="w-5 h-5 text-blue-400" />
-          <h3 className="text-white font-semibold">Couverture géographique</h3>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {cities.map((city) => (
-            <button
-              key={city.id}
-              onClick={() => handleToggleCity(city.id)}
-              disabled={togglingCity === city.id}
-              className={`relative p-4 rounded-xl border-2 transition-all text-left ${
-                city.isActive
-                  ? 'border-blue-500/50 bg-blue-500/10 glow-gold-sm'
-                  : 'border-[#2e2e2e] bg-[#1b1b1b] hover:border-[#3e3e3e]'
-              } ${togglingCity === city.id ? 'opacity-50' : ''}`}
-            >
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${
-                city.isActive ? 'bg-blue-500/20' : 'bg-[#2e2e2e]'
-              }`}>
-                <MapPin className={`w-4 h-4 ${city.isActive ? 'text-blue-400' : 'text-gray-500'}`} />
-              </div>
-              <p className={`font-medium text-sm ${city.isActive ? 'text-white' : 'text-gray-400'}`}>
-                {city.name}
-              </p>
-              <p className={`text-xs mt-0.5 ${city.isActive ? 'text-blue-400' : 'text-gray-600'}`}>
-                {city.isActive ? 'Active' : 'Inactive'}
-              </p>
-            </button>
-          ))}
-        </div>
-      </Card>
-
-      {/* Badges */}
-      <Card>
-        <div className="flex items-center gap-2 mb-5">
-          <Star className="w-5 h-5 text-[#D4AF37]" />
-          <h3 className="text-white font-semibold">Badges & Récompenses</h3>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {BADGES.map((badge) => {
-            const unlocked = getBadgeUnlocked(badge)
-            return (
-              <div
-                key={badge.id}
-                className={`p-4 rounded-xl border-2 text-center transition-all ${
-                  unlocked
-                    ? 'border-[#D4AF37]/30 bg-[#D4AF37]/5 glow-gold-sm'
-                    : 'border-[#2e2e2e] bg-[#1b1b1b] grayscale opacity-50'
-                }`}
-              >
-                <div className="text-3xl mb-2">{badge.icon}</div>
-                <p className={`font-semibold text-sm mb-1 ${unlocked ? 'text-[#D4AF37]' : 'text-gray-500'}`}>
-                  {badge.label}
-                </p>
-                <p className="text-gray-500 text-xs">{badge.description}</p>
-                {unlocked && (
-                  <div className="mt-2 flex items-center justify-center gap-1">
-                    <Unlock className="w-3 h-3 text-[#D4AF37]" />
-                    <span className="text-[#D4AF37] text-xs font-medium">Débloqué</span>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </Card>
-
-      {/* Commission Simulator */}
-      <Card>
-        <div className="flex items-center gap-2 mb-5">
-          <Calculator className="w-5 h-5 text-[#D4AF37]" />
-          <h3 className="text-white font-semibold">Simulateur de revenus annuels</h3>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-          <div className="space-y-1.5">
-            <label className="text-xs text-gray-400">CA moy / logement / mois (€)</label>
-            <input
-              type="number"
-              value={commission.avgRevenue}
-              onChange={(e) => setCommission({ ...commission, avgRevenue: e.target.value })}
-              className="w-full bg-[#1b1b1b] border border-[#2e2e2e] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37] transition-colors"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs text-gray-400">Nombre de logements</label>
-            <input
-              type="number"
-              value={commission.properties}
-              onChange={(e) => setCommission({ ...commission, properties: e.target.value })}
-              className="w-full bg-[#1b1b1b] border border-[#2e2e2e] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37] transition-colors"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs text-gray-400">Taux de commission (%)</label>
-            <input
-              type="number"
-              value={commission.rate}
-              onChange={(e) => setCommission({ ...commission, rate: e.target.value })}
-              className="w-full bg-[#1b1b1b] border border-[#2e2e2e] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37] transition-colors"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs text-gray-400">Durée (mois)</label>
-            <input
-              type="number"
-              value={commission.months}
-              onChange={(e) => setCommission({ ...commission, months: e.target.value })}
-              className="w-full bg-[#1b1b1b] border border-[#2e2e2e] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37] transition-colors"
-            />
-          </div>
-        </div>
-
-        <button
-          onClick={simulate}
-          className="bg-[#D4AF37] text-black font-semibold px-6 py-2.5 rounded-xl hover:bg-[#E8C84D] transition-colors text-sm"
-        >
-          Simuler
-        </button>
-
-        {simResult && (
-          <div className="mt-4 grid grid-cols-3 gap-4">
-            <div className="bg-[#1b1b1b] rounded-xl p-4 text-center">
-              <p className="text-gray-400 text-xs mb-1">CA annuel</p>
-              <p className="text-white font-bold text-lg">{formatCurrency(simResult.annualCA)}</p>
-            </div>
-            <div className="bg-[#D4AF37]/10 border border-[#D4AF37]/20 rounded-xl p-4 text-center">
-              <p className="text-gray-400 text-xs mb-1">Commission annuelle</p>
-              <p className="text-[#D4AF37] font-bold text-lg">{formatCurrency(simResult.annualCommission)}</p>
-            </div>
-            <div className="bg-[#1b1b1b] rounded-xl p-4 text-center">
-              <p className="text-gray-400 text-xs mb-1">Commission / mois</p>
-              <p className="text-green-400 font-bold text-lg">{formatCurrency(simResult.monthlyCommission)}</p>
-            </div>
-          </div>
+        {selectedPeriod && (
+          <Button
+            variant="outline"
+            onClick={() => setEditModalOpen(true)}
+          >
+            <Edit2 className="w-4 h-4 mr-1.5" />
+            Modifier les cibles
+          </Button>
         )}
-      </Card>
+      </div>
+
+      {/* Overview KPIs */}
+      {overviewData && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-[#181818] border border-white/[0.06] rounded-2xl p-4 text-center">
+            <p className="text-white/40 text-xs mb-1">Logements actifs</p>
+            <p className="text-[#D4AF37] text-3xl font-bold">{overviewData.activeProperties}</p>
+          </div>
+          <div className="bg-[#181818] border border-white/[0.06] rounded-2xl p-4 text-center">
+            <p className="text-white/40 text-xs mb-1">Villes couvertes</p>
+            <p className="text-blue-400 text-3xl font-bold">{overviewData.activeCities}</p>
+          </div>
+          <div className="bg-[#181818] border border-white/[0.06] rounded-2xl p-4 text-center">
+            <p className="text-white/40 text-xs mb-1">CA total cumulé</p>
+            <p className="text-green-400 text-2xl font-bold">{formatCurrency(overviewData.totalRevenue)}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Period Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+        {periods.map((p, i) => (
+          <button
+            key={`${p.year}-${p.month}`}
+            onClick={() => setSelectedIdx(i)}
+            className={`px-3 py-1.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all flex-shrink-0 ${
+              selectedIdx === i
+                ? p.isAnnual
+                  ? 'bg-purple-500 text-white'
+                  : 'bg-[#D4AF37] text-black'
+                : p.isAnnual
+                ? 'bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20'
+                : 'bg-[#242424] border border-white/[0.06] text-white/50 hover:text-white hover:border-white/20'
+            }`}
+          >
+            {p.isAnnual ? '🎯 ' : ''}{p.label.replace(' 2026', '').replace(' 2027', '')}
+            {p.isAnnual ? ' 2027' : ''}
+          </button>
+        ))}
+      </div>
+
+      {/* Selected Period — KPI Grid */}
+      {selectedPeriod && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-white font-semibold text-lg">{selectedPeriod.label}</h2>
+            {!selectedPeriod.targets && (
+              <button
+                onClick={() => setEditModalOpen(true)}
+                className="text-sm text-[#D4AF37]/70 hover:text-[#D4AF37] transition-colors flex items-center gap-1"
+              >
+                <Target className="w-3.5 h-3.5" />
+                Définir les cibles
+              </button>
+            )}
+          </div>
+
+          {selectedPeriod.isAnnual ? (
+            /* Annual 2027 objective */
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {KPI_CONFIG.map((kpi) => {
+                const target = selectedPeriod.targets?.[kpi.key] ?? null
+                return (
+                  <div
+                    key={kpi.key}
+                    className="bg-[#181818] border border-purple-500/10 rounded-2xl p-4 text-center"
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${kpi.bg} mx-auto mb-3`}>
+                      <kpi.icon className={`w-5 h-5 ${kpi.color}`} />
+                    </div>
+                    <p className="text-white/50 text-xs mb-2">{kpi.label}</p>
+                    <p className={`text-2xl font-bold ${target ? kpi.color : 'text-white/20'}`}>
+                      {target ? kpi.formatValue(target) : '—'}
+                    </p>
+                    <p className="text-white/30 text-xs mt-1">objectif 2027</p>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            /* Monthly objectives */
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {KPI_CONFIG.map((kpi) => {
+                const target = selectedPeriod.targets?.[kpi.key] ?? null
+                const actual = selectedPeriod.actuals?.[kpi.key] ?? null
+                return (
+                  <KPIObjectiveCard
+                    key={kpi.key}
+                    config={kpi}
+                    target={target}
+                    actual={actual}
+                  />
+                )
+              })}
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!selectedPeriod.targets && !selectedPeriod.isAnnual && (
+            <div className="text-center py-6 bg-[#181818] border border-white/[0.06] rounded-2xl">
+              <Target className="w-10 h-10 text-white/10 mx-auto mb-3" />
+              <p className="text-white/40 text-sm mb-4">Aucune cible définie pour cette période</p>
+              <Button variant="outline" onClick={() => setEditModalOpen(true)}>
+                <Target className="w-4 h-4 mr-1.5" />
+                Définir les objectifs
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Milestones timeline */}
+      {overviewData && (
+        <Card>
+          <div className="flex items-center gap-2 mb-6">
+            <div className="w-8 h-8 rounded-lg bg-[#D4AF37]/20 flex items-center justify-center">
+              <Trophy className="w-4 h-4 text-[#D4AF37]" />
+            </div>
+            <h3 className="text-white font-semibold">Paliers logements</h3>
+            <span className="ml-auto text-white/30 text-sm">{overviewData.activeProperties} logements</span>
+          </div>
+
+          <div className="relative">
+            {/* Track */}
+            <div className="absolute top-5 left-0 right-0 h-0.5 bg-[#2e2e2e]" />
+            <div
+              className="absolute top-5 left-0 h-0.5 bg-gradient-to-r from-[#B8962B] to-[#D4AF37] transition-all duration-700"
+              style={{ width: `${Math.min(100, (overviewData.activeProperties / 100) * 100)}%` }}
+            />
+            <div className="relative flex justify-between">
+              {PROPERTY_MILESTONES.map((ms) => {
+                const unlocked = overviewData.activeProperties >= ms.value
+                return (
+                  <div key={ms.value} className="flex flex-col items-center">
+                    <div
+                      className={`w-10 h-10 rounded-full border-2 flex items-center justify-center z-10 relative transition-all ${
+                        unlocked
+                          ? 'border-[#D4AF37] bg-[#D4AF37] text-black'
+                          : 'border-[#2e2e2e] bg-[#1b1b1b] text-gray-600'
+                      }`}
+                    >
+                      {unlocked ? (
+                        <span className="text-sm font-bold">✓</span>
+                      ) : (
+                        <Lock className="w-3.5 h-3.5" />
+                      )}
+                    </div>
+                    <div className="mt-3 text-center">
+                      <p className={`font-bold text-sm ${unlocked ? 'text-[#D4AF37]' : 'text-gray-600'}`}>
+                        {ms.value}
+                      </p>
+                      <p className={`text-xs ${unlocked ? 'text-gray-400' : 'text-gray-700'}`}>
+                        {ms.label}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {propProgress.next && (
+            <div className="mt-6 flex items-center gap-3 p-3 bg-[#D4AF37]/5 border border-[#D4AF37]/10 rounded-xl">
+              <TrendingUp className="w-4 h-4 text-[#D4AF37] flex-shrink-0" />
+              <p className="text-white/50 text-sm">
+                <span className="text-[#D4AF37] font-semibold">{propProgress.next.value - overviewData.activeProperties} logements</span>
+                {' '}avant "{propProgress.next.label}"
+              </p>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Edit Modal */}
+      <EditObjectiveModal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        period={selectedPeriod}
+        onSave={handleSaveTargets}
+      />
     </div>
   )
 }

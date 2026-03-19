@@ -1,7 +1,10 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Trophy, Edit2, ChevronLeft, ChevronRight, Star, Target, Check } from 'lucide-react'
+import {
+  Trophy, Edit2, Star, Target, Check, Phone, Calendar,
+  TrendingUp, Medal, Crown
+} from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -12,12 +15,15 @@ import { Badge } from '@/components/ui/Badge'
 import { LoadingPage } from '@/components/ui/LoadingSpinner'
 import { getMonthName } from '@/lib/utils'
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 interface TeamGoal {
   id: number
   userId: number
   reportId: number
   propertiesSigned: number
   appointmentsMade: number
+  callsMade: number
   personalGoal: string | null
   goalStatus: string
 }
@@ -29,6 +35,7 @@ interface TeamUser {
   photo?: string | null
   totalSigned: number
   totalAppointments: number
+  totalCalls: number
   goalsAchieved: number
   currentGoal: TeamGoal | null
 }
@@ -45,21 +52,70 @@ interface TeamData {
   currentReport: Report | null
 }
 
+// ─── Avatar ───────────────────────────────────────────────────────────────────
+
+function Avatar({ user, size = 'md' }: { user: TeamUser; size?: 'sm' | 'md' | 'lg' }) {
+  const sizes = { sm: 'w-8 h-8 text-sm', md: 'w-11 h-11 text-base', lg: 'w-14 h-14 text-xl' }
+  const cls = sizes[size]
+  if (user.photo) {
+    return <img src={user.photo} alt={user.name} className={`${cls} rounded-xl object-cover flex-shrink-0`} />
+  }
+  return (
+    <div
+      className={`${cls} rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0`}
+      style={{ backgroundColor: user.color }}
+    >
+      {user.name.charAt(0)}
+    </div>
+  )
+}
+
+// ─── Stat Pill ────────────────────────────────────────────────────────────────
+
+function StatPill({
+  icon: Icon,
+  value,
+  label,
+  color,
+}: {
+  icon: React.ElementType
+  value: number
+  label: string
+  color: string
+}) {
+  return (
+    <div className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-[#141414] min-w-[64px]">
+      <div className="flex items-center gap-1">
+        <Icon className={`w-3.5 h-3.5 ${color}`} />
+        <span className={`font-bold text-lg leading-none ${color}`}>{value}</span>
+      </div>
+      <span className="text-white/30 text-[10px]">{label}</span>
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function EquipePage() {
   const [data, setData] = useState<TeamData | null>(null)
   const [loading, setLoading] = useState(true)
   const [reports, setReports] = useState<Array<{ id: number; month: number; year: number }>>([])
   const [selectedReportId, setSelectedReportId] = useState<number | null>(null)
   const [selectedReport, setSelectedReport] = useState<Report | null>(null)
+
+  // Goal modal
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingUserId, setEditingUserId] = useState<number | null>(null)
   const [goalForm, setGoalForm] = useState({
     propertiesSigned: '0',
     appointmentsMade: '0',
+    callsMade: '0',
     personalGoal: '',
     goalStatus: 'en_cours',
   })
   const [saving, setSaving] = useState(false)
+
+  // User profile modal
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<TeamUser | null>(null)
   const [userForm, setUserForm] = useState({ name: '', color: '', photo: '', pin: '' })
@@ -77,7 +133,7 @@ export default function EquipePage() {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (ev) => setUserForm(f => ({ ...f, photo: ev.target?.result as string }))
+    reader.onload = (ev) => setUserForm((f) => ({ ...f, photo: ev.target?.result as string }))
     reader.readAsDataURL(file)
   }
 
@@ -94,11 +150,7 @@ export default function EquipePage() {
     setIsUserModalOpen(false)
   }
 
-  useEffect(() => {
-    loadData()
-  }, [])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     const [teamRes, reportsRes] = await Promise.all([
       fetch('/api/team'),
       fetch('/api/reports'),
@@ -114,13 +166,17 @@ export default function EquipePage() {
       loadReportDetails(reportsData[0].id)
     }
     setLoading(false)
-  }
+  }, [])
 
   const loadReportDetails = async (reportId: number) => {
     const res = await fetch(`/api/reports/${reportId}`)
     const report = await res.json()
     setSelectedReport(report)
   }
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   const handleSelectReport = async (reportId: number) => {
     setSelectedReportId(reportId)
@@ -134,6 +190,7 @@ export default function EquipePage() {
     setGoalForm({
       propertiesSigned: String(existingGoal?.propertiesSigned ?? 0),
       appointmentsMade: String(existingGoal?.appointmentsMade ?? 0),
+      callsMade: String(existingGoal?.callsMade ?? 0),
       personalGoal: existingGoal?.personalGoal ?? '',
       goalStatus: existingGoal?.goalStatus ?? 'en_cours',
     })
@@ -144,7 +201,6 @@ export default function EquipePage() {
     if (!selectedReport || !editingUserId) return
     setSaving(true)
 
-    // If marking as achieved, trigger confetti
     if (goalForm.goalStatus === 'atteint') {
       try {
         const confetti = (await import('canvas-confetti')).default
@@ -174,8 +230,8 @@ export default function EquipePage() {
   }
 
   const sortedUsers = data?.users.slice().sort((a, b) => b.totalSigned - a.totalSigned) ?? []
-
-  const rankEmojis = ['🥇', '🥈', '🥉']
+  const rankIcons = [Crown, Medal, Medal]
+  const rankColors = ['text-[#D4AF37]', 'text-gray-300', 'text-amber-600']
 
   if (loading) return <LoadingPage />
   if (!data) return null
@@ -183,47 +239,42 @@ export default function EquipePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">Équipe</h1>
-          <p className="text-gray-400 mt-1">Objectifs et performances de l'équipe</p>
+          <p className="text-white/40 mt-1">Performances et objectifs mensuels</p>
         </div>
-      </div>
-
-      {/* Team Members Quick Edit */}
-      <div className="flex items-center gap-4">
-        {data.users.map(user => (
-          <button key={user.id} onClick={() => openUserModal(user)}
-            className="flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all group"
-            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
-          >
-            {user.photo ? (
-              <img src={user.photo} alt={user.name} className="w-9 h-9 rounded-xl object-cover flex-shrink-0" />
-            ) : (
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
-                style={{ backgroundColor: user.color }}>
-                {user.name.charAt(0)}
+        {/* Team profile quick-access */}
+        <div className="flex items-center gap-2">
+          {data.users.map((user) => (
+            <button
+              key={user.id}
+              onClick={() => openUserModal(user)}
+              title={`Modifier ${user.name}`}
+              className="relative group"
+            >
+              <Avatar user={user} size="sm" />
+              <div className="absolute inset-0 rounded-xl bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <Edit2 className="w-3 h-3 text-white" />
               </div>
-            )}
-            <span className="text-white/70 text-sm font-medium group-hover:text-white transition-colors">{user.name}</span>
-            <Edit2 className="w-3.5 h-3.5 text-white/20 group-hover:text-[#D4AF37] transition-colors" />
-          </button>
-        ))}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Month Selector */}
       {reports.length > 0 && (
         <div className="flex items-center gap-3">
-          <span className="text-gray-400 text-sm">Rapport :</span>
+          <span className="text-white/40 text-sm flex-shrink-0">Mois :</span>
           <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            {reports.slice(0, 8).map((r) => (
+            {reports.slice(0, 10).map((r) => (
               <button
                 key={r.id}
                 onClick={() => handleSelectReport(r.id)}
-                className={`px-3 py-1.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
+                className={`px-3 py-1.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all flex-shrink-0 ${
                   selectedReportId === r.id
                     ? 'bg-[#D4AF37] text-black'
-                    : 'bg-[#242424] border border-[#2e2e2e] text-gray-400 hover:text-white'
+                    : 'bg-[#242424] border border-white/[0.06] text-white/40 hover:text-white hover:border-white/20'
                 }`}
               >
                 {getMonthName(r.month).substring(0, 3)} {r.year}
@@ -233,141 +284,160 @@ export default function EquipePage() {
         </div>
       )}
 
-      {/* Current Month Goals */}
+      {/* Monthly Goal Cards */}
       {selectedReport && (
         <div>
-          <h2 className="text-white font-semibold mb-4">
-            {getMonthName(selectedReport.month)} {selectedReport.year} — Objectifs mensuels
+          <h2 className="text-white/60 text-sm font-medium mb-3 uppercase tracking-wider">
+            {getMonthName(selectedReport.month)} {selectedReport.year}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {data.users.map((user) => {
               const goal = selectedReport.teamGoals.find((g) => g.userId === user.id)
+              const isAchieved = goal?.goalStatus === 'atteint'
+
               return (
-                <Card key={user.id} className={`relative ${
-                  goal?.goalStatus === 'atteint' ? 'border-green-500/30' : ''
-                }`}>
+                <div
+                  key={user.id}
+                  className={`relative rounded-2xl border p-5 transition-all ${
+                    isAchieved
+                      ? 'border-green-500/20 bg-green-500/5'
+                      : 'border-white/[0.06] bg-[#181818]'
+                  }`}
+                >
+                  {/* Card header */}
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      {user.photo ? (
-                        <img src={user.photo} alt={user.name} className="w-12 h-12 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg"
-                          style={{ backgroundColor: user.color }}>
-                          {user.name.charAt(0)}
-                        </div>
-                      )}
+                      <Avatar user={user} size="md" />
                       <div>
                         <p className="text-white font-semibold">{user.name}</p>
-                        <Badge variant={goal?.goalStatus === 'atteint' ? 'success' : 'warning'}>
-                          {goal ? (goal.goalStatus === 'atteint' ? '✓ Objectif atteint' : 'En cours') : 'Pas encore défini'}
+                        <Badge variant={isAchieved ? 'success' : goal ? 'warning' : 'default'}>
+                          {goal
+                            ? isAchieved
+                              ? '✓ Objectif atteint'
+                              : 'En cours'
+                            : 'Non défini'}
                         </Badge>
                       </div>
                     </div>
                     <button
                       onClick={() => openGoalModal(user.id)}
-                      className="text-gray-400 hover:text-[#D4AF37] transition-colors p-2 rounded-lg hover:bg-[#D4AF37]/10"
+                      className="p-2 rounded-xl text-white/20 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
                   </div>
 
+                  {/* Stats */}
                   {goal ? (
-                    <>
-                      <div className="grid grid-cols-2 gap-3 mb-3">
-                        <div className="bg-[#1b1b1b] rounded-xl p-3 text-center">
-                          <p className="text-[#D4AF37] font-bold text-2xl">{goal.propertiesSigned}</p>
-                          <p className="text-gray-400 text-xs mt-0.5">Signatures</p>
-                        </div>
-                        <div className="bg-[#1b1b1b] rounded-xl p-3 text-center">
-                          <p className="text-white font-bold text-2xl">{goal.appointmentsMade}</p>
-                          <p className="text-gray-400 text-xs mt-0.5">Rendez-vous</p>
-                        </div>
-                      </div>
-
+                    <div className="flex items-center gap-2">
+                      <StatPill icon={Star} value={goal.propertiesSigned} label="Signatures" color="text-[#D4AF37]" />
+                      <StatPill icon={Calendar} value={goal.appointmentsMade} label="Visites" color="text-purple-400" />
+                      <StatPill icon={Phone} value={goal.callsMade} label="Appels" color="text-green-400" />
                       {goal.personalGoal && (
-                        <div className="bg-[#1b1b1b] rounded-xl p-3">
-                          <p className="text-gray-500 text-xs mb-1">Objectif personnel</p>
-                          <p className="text-gray-300 text-sm italic">"{goal.personalGoal}"</p>
-                        </div>
+                        <p className="text-white/30 text-xs italic ml-auto max-w-[120px] text-right line-clamp-2">
+                          "{goal.personalGoal}"
+                        </p>
                       )}
-                    </>
+                    </div>
                   ) : (
-                    <div className="text-center py-4">
-                      <p className="text-gray-500 text-sm mb-3">Aucun objectif pour ce mois</p>
+                    <div className="text-center py-3">
+                      <p className="text-white/30 text-sm mb-3">Aucun objectif ce mois</p>
                       <Button size="sm" variant="outline" onClick={() => openGoalModal(user.id)}>
                         Définir un objectif
                       </Button>
                     </div>
                   )}
-                </Card>
+                </div>
               )
             })}
           </div>
         </div>
       )}
 
-      {/* Cumulative Leaderboard */}
+      {/* No report */}
+      {!selectedReport && reports.length === 0 && (
+        <Card>
+          <p className="text-white/40 text-sm text-center py-8">
+            Aucun rapport mensuel disponible. Créez un rapport dans la section Rapports pour commencer.
+          </p>
+        </Card>
+      )}
+
+      {/* Leaderboard */}
       <Card>
-        <div className="flex items-center gap-2 mb-6">
+        <div className="flex items-center gap-2 mb-5">
           <div className="w-8 h-8 rounded-lg bg-[#D4AF37]/20 flex items-center justify-center">
             <Trophy className="w-4 h-4 text-[#D4AF37]" />
           </div>
-          <h3 className="text-white font-semibold">Classement général (cumulé)</h3>
+          <h3 className="text-white font-semibold">Classement général</h3>
+          <span className="ml-auto text-white/30 text-xs">Cumulé toutes périodes</span>
         </div>
 
         <div className="space-y-3">
-          {sortedUsers.map((user, index) => (
-            <div
-              key={user.id}
-              className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
-                index === 0
-                  ? 'border-[#D4AF37]/30 bg-[#D4AF37]/5'
-                  : 'border-[#2e2e2e] bg-[#1b1b1b]'
-              }`}
-            >
-              <span className="text-2xl w-8 text-center flex-shrink-0">
-                {index < 3 ? rankEmojis[index] : `#${index + 1}`}
-              </span>
-              {user.photo ? (
-                <img src={user.photo} alt={user.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
-              ) : (
-                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
-                  style={{ backgroundColor: user.color }}>
-                  {user.name.charAt(0)}
+          {sortedUsers.map((user, index) => {
+            const RankIcon = rankIcons[index] ?? TrendingUp
+            const rankColor = rankColors[index] ?? 'text-white/40'
+            const isFirst = index === 0
+
+            return (
+              <div
+                key={user.id}
+                className={`flex items-center gap-3 p-4 rounded-2xl border transition-all ${
+                  isFirst
+                    ? 'border-[#D4AF37]/20 bg-[#D4AF37]/5'
+                    : 'border-white/[0.04] bg-[#141414]'
+                }`}
+              >
+                <RankIcon className={`w-5 h-5 ${rankColor} flex-shrink-0`} />
+                <Avatar user={user} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-medium text-sm">{user.name}</p>
+                  <p className="text-white/30 text-xs">
+                    {user.goalsAchieved} objectif(s) atteint(s)
+                  </p>
                 </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-semibold">{user.name}</p>
-                <p className="text-gray-400 text-xs">
-                  {user.goalsAchieved} objectif(s) atteint(s)
-                </p>
-              </div>
-              <div className="flex items-center gap-6 flex-shrink-0">
-                <div className="text-center">
-                  <div className="flex items-center gap-1">
-                    <Star className="w-3.5 h-3.5 text-[#D4AF37]" />
-                    <span className="text-[#D4AF37] font-bold text-lg">{user.totalSigned}</span>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <div className="text-center hidden sm:block">
+                    <div className="flex items-center gap-1 justify-center">
+                      <Star className="w-3.5 h-3.5 text-[#D4AF37]" />
+                      <span className="text-[#D4AF37] font-bold text-lg">{user.totalSigned}</span>
+                    </div>
+                    <p className="text-white/30 text-[10px]">signatures</p>
                   </div>
-                  <p className="text-gray-500 text-xs">signatures</p>
-                </div>
-                <div className="text-center">
-                  <div className="flex items-center gap-1">
-                    <Target className="w-3.5 h-3.5 text-blue-400" />
-                    <span className="text-white font-bold text-lg">{user.totalAppointments}</span>
+                  <div className="text-center hidden sm:block">
+                    <div className="flex items-center gap-1 justify-center">
+                      <Calendar className="w-3.5 h-3.5 text-purple-400" />
+                      <span className="text-white font-bold text-lg">{user.totalAppointments}</span>
+                    </div>
+                    <p className="text-white/30 text-[10px]">visites</p>
                   </div>
-                  <p className="text-gray-500 text-xs">RDV</p>
+                  <div className="text-center">
+                    <div className="flex items-center gap-1 justify-center">
+                      <Phone className="w-3.5 h-3.5 text-green-400" />
+                      <span className="text-green-400 font-bold text-lg">{user.totalCalls ?? 0}</span>
+                    </div>
+                    <p className="text-white/30 text-[10px]">appels</p>
+                  </div>
+                  {/* Mobile: just signatures */}
+                  <div className="text-center sm:hidden">
+                    <div className="flex items-center gap-1 justify-center">
+                      <Star className="w-3.5 h-3.5 text-[#D4AF37]" />
+                      <span className="text-[#D4AF37] font-bold text-lg">{user.totalSigned}</span>
+                    </div>
+                    <p className="text-white/30 text-[10px]">sign.</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </Card>
 
-      {/* User Edit Modal */}
+      {/* User Profile Modal */}
       <Modal
         isOpen={isUserModalOpen}
         onClose={() => setIsUserModalOpen(false)}
-        title={`Modifier le profil — ${editingUser?.name}`}
+        title={`Modifier — ${editingUser?.name}`}
       >
         <div className="space-y-5">
           {/* Photo */}
@@ -376,22 +446,28 @@ export default function EquipePage() {
               {userForm.photo ? (
                 <img src={userForm.photo} alt="Photo" className="w-16 h-16 rounded-2xl object-cover" />
               ) : (
-                <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-2xl"
-                  style={{ backgroundColor: userForm.color || editingUser?.color }}>
+                <div
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-2xl"
+                  style={{ backgroundColor: userForm.color || editingUser?.color }}
+                >
                   {userForm.name.charAt(0) || editingUser?.name.charAt(0)}
                 </div>
               )}
             </div>
             <div className="flex-1 space-y-2">
               <label className="text-sm text-white/40 font-medium block">Photo de profil</label>
-              <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white/60 hover:text-white transition-all"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <label
+                className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white/60 hover:text-white transition-all"
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+              >
                 <span>Choisir une image</span>
                 <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
               </label>
               {userForm.photo && (
-                <button onClick={() => setUserForm(f => ({ ...f, photo: '' }))}
-                  className="text-xs text-red-400/60 hover:text-red-400 transition-colors ml-2">
+                <button
+                  onClick={() => setUserForm((f) => ({ ...f, photo: '' }))}
+                  className="text-xs text-red-400/60 hover:text-red-400 transition-colors ml-2"
+                >
                   Supprimer
                 </button>
               )}
@@ -401,34 +477,41 @@ export default function EquipePage() {
           <Input
             label="Prénom"
             value={userForm.name}
-            onChange={(e) => setUserForm(f => ({ ...f, name: e.target.value }))}
+            onChange={(e) => setUserForm((f) => ({ ...f, name: e.target.value }))}
           />
 
           <div>
             <label className="text-sm text-white/40 font-medium block mb-2">Couleur</label>
             <div className="flex items-center gap-2 flex-wrap">
-              {COLORS.map(c => (
-                <button key={c} onClick={() => setUserForm(f => ({ ...f, color: c }))}
+              {COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setUserForm((f) => ({ ...f, color: c }))}
                   className="w-8 h-8 rounded-lg transition-all"
                   style={{
                     backgroundColor: c,
-                    outline: userForm.color === c ? `2px solid white` : 'none',
+                    outline: userForm.color === c ? '2px solid white' : 'none',
                     outlineOffset: '2px',
                     transform: userForm.color === c ? 'scale(1.15)' : 'scale(1)',
-                  }} />
+                  }}
+                />
               ))}
             </div>
           </div>
 
           <div>
-            <label className="text-sm text-white/40 font-medium block mb-1.5">Nouveau code PIN (4 chiffres)</label>
+            <label className="text-sm text-white/40 font-medium block mb-1.5">
+              Nouveau code PIN (4 chiffres)
+            </label>
             <input
               type="password"
               maxLength={4}
               inputMode="numeric"
               pattern="[0-9]{4}"
               value={userForm.pin}
-              onChange={(e) => setUserForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+              onChange={(e) =>
+                setUserForm((f) => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 4) }))
+              }
               placeholder="Laisser vide pour ne pas changer"
               className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#D4AF37]/40 transition-colors text-sm tracking-widest"
             />
@@ -451,31 +534,53 @@ export default function EquipePage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Modifier l'objectif"
+        title="Saisir les résultats du mois"
       >
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Signatures"
-              type="number"
-              min="0"
-              value={goalForm.propertiesSigned}
-              onChange={(e) => setGoalForm({ ...goalForm, propertiesSigned: e.target.value })}
-            />
-            <Input
-              label="Rendez-vous"
-              type="number"
-              min="0"
-              value={goalForm.appointmentsMade}
-              onChange={(e) => setGoalForm({ ...goalForm, appointmentsMade: e.target.value })}
-            />
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs text-white/40 flex items-center gap-1">
+                <Star className="w-3 h-3 text-[#D4AF37]" /> Signatures
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={goalForm.propertiesSigned}
+                onChange={(e) => setGoalForm({ ...goalForm, propertiesSigned: e.target.value })}
+                className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40 transition-colors"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-white/40 flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-purple-400" /> Visites
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={goalForm.appointmentsMade}
+                onChange={(e) => setGoalForm({ ...goalForm, appointmentsMade: e.target.value })}
+                className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40 transition-colors"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-white/40 flex items-center gap-1">
+                <Phone className="w-3 h-3 text-green-400" /> Appels
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={goalForm.callsMade}
+                onChange={(e) => setGoalForm({ ...goalForm, callsMade: e.target.value })}
+                className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40 transition-colors"
+              />
+            </div>
           </div>
 
           <Textarea
             label="Objectif personnel"
             value={goalForm.personalGoal}
             onChange={(e) => setGoalForm({ ...goalForm, personalGoal: e.target.value })}
-            placeholder="Décrivez votre objectif personnel pour ce mois..."
+            placeholder="Décrivez votre objectif pour ce mois..."
             rows={2}
           />
 
