@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import {
-  Trophy, Edit2, Star, Target, Check, Phone, Calendar,
+  Trophy, Edit2, Star, Target, Check, Calendar,
   TrendingUp, Medal, Crown
 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
@@ -13,7 +13,6 @@ import { Textarea } from '@/components/ui/Textarea'
 import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
 import { LoadingPage } from '@/components/ui/LoadingSpinner'
-import { getMonthName } from '@/lib/utils'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,7 +22,6 @@ interface TeamGoal {
   reportId: number
   propertiesSigned: number
   appointmentsMade: number
-  callsMade: number
   personalGoal: string | null
   goalStatus: string
 }
@@ -35,7 +33,6 @@ interface TeamUser {
   photo?: string | null
   totalSigned: number
   totalAppointments: number
-  totalCalls: number
   goalsAchieved: number
   currentGoal: TeamGoal | null
 }
@@ -50,6 +47,35 @@ interface Report {
 interface TeamData {
   users: TeamUser[]
   currentReport: Report | null
+}
+
+interface Period {
+  month: number
+  year: number
+  label: string
+  isAnnual: boolean
+}
+
+// ─── Future Periods ───────────────────────────────────────────────────────────
+
+function getFuturePeriods(): Period[] {
+  const MONTHS_FR = [
+    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
+  ]
+  const now = new Date()
+  let m = now.getMonth() + 1
+  let y = now.getFullYear()
+  const periods: Period[] = []
+
+  while (y < 2026 || (y === 2026 && m <= 12)) {
+    periods.push({ month: m, year: y, label: `${MONTHS_FR[m - 1]} ${y}`, isAnnual: false })
+    m++
+    if (m > 12) { m = 1; y++ }
+  }
+
+  periods.push({ month: 0, year: 2027, label: '2027 — Annuel', isAnnual: true })
+  return periods
 }
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
@@ -97,11 +123,13 @@ function StatPill({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function EquipePage() {
+  const FUTURE_PERIODS = getFuturePeriods()
+
   const [data, setData] = useState<TeamData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [reports, setReports] = useState<Array<{ id: number; month: number; year: number }>>([])
-  const [selectedReportId, setSelectedReportId] = useState<number | null>(null)
-  const [selectedReport, setSelectedReport] = useState<Report | null>(null)
+  // All existing reports keyed by "month-year"
+  const [reportMap, setReportMap] = useState<Record<string, Report>>({})
+  const [selectedPeriod, setSelectedPeriod] = useState<Period>(FUTURE_PERIODS[0])
 
   // Goal modal
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -109,7 +137,6 @@ export default function EquipePage() {
   const [goalForm, setGoalForm] = useState({
     propertiesSigned: '0',
     appointmentsMade: '0',
-    callsMade: '0',
     personalGoal: '',
     goalStatus: 'en_cours',
   })
@@ -122,6 +149,8 @@ export default function EquipePage() {
   const [savingUser, setSavingUser] = useState(false)
 
   const COLORS = ['#D4AF37', '#3B82F6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4']
+
+  const periodKey = (m: number, y: number) => `${m}-${y}`
 
   const openUserModal = (user: TeamUser) => {
     setEditingUser(user)
@@ -157,17 +186,13 @@ export default function EquipePage() {
         fetch('/api/reports'),
       ])
       const [teamData, reportsData] = await Promise.all([teamRes.json(), reportsRes.json()])
-      // Only store if valid response (has .users array)
       if (Array.isArray(teamData.users)) setData(teamData)
       if (Array.isArray(reportsData)) {
-        setReports(reportsData)
-        if (teamData.currentReport) {
-          setSelectedReportId(teamData.currentReport.id)
-          setSelectedReport(teamData.currentReport)
-        } else if (reportsData.length > 0) {
-          setSelectedReportId(reportsData[0].id)
-          loadReportDetails(reportsData[0].id)
+        const map: Record<string, Report> = {}
+        for (const r of reportsData) {
+          map[periodKey(r.month, r.year)] = r
         }
+        setReportMap(map)
       }
     } catch (e) {
       console.error('Team load error:', e)
@@ -176,29 +201,18 @@ export default function EquipePage() {
     }
   }, [])
 
-  const loadReportDetails = async (reportId: number) => {
-    const res = await fetch(`/api/reports/${reportId}`)
-    const report = await res.json()
-    setSelectedReport(report)
-  }
-
   useEffect(() => {
     loadData()
   }, [loadData])
 
-  const handleSelectReport = async (reportId: number) => {
-    setSelectedReportId(reportId)
-    await loadReportDetails(reportId)
-  }
+  const currentReport = reportMap[periodKey(selectedPeriod.month, selectedPeriod.year)] ?? null
 
   const openGoalModal = (userId: number) => {
-    if (!selectedReport) return
-    const existingGoal = selectedReport.teamGoals.find((g) => g.userId === userId)
+    const existingGoal = currentReport?.teamGoals.find((g) => g.userId === userId)
     setEditingUserId(userId)
     setGoalForm({
       propertiesSigned: String(existingGoal?.propertiesSigned ?? 0),
       appointmentsMade: String(existingGoal?.appointmentsMade ?? 0),
-      callsMade: String(existingGoal?.callsMade ?? 0),
       personalGoal: existingGoal?.personalGoal ?? '',
       goalStatus: existingGoal?.goalStatus ?? 'en_cours',
     })
@@ -206,7 +220,7 @@ export default function EquipePage() {
   }
 
   const handleSaveGoal = async () => {
-    if (!selectedReport || !editingUserId) return
+    if (!editingUserId) return
     setSaving(true)
 
     if (goalForm.goalStatus === 'atteint') {
@@ -226,20 +240,19 @@ export default function EquipePage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userId: editingUserId,
-        reportId: selectedReport.id,
+        month: selectedPeriod.month,
+        year: selectedPeriod.year,
         ...goalForm,
       }),
     })
 
-    await loadReportDetails(selectedReport.id)
     await loadData()
     setIsModalOpen(false)
     setSaving(false)
   }
 
   if (loading) return <LoadingPage />
-  // Guard against API error responses (e.g. { error: '...' } with no .users)
-  if (!data?.users) return <div className="text-gray-400 text-center py-20">Erreur de chargement de l'équipe</div>
+  if (!data?.users) return <div className="text-gray-400 text-center py-20">Erreur de chargement de l&apos;équipe</div>
 
   const sortedUsers = data.users.slice().sort((a, b) => b.totalSigned - a.totalSigned)
   const rankIcons = [Crown, Medal, Medal]
@@ -251,7 +264,7 @@ export default function EquipePage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">Équipe</h1>
-          <p className="text-white/40 mt-1">Performances et objectifs mensuels</p>
+          <p className="text-white/40 mt-1">Objectifs et performances</p>
         </div>
         {/* Team profile quick-access */}
         <div className="flex items-center gap-2">
@@ -271,106 +284,92 @@ export default function EquipePage() {
         </div>
       </div>
 
-      {/* Month Selector */}
-      {reports.length > 0 && (
-        <div className="flex items-center gap-3">
-          <span className="text-white/40 text-sm flex-shrink-0">Mois :</span>
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            {reports.slice(0, 10).map((r) => (
-              <button
-                key={r.id}
-                onClick={() => handleSelectReport(r.id)}
-                className={`px-3 py-1.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all flex-shrink-0 ${
-                  selectedReportId === r.id
-                    ? 'bg-[#D4AF37] text-black'
-                    : 'bg-[#242424] border border-white/[0.06] text-white/40 hover:text-white hover:border-white/20'
-                }`}
-              >
-                {getMonthName(r.month).substring(0, 3)} {r.year}
-              </button>
-            ))}
-          </div>
+      {/* Period Tabs */}
+      <div className="flex items-center gap-3">
+        <span className="text-white/40 text-sm flex-shrink-0">Période :</span>
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          {FUTURE_PERIODS.map((p) => (
+            <button
+              key={periodKey(p.month, p.year)}
+              onClick={() => setSelectedPeriod(p)}
+              className={`px-3 py-1.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all flex-shrink-0 ${
+                selectedPeriod.month === p.month && selectedPeriod.year === p.year
+                  ? 'bg-[#D4AF37] text-black'
+                  : 'bg-[#242424] border border-white/[0.06] text-white/40 hover:text-white hover:border-white/20'
+              }`}
+            >
+              {p.isAnnual ? p.label : p.label.substring(0, 3) + ' ' + p.year}
+            </button>
+          ))}
         </div>
-      )}
+      </div>
 
       {/* Monthly Goal Cards */}
-      {selectedReport && (
-        <div>
-          <h2 className="text-white/60 text-sm font-medium mb-3 uppercase tracking-wider">
-            {getMonthName(selectedReport.month)} {selectedReport.year}
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {data.users.map((user) => {
-              const goal = selectedReport.teamGoals.find((g) => g.userId === user.id)
-              const isAchieved = goal?.goalStatus === 'atteint'
+      <div>
+        <h2 className="text-white/60 text-sm font-medium mb-3 uppercase tracking-wider">
+          {selectedPeriod.label}
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {data.users.map((user) => {
+            const goal = currentReport?.teamGoals.find((g) => g.userId === user.id)
+            const isAchieved = goal?.goalStatus === 'atteint'
 
-              return (
-                <div
-                  key={user.id}
-                  className={`relative rounded-2xl border p-5 transition-all ${
-                    isAchieved
-                      ? 'border-green-500/20 bg-green-500/5'
-                      : 'border-white/[0.06] bg-[#181818]'
-                  }`}
-                >
-                  {/* Card header */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <Avatar user={user} size="md" />
-                      <div>
-                        <p className="text-white font-semibold">{user.name}</p>
-                        <Badge variant={isAchieved ? 'success' : goal ? 'warning' : 'default'}>
-                          {goal
-                            ? isAchieved
-                              ? '✓ Objectif atteint'
-                              : 'En cours'
-                            : 'Non défini'}
-                        </Badge>
-                      </div>
+            return (
+              <div
+                key={user.id}
+                className={`relative rounded-2xl border p-5 transition-all ${
+                  isAchieved
+                    ? 'border-green-500/20 bg-green-500/5'
+                    : 'border-white/[0.06] bg-[#181818]'
+                }`}
+              >
+                {/* Card header */}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar user={user} size="md" />
+                    <div>
+                      <p className="text-white font-semibold">{user.name}</p>
+                      <Badge variant={isAchieved ? 'success' : goal ? 'warning' : 'default'}>
+                        {goal
+                          ? isAchieved
+                            ? '✓ Objectif atteint'
+                            : 'En cours'
+                          : 'Non défini'}
+                      </Badge>
                     </div>
-                    <button
-                      onClick={() => openGoalModal(user.id)}
-                      className="p-2 rounded-xl text-white/20 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
                   </div>
-
-                  {/* Stats */}
-                  {goal ? (
-                    <div className="flex items-center gap-2">
-                      <StatPill icon={Star} value={goal.propertiesSigned} label="Signatures" color="text-[#D4AF37]" />
-                      <StatPill icon={Calendar} value={goal.appointmentsMade} label="Visites" color="text-purple-400" />
-                      <StatPill icon={Phone} value={goal.callsMade} label="Appels" color="text-green-400" />
-                      {goal.personalGoal && (
-                        <p className="text-white/30 text-xs italic ml-auto max-w-[120px] text-right line-clamp-2">
-                          "{goal.personalGoal}"
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-center py-3">
-                      <p className="text-white/30 text-sm mb-3">Aucun objectif ce mois</p>
-                      <Button size="sm" variant="outline" onClick={() => openGoalModal(user.id)}>
-                        Définir un objectif
-                      </Button>
-                    </div>
-                  )}
+                  <button
+                    onClick={() => openGoalModal(user.id)}
+                    className="p-2 rounded-xl text-white/20 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
                 </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
-      {/* No report */}
-      {!selectedReport && reports.length === 0 && (
-        <Card>
-          <p className="text-white/40 text-sm text-center py-8">
-            Aucun rapport mensuel disponible. Créez un rapport dans la section Rapports pour commencer.
-          </p>
-        </Card>
-      )}
+                {/* Stats */}
+                {goal ? (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <StatPill icon={Star} value={goal.propertiesSigned} label="Signatures" color="text-[#D4AF37]" />
+                    <StatPill icon={Calendar} value={goal.appointmentsMade} label="Visites" color="text-purple-400" />
+                    {goal.personalGoal && (
+                      <p className="text-white/30 text-xs italic ml-auto max-w-[120px] text-right line-clamp-2">
+                        &quot;{goal.personalGoal}&quot;
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-3">
+                    <p className="text-white/30 text-sm mb-3">Aucun objectif ce mois</p>
+                    <Button size="sm" variant="outline" onClick={() => openGoalModal(user.id)}>
+                      Définir un objectif
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
 
       {/* Leaderboard */}
       <Card>
@@ -420,14 +419,7 @@ export default function EquipePage() {
                     </div>
                     <p className="text-white/30 text-[10px]">visites</p>
                   </div>
-                  <div className="text-center">
-                    <div className="flex items-center gap-1 justify-center">
-                      <Phone className="w-3.5 h-3.5 text-green-400" />
-                      <span className="text-green-400 font-bold text-lg">{user.totalCalls ?? 0}</span>
-                    </div>
-                    <p className="text-white/30 text-[10px]">appels</p>
-                  </div>
-                  {/* Mobile: just signatures */}
+                  {/* Mobile */}
                   <div className="text-center sm:hidden">
                     <div className="flex items-center gap-1 justify-center">
                       <Star className="w-3.5 h-3.5 text-[#D4AF37]" />
@@ -543,10 +535,10 @@ export default function EquipePage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Saisir les résultats du mois"
+        title={`Objectif — ${selectedPeriod.label}`}
       >
         <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs text-white/40 flex items-center gap-1">
                 <Star className="w-3 h-3 text-[#D4AF37]" /> Signatures
@@ -571,25 +563,13 @@ export default function EquipePage() {
                 className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40 transition-colors"
               />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-white/40 flex items-center gap-1">
-                <Phone className="w-3 h-3 text-green-400" /> Appels
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={goalForm.callsMade}
-                onChange={(e) => setGoalForm({ ...goalForm, callsMade: e.target.value })}
-                className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40 transition-colors"
-              />
-            </div>
           </div>
 
           <Textarea
             label="Objectif personnel"
             value={goalForm.personalGoal}
             onChange={(e) => setGoalForm({ ...goalForm, personalGoal: e.target.value })}
-            placeholder="Décrivez votre objectif pour ce mois..."
+            placeholder="Décrivez votre objectif pour cette période..."
             rows={2}
           />
 

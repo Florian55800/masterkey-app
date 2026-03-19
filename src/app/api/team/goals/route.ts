@@ -7,19 +7,40 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const {
       userId,
-      reportId,
+      month,
+      year,
       propertiesSigned,
       appointmentsMade,
       personalGoal,
       goalStatus,
     } = body
 
+    // Find or create the MonthlyReport for this period
+    let report = await prisma.monthlyReport.findUnique({
+      where: { month_year: { month: Number(month), year: Number(year) } },
+    })
+    if (!report) {
+      report = await prisma.monthlyReport.create({
+        data: {
+          month: Number(month),
+          year: Number(year),
+          caBrut: 0,
+          commissions: 0,
+          activeProperties: 0,
+          totalNights: 0,
+          newSignatures: 0,
+          lostProperties: 0,
+          netProfit: 0,
+        },
+      })
+    }
+
     // Upsert team goal
     const goal = await prisma.teamGoal.upsert({
       where: {
         userId_reportId: {
           userId: Number(userId),
-          reportId: Number(reportId),
+          reportId: report.id,
         },
       },
       update: {
@@ -30,7 +51,7 @@ export async function POST(request: NextRequest) {
       },
       create: {
         userId: Number(userId),
-        reportId: Number(reportId),
+        reportId: report.id,
         propertiesSigned: Number(propertiesSigned) || 0,
         appointmentsMade: Number(appointmentsMade) || 0,
         personalGoal: personalGoal || null,
