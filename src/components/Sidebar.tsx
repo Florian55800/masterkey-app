@@ -16,6 +16,7 @@ import {
   Settings,
   Menu,
   X,
+  Receipt,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -28,6 +29,7 @@ interface User {
 
 const navItems = [
   { href: '/', label: 'Tableau de bord', icon: LayoutDashboard },
+  { href: '/facturation', label: 'Facturation', icon: Receipt },
   { href: '/rapports', label: 'Rapports', icon: FileBarChart },
   { href: '/logements', label: 'Logements', icon: Building2 },
   { href: '/proprietaires', label: 'Clients', icon: Users },

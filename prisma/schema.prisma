@@ -36,21 +36,55 @@ model Owner {
 }
 
 model Property {
-  id             Int       @id @default(autoincrement())
+  id             Int               @id @default(autoincrement())
   name           String
   address        String
   city           String
   type           String
-  typeGestion    String    @default("conciergerie")
+  typeGestion    String            @default("conciergerie")
   ownerId        Int
-  owner          Owner     @relation(fields: [ownerId], references: [id])
+  owner          Owner             @relation(fields: [ownerId], references: [id])
   commissionRate Float
   photo          String?
   dateSigned     DateTime
   dateLost       DateTime?
-  status         String    @default("active")
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  status         String            @default("active")
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  revenues       PropertyRevenue[]
+  subletExpenses SubletExpense[]
+}
+
+model PropertyRevenue {
+  id             Int      @id @default(autoincrement())
+  propertyId     Int
+  property       Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  month          Int
+  year           Int
+  platform       String   // "airbnb" | "booking" | "direct" | "autre"
+  platformAmount Float    @default(0)
+  cleaningFees   Float    @default(0)
+  commissionRate Float    @default(0)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  @@unique([propertyId, month, year, platform])
+}
+
+model SubletExpense {
+  id            Int      @id @default(autoincrement())
+  propertyId    Int
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  month         Int
+  year          Int
+  loyer         Float    @default(0)
+  electricite   Float    @default(0)
+  wifi          Float    @default(0)
+  autresCharges Float    @default(0)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@unique([propertyId, month, year])
 }
 
 model SatisfactionScore {
