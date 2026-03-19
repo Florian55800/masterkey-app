@@ -96,157 +96,248 @@ function propertyTotals(revenues: PropertyRevenue[]) {
   )
 }
 
-// ─── Revenue Row Modal ────────────────────────────────────────────────────────
+// ─── Inline Platform Row ──────────────────────────────────────────────────────
+// Always-visible row per platform — no modal. Airbnb and Booking are shown
+// directly on the card with their own independent inputs.
 
-function RevenueModal({
-  isOpen,
-  onClose,
-  onSave,
-  initial,
-  property,
-  month,
-  year,
-  existingPlatforms,
+function PlatformRow({
+  property, platform, existing, month, year, onReload,
 }: {
-  isOpen: boolean
-  onClose: () => void
-  onSave: (data: Partial<PropertyRevenue>) => Promise<void>
-  initial: Partial<PropertyRevenue> | null
-  property: Property
-  month: number
-  year: number
-  existingPlatforms: string[]
+  property: Property; platform: string
+  existing: PropertyRevenue | null
+  month: number; year: number; onReload: () => void
 }) {
-  const [form, setForm] = useState({
-    platform: initial?.platform ?? 'airbnb',
-    platformAmount: String(initial?.platformAmount ?? ''),
-    cleaningFees: String(initial?.cleaningFees ?? ''),
-    commissionRate: String(initial?.commissionRate ?? property.commissionRate),
-    notes: initial?.notes ?? '',
-  })
+  const [amount,     setAmount]     = useState(existing ? String(existing.platformAmount)  : '')
+  const [cleaning,   setCleaning]   = useState(existing ? String(existing.cleaningFees)    : '')
+  const [commission, setCommission] = useState(
+    existing ? String(existing.commissionRate) : String(property.commissionRate)
+  )
+  const [dirty,  setDirty]  = useState(false)
   const [saving, setSaving] = useState(false)
+
+  // Sync from server data only when not editing
+  useEffect(() => {
+    if (!dirty) {
+      setAmount(existing    ? String(existing.platformAmount)  : '')
+      setCleaning(existing  ? String(existing.cleaningFees)    : '')
+      setCommission(existing ? String(existing.commissionRate) : String(property.commissionRate))
+    }
+  }, [existing, property.commissionRate, dirty])
+
+  const f = (v: string) => parseFloat(v) || 0
+  const base        = f(amount) - f(cleaning)
+  const partMK      = base * (f(commission) / 100)
+  const partProprio = base - partMK
+  const hasAmount   = f(amount) > 0
+
+  const mark = (setter: (v: string) => void) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => { setter(e.target.value); setDirty(true) }
+
+  const handleSave = async () => {
+    setSaving(true)
+    const payload = {
+      propertyId: property.id, month, year, platform,
+      platformAmount: f(amount), cleaningFees: f(cleaning), commissionRate: f(commission),
+    }
+    if (existing?.id) {
+      await fetch(`/api/facturation/${existing.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+    } else {
+      await fetch('/api/facturation', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+    }
+    setDirty(false)
+    setSaving(false)
+    onReload()
+  }
+
+  const handleDelete = async () => {
+    if (!existing?.id || !confirm(`Supprimer la ligne ${PLATFORM_LABELS[platform]} ?`)) return
+    await fetch(`/api/facturation/${existing.id}`, { method: 'DELETE' })
+    setAmount(''); setCleaning(''); setDirty(false)
+    onReload()
+  }
+
+  return (
+    <div className={`border-b border-white/[0.04] last:border-0 transition-opacity ${hasAmount || dirty ? '' : 'opacity-50'}`}>
+      {/* Mobile */}
+      <div className="md:hidden px-4 py-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <span className={`px-2 py-0.5 rounded-lg text-[11px] font-medium border flex-shrink-0 ${PLATFORM_COLORS[platform]}`}>
+            {PLATFORM_LABELS[platform]}
+          </span>
+          {hasAmount && !dirty && (
+            <span className="text-[#D4AF37] font-bold text-sm ml-auto">{formatCurrency(partMK)} MK</span>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] text-white/30 block mb-1">Montant €</label>
+            <input type="number" min="0" step="0.01" value={amount} onChange={mark(setAmount)}
+              placeholder="0.00"
+              className="w-full bg-[#141414] border border-white/[0.06] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
+          </div>
+          <div>
+            <label className="text-[10px] text-white/30 block mb-1">Ménage €</label>
+            <input type="number" min="0" step="0.01" value={cleaning} onChange={mark(setCleaning)}
+              placeholder="0.00"
+              className="w-full bg-[#141414] border border-white/[0.06] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
+          </div>
+        </div>
+        {hasAmount && (
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div><p className="text-white/25 text-[9px]">Base</p><p className="text-white/70 text-xs font-medium">{formatCurrency(base)}</p></div>
+            <div><p className="text-white/25 text-[9px]">Part MK</p><p className="text-[#D4AF37] text-xs font-bold">{formatCurrency(partMK)}</p></div>
+            <div><p className="text-white/25 text-[9px]">Proprio</p><p className="text-green-400 text-xs font-semibold">{formatCurrency(partProprio)}</p></div>
+          </div>
+        )}
+        {dirty && (
+          <button onClick={handleSave} disabled={saving}
+            className="w-full py-1.5 rounded-lg text-xs font-medium bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/20 hover:bg-[#D4AF37]/25 transition-all disabled:opacity-40">
+            {saving ? 'Enregistrement...' : 'Enregistrer'}
+          </button>
+        )}
+      </div>
+
+      {/* Desktop */}
+      <div className="hidden md:flex items-center group">
+        <div className="w-[110px] px-4 py-3 flex-shrink-0">
+          <span className={`px-2 py-0.5 rounded-lg text-[11px] font-medium border ${PLATFORM_COLORS[platform]}`}>
+            {PLATFORM_LABELS[platform]}
+          </span>
+        </div>
+        <div className="flex-1 px-2 py-2">
+          <input type="number" min="0" step="0.01" value={amount} onChange={mark(setAmount)}
+            placeholder="0.00"
+            className="w-full bg-transparent border-b border-white/[0.08] focus:border-[#D4AF37]/50 px-1 py-1 text-white text-sm outline-none transition-colors placeholder:text-white/15" />
+        </div>
+        <div className="flex-1 px-2 py-2">
+          <input type="number" min="0" step="0.01" value={cleaning} onChange={mark(setCleaning)}
+            placeholder="0.00"
+            className="w-full bg-transparent border-b border-white/[0.08] focus:border-[#D4AF37]/50 px-1 py-1 text-white/60 text-sm outline-none transition-colors placeholder:text-white/15" />
+        </div>
+        <div className="w-[70px] px-2 py-2 flex-shrink-0">
+          <input type="number" min="0" max="100" step="0.5" value={commission} onChange={mark(setCommission)}
+            className="w-full bg-transparent border-b border-white/[0.08] focus:border-[#D4AF37]/50 px-1 py-1 text-white/50 text-sm outline-none transition-colors text-center" />
+        </div>
+        <div className="w-[90px] px-4 py-3 text-white/60 text-sm text-right flex-shrink-0">
+          {hasAmount ? formatCurrency(base) : <span className="text-white/15">—</span>}
+        </div>
+        <div className="w-[90px] px-4 py-3 text-[#D4AF37] font-semibold text-sm text-right flex-shrink-0">
+          {hasAmount ? formatCurrency(partMK) : <span className="text-white/15">—</span>}
+        </div>
+        <div className="w-[100px] px-4 py-3 text-green-400 font-semibold text-sm text-right flex-shrink-0">
+          {hasAmount ? formatCurrency(partProprio) : <span className="text-white/15">—</span>}
+        </div>
+        <div className="w-[90px] px-3 py-3 flex items-center justify-end gap-1 flex-shrink-0">
+          {dirty ? (
+            <button onClick={handleSave} disabled={saving}
+              className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/20 hover:bg-[#D4AF37]/25 transition-all disabled:opacity-40 whitespace-nowrap">
+              {saving ? '...' : 'Sauver'}
+            </button>
+          ) : (
+            existing?.id && (
+              <button onClick={handleDelete}
+                className="p-1.5 rounded-lg text-white/20 hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Extra Platform Modal (Direct / Autre) ────────────────────────────────────
+
+function ExtraPlatformModal({
+  isOpen, onClose, property, month, year, existingPlatforms, onReload,
+}: {
+  isOpen: boolean; onClose: () => void
+  property: Property; month: number; year: number
+  existingPlatforms: string[]; onReload: () => void
+}) {
+  const available = PLATFORMS.filter(p => !['airbnb', 'booking'].includes(p) && !existingPlatforms.includes(p))
+  const [platform,   setPlatform]   = useState(available[0] ?? 'direct')
+  const [amount,     setAmount]     = useState('')
+  const [cleaning,   setCleaning]   = useState('')
+  const [commission, setCommission] = useState(String(property.commissionRate))
+  const [notes,      setNotes]      = useState('')
+  const [saving,     setSaving]     = useState(false)
 
   useEffect(() => {
     if (isOpen) {
-      setForm({
-        platform: initial?.platform ?? (existingPlatforms.includes('airbnb') ? 'booking' : 'airbnb'),
-        platformAmount: String(initial?.platformAmount ?? ''),
-        cleaningFees: String(initial?.cleaningFees ?? ''),
-        commissionRate: String(initial?.commissionRate ?? property.commissionRate),
-        notes: initial?.notes ?? '',
-      })
+      setPlatform(available[0] ?? 'direct')
+      setAmount(''); setCleaning('')
+      setCommission(String(property.commissionRate))
+      setNotes('')
     }
-  }, [isOpen, initial, property.commissionRate, existingPlatforms])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
 
-  const f = (v: string) => parseFloat(v) || 0
-  const base = f(form.platformAmount) - f(form.cleaningFees)
-  const partMK = base * (f(form.commissionRate) / 100)
+  const f   = (v: string) => parseFloat(v) || 0
+  const base        = f(amount) - f(cleaning)
+  const partMK      = base * (f(commission) / 100)
   const partProprio = base - partMK
 
   const handleSave = async () => {
     setSaving(true)
-    await onSave({
-      ...( initial?.id ? { id: initial.id } : {} ),
-      platform: form.platform,
-      platformAmount: f(form.platformAmount),
-      cleaningFees: f(form.cleaningFees),
-      commissionRate: f(form.commissionRate),
-      notes: form.notes || null,
-      month,
-      year,
-      propertyId: property.id,
+    await fetch('/api/facturation', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        propertyId: property.id, month, year, platform,
+        platformAmount: f(amount), cleaningFees: f(cleaning),
+        commissionRate: f(commission), notes: notes || null,
+      }),
     })
-    setSaving(false)
-    onClose()
+    setSaving(false); onClose(); onReload()
   }
 
-  const availablePlatforms = initial?.id
-    ? PLATFORMS
-    : PLATFORMS.filter(p => !existingPlatforms.includes(p))
+  if (available.length === 0) return null
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`${initial?.id ? 'Modifier' : 'Ajouter'} — ${property.name}`}>
+    <Modal isOpen={isOpen} onClose={onClose} title={`Ajouter plateforme — ${property.name}`}>
       <div className="space-y-4">
-        {/* Platform selector */}
-        {!initial?.id && (
-          <div>
-            <label className="text-xs text-white/40 font-medium block mb-2">Plateforme</label>
-            <div className="flex gap-2 flex-wrap">
-              {availablePlatforms.map(p => (
-                <button
-                  key={p}
-                  onClick={() => setForm(f => ({ ...f, platform: p }))}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
-                    form.platform === p
-                      ? PLATFORM_COLORS[p]
-                      : 'bg-transparent border-white/10 text-white/30 hover:border-white/20 hover:text-white/60'
-                  }`}
-                >
-                  {PLATFORM_LABELS[p]}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs text-white/40 block mb-1.5">Montant plateforme (€)</label>
-            <input
-              type="number" min="0" step="0.01"
-              value={form.platformAmount}
-              onChange={e => setForm(f => ({ ...f, platformAmount: e.target.value }))}
-              className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-white/40 block mb-1.5">Frais ménage (€)</label>
-            <input
-              type="number" min="0" step="0.01"
-              value={form.cleaningFees}
-              onChange={e => setForm(f => ({ ...f, cleaningFees: e.target.value }))}
-              className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-white/40 block mb-1.5">Commission (%)</label>
-            <input
-              type="number" min="0" max="100" step="0.5"
-              value={form.commissionRate}
-              onChange={e => setForm(f => ({ ...f, commissionRate: e.target.value }))}
-              className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-white/40 block mb-1.5">Notes</label>
-            <input
-              type="text"
-              value={form.notes}
-              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-              placeholder="Ex: facturer 60€ supp."
-              className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40"
-            />
+        <div>
+          <label className="text-xs text-white/40 font-medium block mb-2">Plateforme</label>
+          <div className="flex gap-2">
+            {available.map(p => (
+              <button key={p} onClick={() => setPlatform(p)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+                  platform === p ? PLATFORM_COLORS[p] : 'border-white/10 text-white/30 hover:border-white/20'
+                }`}>
+                {PLATFORM_LABELS[p]}
+              </button>
+            ))}
           </div>
         </div>
-
-        {/* Live preview */}
-        {f(form.platformAmount) > 0 && (
+        <div className="grid grid-cols-2 gap-3">
+          {([
+            ['Montant plateforme (€)', amount,     setAmount,     'number'],
+            ['Frais ménage (€)',       cleaning,   setCleaning,   'number'],
+            ['Commission (%)',         commission, setCommission, 'number'],
+            ['Notes',                 notes,      setNotes,      'text'],
+          ] as [string, string, (v: string) => void, string][]).map(([label, val, set, type]) => (
+            <div key={label}>
+              <label className="text-xs text-white/40 block mb-1.5">{label}</label>
+              <input type={type} min="0" step="0.01" value={val}
+                onChange={e => set(e.target.value)}
+                className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
+            </div>
+          ))}
+        </div>
+        {f(amount) > 0 && (
           <div className="bg-[#141414] border border-white/[0.06] rounded-xl p-3 grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-white/30 text-[10px] mb-0.5">Base comm.</p>
-              <p className="text-white font-semibold text-sm">{formatCurrency(base)}</p>
-            </div>
-            <div>
-              <p className="text-white/30 text-[10px] mb-0.5">Part MasterKey</p>
-              <p className="text-[#D4AF37] font-bold text-sm">{formatCurrency(partMK)}</p>
-            </div>
-            <div>
-              <p className="text-white/30 text-[10px] mb-0.5">Part propriétaire</p>
-              <p className="text-green-400 font-semibold text-sm">{formatCurrency(partProprio)}</p>
-            </div>
+            <div><p className="text-white/30 text-[10px] mb-0.5">Base</p><p className="text-white font-semibold text-sm">{formatCurrency(base)}</p></div>
+            <div><p className="text-white/30 text-[10px] mb-0.5">Part MK</p><p className="text-[#D4AF37] font-bold text-sm">{formatCurrency(partMK)}</p></div>
+            <div><p className="text-white/30 text-[10px] mb-0.5">Part proprio</p><p className="text-green-400 font-semibold text-sm">{formatCurrency(partProprio)}</p></div>
           </div>
         )}
-
         <div className="flex gap-3 justify-end pt-1">
           <Button variant="ghost" onClick={onClose}>Annuler</Button>
           <Button isLoading={saving} onClick={handleSave}>Enregistrer</Button>
@@ -456,43 +547,19 @@ function PropertyRevenueCard({
 }: {
   property: Property; month: number; year: number; onReload: () => void
 }) {
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editingRevenue, setEditingRevenue] = useState<Partial<PropertyRevenue> | null>(null)
+  const [extraOpen, setExtraOpen] = useState(false)
   const [printOpen, setPrintOpen] = useState(false)
 
-  const revenues = property.revenues
-  const totals = propertyTotals(revenues)
+  const revenues     = property.revenues
+  const totals       = propertyTotals(revenues)
   const usedPlatforms = revenues.map(r => r.platform)
+  const hasExtra     = PLATFORMS.filter(p => !['airbnb', 'booking'].includes(p) && !usedPlatforms.includes(p)).length > 0
 
-  const handleSaveRevenue = async (data: Partial<PropertyRevenue>) => {
-    if (data.id) {
-      await fetch(`/api/facturation/${data.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-    } else {
-      await fetch('/api/facturation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-    }
-    onReload()
-  }
-
-  const handleDelete = async (id: number) => {
-    if (!confirm('Supprimer cette ligne ?')) return
-    await fetch(`/api/facturation/${id}`, { method: 'DELETE' })
-    onReload()
-  }
-
-  const openAdd = () => { setEditingRevenue(null); setModalOpen(true) }
-  const openEdit = (r: PropertyRevenue) => { setEditingRevenue(r); setModalOpen(true) }
+  const getFor = (platform: string) => revenues.find(r => r.platform === platform) ?? null
 
   return (
     <div className="bg-[#181818] border border-white/[0.06] rounded-2xl overflow-hidden">
-      {/* Card header */}
+      {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-[#D4AF37]/10 border border-[#D4AF37]/20 flex items-center justify-center flex-shrink-0">
@@ -500,29 +567,23 @@ function PropertyRevenueCard({
           </div>
           <div>
             <p className="text-white font-semibold">{property.name}</p>
-            <p className="text-white/30 text-xs">{property.owner.name} · {property.commissionRate}% commission</p>
+            <p className="text-white/30 text-xs">{property.owner.name} · {property.commissionRate}% comm.</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {revenues.length > 0 && (
-            <button
-              onClick={() => setPrintOpen(true)}
-              className="p-2 rounded-xl text-white/20 hover:text-blue-400 hover:bg-blue-400/10 transition-all"
-              title="Rapport propriétaire"
-            >
+          {totals.partMK > 0 && (
+            <button onClick={() => setPrintOpen(true)}
+              className="p-2 rounded-xl text-white/20 hover:text-blue-400 hover:bg-blue-400/10 transition-all" title="Rapport propriétaire">
               <Printer className="w-4 h-4" />
             </button>
           )}
-          {usedPlatforms.length < PLATFORMS.length && (
-            <button
-              onClick={openAdd}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-[#D4AF37] bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/20 transition-all"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Ajouter
+          {hasExtra && (
+            <button onClick={() => setExtraOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white/40 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.06] transition-all">
+              <Plus className="w-3.5 h-3.5" /> Direct / Autre
             </button>
           )}
-          {revenues.length > 0 && (
+          {totals.partMK > 0 && (
             <div className="text-right">
               <p className="text-[#D4AF37] font-bold text-lg leading-none">{formatCurrency(totals.partMK)}</p>
               <p className="text-white/30 text-[10px]">Part MK</p>
@@ -531,116 +592,60 @@ function PropertyRevenueCard({
         </div>
       </div>
 
-      {/* Revenue rows */}
-      {revenues.length > 0 ? (
-        <>
-          {/* Desktop table */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/[0.04]">
-                  {['Plateforme', 'Montant', 'Ménage', 'Com.%', 'Base comm.', 'Part MK', 'Part proprio', 'Notes', ''].map((h, i) => (
-                    <th key={i} className="text-left text-white/25 text-[10px] font-medium px-4 py-2.5">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {revenues.map(r => {
-                  const { base, partMK, partProprio } = calcRevenue(r)
-                  return (
-                    <tr key={r.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group">
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-lg text-[11px] font-medium border ${PLATFORM_COLORS[r.platform]}`}>
-                          {PLATFORM_LABELS[r.platform]}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-white font-medium">{formatCurrency(r.platformAmount)}</td>
-                      <td className="px-4 py-3 text-white/50">{formatCurrency(r.cleaningFees)}</td>
-                      <td className="px-4 py-3 text-white/50">{r.commissionRate}%</td>
-                      <td className="px-4 py-3 text-white/70">{formatCurrency(base)}</td>
-                      <td className="px-4 py-3 text-[#D4AF37] font-semibold">{formatCurrency(partMK)}</td>
-                      <td className="px-4 py-3 text-green-400 font-semibold">{formatCurrency(partProprio)}</td>
-                      <td className="px-4 py-3 text-white/30 text-xs italic max-w-[140px] truncate">{r.notes ?? ''}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg text-white/30 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all">
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => handleDelete(r.id)} className="p-1.5 rounded-lg text-white/30 hover:text-red-400 hover:bg-red-400/10 transition-all">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-              {/* Totals row */}
-              <tfoot>
-                <tr className="border-t border-white/[0.08] bg-white/[0.02]">
-                  <td colSpan={4} className="px-4 py-3 text-white/30 text-xs font-medium">TOTAL</td>
-                  <td className="px-4 py-3 text-white/70 font-semibold">{formatCurrency(totals.base)}</td>
-                  <td className="px-4 py-3 text-[#D4AF37] font-bold">{formatCurrency(totals.partMK)}</td>
-                  <td className="px-4 py-3 text-green-400 font-bold">{formatCurrency(totals.partProprio)}</td>
-                  <td colSpan={2} />
-                </tr>
-              </tfoot>
-            </table>
-          </div>
+      {/* Column headers — desktop only */}
+      <div className="hidden md:flex items-center border-b border-white/[0.04] bg-white/[0.01]">
+        <div className="w-[110px] px-4 py-2 text-white/25 text-[10px] font-medium flex-shrink-0">Plateforme</div>
+        <div className="flex-1 px-3 py-2 text-white/25 text-[10px] font-medium">Montant (€)</div>
+        <div className="flex-1 px-3 py-2 text-white/25 text-[10px] font-medium">Ménage (€)</div>
+        <div className="w-[70px] px-3 py-2 text-white/25 text-[10px] font-medium text-center flex-shrink-0">Com.%</div>
+        <div className="w-[90px] px-4 py-2 text-white/25 text-[10px] font-medium text-right flex-shrink-0">Base</div>
+        <div className="w-[90px] px-4 py-2 text-white/25 text-[10px] font-medium text-right flex-shrink-0">Part MK</div>
+        <div className="w-[100px] px-4 py-2 text-white/25 text-[10px] font-medium text-right flex-shrink-0">Part proprio</div>
+        <div className="w-[90px] flex-shrink-0" />
+      </div>
 
-          {/* Mobile cards */}
-          <div className="md:hidden divide-y divide-white/[0.04]">
-            {revenues.map(r => {
-              const { base, partMK, partProprio } = calcRevenue(r)
-              return (
-                <div key={r.id} className="px-4 py-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className={`px-2 py-0.5 rounded-lg text-[11px] font-medium border ${PLATFORM_COLORS[r.platform]}`}>
-                      {PLATFORM_LABELS[r.platform]}
-                    </span>
-                    <div className="flex gap-2">
-                      <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg text-white/30 hover:text-[#D4AF37]"><Edit2 className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => handleDelete(r.id)} className="p-1.5 rounded-lg text-white/30 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div><p className="text-white/30 text-[10px]">Montant</p><p className="text-white font-medium text-sm">{formatCurrency(r.platformAmount)}</p></div>
-                    <div><p className="text-white/30 text-[10px]">Part MK</p><p className="text-[#D4AF37] font-bold text-sm">{formatCurrency(partMK)}</p></div>
-                    <div><p className="text-white/30 text-[10px]">Part proprio</p><p className="text-green-400 font-semibold text-sm">{formatCurrency(partProprio)}</p></div>
-                  </div>
-                  {r.notes && <p className="text-white/30 text-xs italic">📝 {r.notes}</p>}
-                </div>
-              )
-            })}
-            <div className="px-4 py-3 flex justify-between bg-white/[0.02]">
-              <span className="text-white/30 text-xs font-medium">TOTAL</span>
-              <span className="text-[#D4AF37] font-bold text-sm">{formatCurrency(totals.partMK)} MK · {formatCurrency(totals.partProprio)} proprio</span>
-            </div>
+      {/* Airbnb row (always shown) */}
+      <PlatformRow property={property} platform="airbnb"
+        existing={getFor('airbnb')} month={month} year={year} onReload={onReload} />
+
+      {/* Booking row (always shown) */}
+      <PlatformRow property={property} platform="booking"
+        existing={getFor('booking')} month={month} year={year} onReload={onReload} />
+
+      {/* Direct / Autre rows if they exist */}
+      {revenues.filter(r => !['airbnb', 'booking'].includes(r.platform)).map(r => (
+        <PlatformRow key={r.id} property={property} platform={r.platform}
+          existing={r} month={month} year={year} onReload={onReload} />
+      ))}
+
+      {/* Totals footer */}
+      {totals.platformAmount > 0 && (
+        <>
+          <div className="hidden md:flex items-center border-t border-white/[0.08] bg-white/[0.02]">
+            <div className="w-[110px] px-4 py-3 text-white/30 text-xs font-semibold flex-shrink-0">TOTAL</div>
+            <div className="flex-1 px-3 py-3 text-white font-semibold text-sm">{formatCurrency(totals.platformAmount)}</div>
+            <div className="flex-1 px-3 py-3 text-white/50 text-sm">{formatCurrency(totals.cleaningFees)}</div>
+            <div className="w-[70px] flex-shrink-0" />
+            <div className="w-[90px] px-4 py-3 text-white/70 font-semibold text-sm text-right flex-shrink-0">{formatCurrency(totals.base)}</div>
+            <div className="w-[90px] px-4 py-3 text-[#D4AF37] font-bold text-sm text-right flex-shrink-0">{formatCurrency(totals.partMK)}</div>
+            <div className="w-[100px] px-4 py-3 text-green-400 font-bold text-sm text-right flex-shrink-0">{formatCurrency(totals.partProprio)}</div>
+            <div className="w-[90px] flex-shrink-0" />
+          </div>
+          <div className="md:hidden px-4 py-3 flex justify-between bg-white/[0.02] border-t border-white/[0.04]">
+            <span className="text-white/30 text-xs font-medium">TOTAL</span>
+            <span className="text-[#D4AF37] font-bold text-sm">{formatCurrency(totals.partMK)} MK · {formatCurrency(totals.partProprio)} proprio</span>
           </div>
         </>
-      ) : (
-        <div className="px-5 py-8 text-center">
-          <p className="text-white/20 text-sm mb-3">Aucun résultat ce mois</p>
-          <button onClick={openAdd} className="text-[#D4AF37] text-sm hover:underline flex items-center gap-1.5 mx-auto">
-            <Plus className="w-4 h-4" /> Saisir les résultats
-          </button>
-        </div>
       )}
 
-      {/* Revenue modal */}
-      <RevenueModal
-        isOpen={modalOpen} onClose={() => setModalOpen(false)}
-        onSave={handleSaveRevenue} initial={editingRevenue}
+      <ExtraPlatformModal
+        isOpen={extraOpen} onClose={() => setExtraOpen(false)}
         property={property} month={month} year={year}
-        existingPlatforms={editingRevenue?.id ? usedPlatforms.filter(p => p !== editingRevenue.platform) : usedPlatforms}
+        existingPlatforms={usedPlatforms} onReload={onReload}
       />
-
-      {/* Print modal */}
-      {revenues.length > 0 && (
-        <PrintModal
-          isOpen={printOpen} onClose={() => setPrintOpen(false)}
-          property={property} revenues={revenues} month={month} year={year}
-        />
+      {totals.partMK > 0 && (
+        <PrintModal isOpen={printOpen} onClose={() => setPrintOpen(false)}
+          property={property} revenues={revenues} month={month} year={year} />
       )}
     </div>
   )
@@ -653,31 +658,13 @@ function SubletPropertyCard({
 }: {
   property: Property; month: number; year: number; onReload: () => void
 }) {
-  const [revenueModalOpen, setRevenueModalOpen] = useState(false)
-  const [editingRevenue, setEditingRevenue] = useState<Partial<PropertyRevenue> | null>(null)
   const [expenseModalOpen, setExpenseModalOpen] = useState(false)
 
-  const revenues = property.revenues
-  const expense = property.subletExpenses[0] ?? null
-  const totalRevenue = revenues.reduce((s, r) => s + r.platformAmount - r.cleaningFees, 0)
+  const revenues     = property.revenues
+  const expense      = property.subletExpenses[0] ?? null
+  const totalRevenue = revenues.reduce((s, r) => s + r.platformAmount, 0)
   const totalCharges = expense ? expense.loyer + expense.electricite + expense.wifi + expense.autresCharges : 0
-  const netProfit = totalRevenue - totalCharges
-  const usedPlatforms = revenues.map(r => r.platform)
-
-  const handleSaveRevenue = async (data: Partial<PropertyRevenue>) => {
-    if (data.id) {
-      await fetch(`/api/facturation/${data.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-    } else {
-      await fetch('/api/facturation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-    }
-    onReload()
-  }
-
-  const handleDeleteRevenue = async (id: number) => {
-    if (!confirm('Supprimer ?')) return
-    await fetch(`/api/facturation/${id}`, { method: 'DELETE' })
-    onReload()
-  }
+  const netProfit    = totalRevenue - totalCharges
 
   const handleSaveExpense = async (data: Partial<SubletExpense>) => {
     if (data.id) {
@@ -703,88 +690,72 @@ function SubletPropertyCard({
         </div>
         <div className="text-right">
           <p className={`font-bold text-lg leading-none ${netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {formatCurrency(netProfit)}
+            {netProfit >= 0 ? '+' : ''}{formatCurrency(netProfit)}
           </p>
           <p className="text-white/30 text-[10px]">Résultat net</p>
         </div>
       </div>
 
-      <div className="p-5 space-y-4">
-        {/* Revenue section */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-white/50 text-xs font-medium uppercase tracking-wider">Revenus plateformes</p>
-            {usedPlatforms.length < PLATFORMS.length && (
-              <button onClick={() => { setEditingRevenue(null); setRevenueModalOpen(true) }}
-                className="text-[#D4AF37] text-xs flex items-center gap-1 hover:opacity-80">
-                <Plus className="w-3 h-3" /> Ajouter
-              </button>
-            )}
-          </div>
-          {revenues.length > 0 ? (
-            <div className="space-y-2">
-              {revenues.map(r => (
-                <div key={r.id} className="flex items-center gap-3 bg-[#141414] rounded-xl px-3 py-2.5">
-                  <span className={`px-2 py-0.5 rounded-lg text-[11px] font-medium border ${PLATFORM_COLORS[r.platform]}`}>
-                    {PLATFORM_LABELS[r.platform]}
-                  </span>
-                  <span className="text-white font-medium text-sm flex-1">{formatCurrency(r.platformAmount)}</span>
-                  {r.cleaningFees > 0 && <span className="text-white/30 text-xs">- {formatCurrency(r.cleaningFees)} ménage</span>}
-                  <div className="flex gap-1">
-                    <button onClick={() => { setEditingRevenue(r); setRevenueModalOpen(true) }} className="p-1 rounded-lg text-white/20 hover:text-white/60"><Edit2 className="w-3 h-3" /></button>
-                    <button onClick={() => handleDeleteRevenue(r.id)} className="p-1 rounded-lg text-white/20 hover:text-red-400"><Trash2 className="w-3 h-3" /></button>
-                  </div>
-                </div>
-              ))}
-              <div className="flex justify-between px-3 pt-1">
-                <span className="text-white/30 text-xs">Total net</span>
-                <span className="text-green-400 font-semibold text-sm">{formatCurrency(totalRevenue)}</span>
-              </div>
-            </div>
-          ) : (
-            <p className="text-white/20 text-sm text-center py-3">Aucun revenu saisi</p>
-          )}
+      {/* Revenus section — inline Airbnb + Booking rows */}
+      <div className="border-b border-white/[0.04]">
+        <div className="px-5 pt-3 pb-1">
+          <p className="text-white/40 text-[10px] font-semibold uppercase tracking-wider">Revenus plateformes</p>
         </div>
-
-        {/* Charges section */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-white/50 text-xs font-medium uppercase tracking-wider">Charges</p>
-            <button onClick={() => setExpenseModalOpen(true)}
-              className="text-white/40 text-xs flex items-center gap-1 hover:text-white/70">
-              <Edit2 className="w-3 h-3" /> {expense ? 'Modifier' : 'Saisir'}
-            </button>
+        <PlatformRow property={property} platform="airbnb"
+          existing={revenues.find(r => r.platform === 'airbnb') ?? null}
+          month={month} year={year} onReload={onReload} />
+        <PlatformRow property={property} platform="booking"
+          existing={revenues.find(r => r.platform === 'booking') ?? null}
+          month={month} year={year} onReload={onReload} />
+        {revenues.filter(r => !['airbnb', 'booking'].includes(r.platform)).map(r => (
+          <PlatformRow key={r.id} property={property} platform={r.platform}
+            existing={r} month={month} year={year} onReload={onReload} />
+        ))}
+        {totalRevenue > 0 && (
+          <div className="flex justify-between px-5 py-2.5 bg-white/[0.01]">
+            <span className="text-white/30 text-xs font-medium">Total revenus</span>
+            <span className="text-white font-semibold text-sm">{formatCurrency(totalRevenue)}</span>
           </div>
-          {expense ? (
-            <div className="bg-[#141414] rounded-xl p-3 space-y-2">
-              {[
-                { label: 'Loyer', value: expense.loyer, icon: '🏠' },
-                { label: 'Électricité', value: expense.electricite, icon: '⚡' },
-                { label: 'Wi-Fi', value: expense.wifi, icon: '📶' },
-                { label: 'Autres', value: expense.autresCharges, icon: '📦' },
-              ].filter(i => i.value > 0).map(item => (
-                <div key={item.label} className="flex justify-between">
-                  <span className="text-white/40 text-xs">{item.icon} {item.label}</span>
-                  <span className="text-red-400 text-sm font-medium">{formatCurrency(item.value)}</span>
-                </div>
-              ))}
-              <div className="flex justify-between border-t border-white/[0.06] pt-2 mt-2">
-                <span className="text-white/50 text-xs font-medium">Total charges</span>
-                <span className="text-red-400 font-bold text-sm">{formatCurrency(totalCharges)}</span>
-              </div>
-              {expense.notes && <p className="text-white/30 text-xs italic">{expense.notes}</p>}
-            </div>
-          ) : (
-            <p className="text-white/20 text-sm text-center py-3">Aucune charge saisie</p>
-          )}
-        </div>
+        )}
+      </div>
 
-        {/* Net result */}
-        {(revenues.length > 0 || expense) && (
+      {/* Charges section */}
+      <div className="p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-white/40 text-[10px] font-semibold uppercase tracking-wider">Charges mensuelles</p>
+          <button onClick={() => setExpenseModalOpen(true)}
+            className="text-white/40 text-xs flex items-center gap-1 hover:text-white/70 transition-colors">
+            <Edit2 className="w-3 h-3" /> {expense ? 'Modifier' : 'Saisir'}
+          </button>
+        </div>
+        {expense ? (
+          <div className="bg-[#141414] rounded-xl p-3 space-y-2">
+            {([
+              ['🏠 Loyer',       expense.loyer],
+              ['⚡ Électricité', expense.electricite],
+              ['📶 Wi-Fi',       expense.wifi],
+              ['📦 Autres',      expense.autresCharges],
+            ] as [string, number][]).filter(([, v]) => v > 0).map(([label, value]) => (
+              <div key={label} className="flex justify-between">
+                <span className="text-white/40 text-xs">{label}</span>
+                <span className="text-red-400 text-sm font-medium">{formatCurrency(value)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between border-t border-white/[0.06] pt-2">
+              <span className="text-white/50 text-xs font-medium">Total charges</span>
+              <span className="text-red-400 font-bold text-sm">{formatCurrency(totalCharges)}</span>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setExpenseModalOpen(true)}
+            className="w-full py-3 rounded-xl border border-dashed border-white/[0.08] text-white/20 text-sm hover:border-white/20 hover:text-white/40 transition-all">
+            + Saisir les charges
+          </button>
+        )}
+
+        {(totalRevenue > 0 || expense) && (
           <div className={`flex items-center justify-between rounded-xl px-4 py-3 border ${
-            netProfit >= 0
-              ? 'bg-green-500/5 border-green-500/15'
-              : 'bg-red-500/5 border-red-500/15'
+            netProfit >= 0 ? 'bg-green-500/5 border-green-500/15' : 'bg-red-500/5 border-red-500/15'
           }`}>
             <span className="text-white/50 text-sm font-medium">Résultat net</span>
             <span className={`font-bold text-lg ${netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -794,12 +765,6 @@ function SubletPropertyCard({
         )}
       </div>
 
-      <RevenueModal
-        isOpen={revenueModalOpen} onClose={() => setRevenueModalOpen(false)}
-        onSave={handleSaveRevenue} initial={editingRevenue}
-        property={property} month={month} year={year}
-        existingPlatforms={editingRevenue?.id ? usedPlatforms.filter(p => p !== editingRevenue.platform) : usedPlatforms}
-      />
       <SubletModal
         isOpen={expenseModalOpen} onClose={() => setExpenseModalOpen(false)}
         onSave={handleSaveExpense} initial={expense}
