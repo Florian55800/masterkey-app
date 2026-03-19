@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   ChevronLeft, ChevronRight, Edit2, Trash2, Plus, Printer,
   Trophy, TrendingUp, Home, X, Check, AlertCircle, Euro,
-  Building2, Zap, Wifi, MoreHorizontal
+  Building2, Zap, Wifi, MoreHorizontal, Download
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -890,6 +890,8 @@ export default function FacturationPage() {
   const [conciergerieProps, setConciergerieProps] = useState<Property[]>([])
   const [sousLocationProps, setSousLocationProps] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
+  const [seeding, setSeeding] = useState(false)
+  const [seedMsg, setSeedMsg] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -924,6 +926,26 @@ export default function FacturationPage() {
 
   const totalBrut = conciergerieProps.reduce((s, p) => s + propertyTotals(p.revenues).partMK, 0)
 
+  const handleSeed = async () => {
+    if (!confirm('Importer les données historiques (Août 2025 → Fév 2026) ? Les entrées existantes ne seront pas écrasées.')) return
+    setSeeding(true)
+    setSeedMsg(null)
+    try {
+      const res = await fetch('/api/facturation/seed', { method: 'POST' })
+      const data = await res.json()
+      if (data.ok) {
+        setSeedMsg(`✓ ${data.message}`)
+        load()
+      } else {
+        setSeedMsg(`Erreur : ${data.error}`)
+      }
+    } catch {
+      setSeedMsg('Erreur réseau')
+    } finally {
+      setSeeding(false)
+    }
+  }
+
   const TABS: { key: ActiveTab; label: string; count?: number }[] = [
     { key: 'conciergerie', label: 'Conciergerie', count: conciergerieProps.length },
     { key: 'sous-location', label: 'Sous-location', count: sousLocationProps.length },
@@ -938,13 +960,29 @@ export default function FacturationPage() {
           <h1 className="text-2xl font-bold text-white">Facturation</h1>
           <p className="text-white/40 mt-1">Résultats par logement et génération de rapports propriétaires</p>
         </div>
-        {totalBrut > 0 && (
-          <div className="bg-[#D4AF37]/10 border border-[#D4AF37]/20 rounded-2xl px-4 py-2.5 text-center">
-            <p className="text-white/40 text-[10px] uppercase tracking-wider mb-0.5">Total brut {MONTHS_FR[month]}</p>
-            <p className="text-[#D4AF37] font-bold text-xl">{formatCurrency(totalBrut)}</p>
-          </div>
-        )}
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={handleSeed}
+            disabled={seeding}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-white/[0.04] border border-white/[0.06] text-white/40 hover:text-white/70 hover:border-white/10 transition-all disabled:opacity-40"
+            title="Importer les données historiques Aug 2025 → Fév 2026"
+          >
+            <Download className="w-3.5 h-3.5" />
+            {seeding ? 'Import...' : 'Données historiques'}
+          </button>
+          {totalBrut > 0 && (
+            <div className="bg-[#D4AF37]/10 border border-[#D4AF37]/20 rounded-2xl px-4 py-2.5 text-center">
+              <p className="text-white/40 text-[10px] uppercase tracking-wider mb-0.5">Total brut {MONTHS_FR[month]}</p>
+              <p className="text-[#D4AF37] font-bold text-xl">{formatCurrency(totalBrut)}</p>
+            </div>
+          )}
+        </div>
       </div>
+      {seedMsg && (
+        <div className={`text-xs px-4 py-2 rounded-xl border ${seedMsg.startsWith('✓') ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+          {seedMsg}
+        </div>
+      )}
 
       {/* Month navigator */}
       <div className="flex items-center gap-3">

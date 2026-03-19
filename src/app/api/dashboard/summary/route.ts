@@ -34,11 +34,10 @@ export async function GET(req: NextRequest) {
     const liveActiveProperties = await prisma.property.count({ where: { status: 'active', typeGestion: 'conciergerie' } })
     const activeProperties = currentReport?.activeProperties ?? liveActiveProperties
 
-    // Relances (always based on today)
+    // Relances (always based on today) — show ALL upcoming + overdue (no upper date limit)
     const today = new Date()
-    const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
     const upcomingRelances = await prisma.owner.findMany({
-      where: { relanceDate: { gte: today, lte: nextWeek } },
+      where: { relanceDate: { gte: today } },
       include: { properties: { where: { status: 'active' } } },
       orderBy: { relanceDate: 'asc' },
     })
@@ -48,9 +47,9 @@ export async function GET(req: NextRequest) {
       orderBy: { relanceDate: 'asc' },
     })
 
-    // Lead relances
+    // Lead relances — show ALL upcoming + overdue (no upper date limit)
     const upcomingLeadRelances = await prisma.lead.findMany({
-      where: { relanceDate: { gte: today, lte: nextWeek }, statut: { not: 'Mort' } },
+      where: { relanceDate: { gte: today }, statut: { not: 'Mort' } },
       orderBy: { relanceDate: 'asc' },
     })
     const overdueLeadRelances = await prisma.lead.findMany({

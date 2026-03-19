@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
           newSignatures: 0,
           lostProperties: 0,
           netProfit: 0,
+          isPlaceholder: true,
         },
       })
     }

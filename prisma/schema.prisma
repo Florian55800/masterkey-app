@@ -110,6 +110,7 @@ model MonthlyReport {
   netProfit        Float     @default(0)
   notes            String?
   targetMargin     Float?
+  isPlaceholder    Boolean   @default(false)
   expenses         Expense[]
   teamGoals        TeamGoal[]
   createdAt        DateTime  @default(now())

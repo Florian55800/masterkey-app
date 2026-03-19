@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 export async function GET() {
   try {
     const reports = await prisma.monthlyReport.findMany({
+      where: { isPlaceholder: false },
       include: {
         expenses: true,
         teamGoals: { include: { user: true } },
