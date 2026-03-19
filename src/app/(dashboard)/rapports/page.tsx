@@ -64,10 +64,15 @@ export default function RapportsPage() {
   }, [])
 
   const loadReports = async () => {
-    const res = await fetch('/api/reports')
-    const data = await res.json()
-    setReports(data)
-    setLoading(false)
+    try {
+      const res = await fetch('/api/reports')
+      const data = await res.json()
+      setReports(Array.isArray(data) ? data : [])
+    } catch {
+      setReports([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   const availableYears = Array.from(

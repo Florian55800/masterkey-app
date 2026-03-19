@@ -59,7 +59,10 @@ export default function LeadsPage() {
   const [expandedId, setExpandedId] = useState<number | null>(null)
 
   useEffect(() => {
-    fetch('/api/leads').then(r => r.json()).then(d => { setLeads(d); setLoading(false) })
+    fetch('/api/leads')
+      .then(r => r.json())
+      .then(d => { setLeads(Array.isArray(d) ? d : []); setLoading(false) })
+      .catch(() => { setLeads([]); setLoading(false) })
   }, [])
 
   const openCreate = () => { setEditingLead(null); setForm(emptyForm); setIsModalOpen(true) }

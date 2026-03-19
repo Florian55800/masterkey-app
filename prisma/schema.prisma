@@ -102,7 +102,6 @@ model TeamGoal {
   report           MonthlyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
   propertiesSigned Int           @default(0)
   appointmentsMade Int           @default(0)
-  callsMade        Int           @default(0)
   personalGoal     String?
   goalStatus       String        @default("en_cours")
   createdAt        DateTime      @default(now())

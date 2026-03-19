@@ -50,22 +50,32 @@ export default function DepensesPage() {
   }, [])
 
   const loadReports = async () => {
-    const res = await fetch('/api/reports')
-    const data = await res.json()
-    setReports(data)
-    if (data.length > 0) {
-      const latest = data[0]
-      setSelectedReportId(latest.id)
-      setSelectedReport(latest)
-      loadExpenses(latest.id)
+    try {
+      const res = await fetch('/api/reports')
+      const data = await res.json()
+      const arr = Array.isArray(data) ? data : []
+      setReports(arr)
+      if (arr.length > 0) {
+        const latest = arr[0]
+        setSelectedReportId(latest.id)
+        setSelectedReport(latest)
+        loadExpenses(latest.id)
+      }
+    } catch {
+      setReports([])
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const loadExpenses = async (reportId: number) => {
-    const res = await fetch(`/api/expenses?reportId=${reportId}`)
-    const data = await res.json()
-    setExpenses(data)
+    try {
+      const res = await fetch(`/api/expenses?reportId=${reportId}`)
+      const data = await res.json()
+      setExpenses(Array.isArray(data) ? data : [])
+    } catch {
+      setExpenses([])
+    }
   }
 
   const handleSelectReport = async (reportId: number) => {

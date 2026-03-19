@@ -82,14 +82,20 @@ export default function LogementsPage() {
   }, [])
 
   const loadData = async () => {
-    const [propsRes, ownersRes] = await Promise.all([
-      fetch('/api/properties'),
-      fetch('/api/owners'),
-    ])
-    const [propsData, ownersData] = await Promise.all([propsRes.json(), ownersRes.json()])
-    setProperties(propsData)
-    setOwners(ownersData)
-    setLoading(false)
+    try {
+      const [propsRes, ownersRes] = await Promise.all([
+        fetch('/api/properties'),
+        fetch('/api/owners'),
+      ])
+      const [propsData, ownersData] = await Promise.all([propsRes.json(), ownersRes.json()])
+      setProperties(Array.isArray(propsData) ? propsData : [])
+      setOwners(Array.isArray(ownersData) ? ownersData : [])
+    } catch {
+      setProperties([])
+      setOwners([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   const activeProperties = properties.filter((p) => p.status === 'active')

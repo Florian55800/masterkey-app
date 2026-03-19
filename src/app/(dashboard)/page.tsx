@@ -112,7 +112,7 @@ export default function DashboardPage() {
     setLoading(true)
     fetch(`/api/dashboard/summary?month=${selectedMonth}&year=${selectedYear}`)
       .then((r) => r.json())
-      .then((d) => { setData(d); setLoading(false) })
+      .then((d) => { if (d?.currentMonth) { setData(d) } setLoading(false) })
       .catch(() => setLoading(false))
   }, [selectedMonth, selectedYear])
 

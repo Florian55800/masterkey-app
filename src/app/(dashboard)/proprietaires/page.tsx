@@ -79,10 +79,15 @@ export default function ProprietairesPage() {
   }, [])
 
   const loadOwners = async () => {
-    const res = await fetch('/api/owners')
-    const data = await res.json()
-    setOwners(data)
-    setLoading(false)
+    try {
+      const res = await fetch('/api/owners')
+      const data = await res.json()
+      setOwners(Array.isArray(data) ? data : [])
+    } catch {
+      setOwners([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   const tabOwners = owners.filter((o) => {

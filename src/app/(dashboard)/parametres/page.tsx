@@ -50,7 +50,7 @@ export default function ParametresPage() {
     try {
       const res = await fetch('/api/leads')
       const data = await res.json()
-      const rows = data.map((l: Record<string, unknown>) => ({
+      const rows = (Array.isArray(data) ? data : []).map((l: Record<string, unknown>) => ({
         Nom: l.nom,
         Email: l.email ?? '',
         Téléphone: l.telephone ?? '',
@@ -76,7 +76,7 @@ export default function ParametresPage() {
     try {
       const res = await fetch('/api/owners')
       const data = await res.json()
-      const rows = data.map((o: Record<string, unknown>) => ({
+      const rows = (Array.isArray(data) ? data : []).map((o: Record<string, unknown>) => ({
         Nom: o.name,
         Téléphone: o.phone ?? '',
         Email: o.email ?? '',
@@ -97,7 +97,7 @@ export default function ParametresPage() {
     try {
       const res = await fetch('/api/properties')
       const data = await res.json()
-      const rows = data.map((p: Record<string, unknown>) => ({
+      const rows = (Array.isArray(data) ? data : []).map((p: Record<string, unknown>) => ({
         Nom: p.name,
         Adresse: p.address,
         Ville: p.city,
@@ -119,7 +119,7 @@ export default function ParametresPage() {
     try {
       const res = await fetch('/api/reports')
       const data = await res.json()
-      const rows = data.map((r: Record<string, unknown>) => ({
+      const rows = (Array.isArray(data) ? data : []).map((r: Record<string, unknown>) => ({
         Mois: r.month,
         Année: r.year,
         'CA Brut (€)': r.caBrut,
@@ -138,12 +138,16 @@ export default function ParametresPage() {
   const exportAll = async () => {
     setStatus('backup', 'loading')
     try {
-      const [leads, clients, logements, rapports] = await Promise.all([
+      const [leadsRaw, clientsRaw, logementsRaw, rapportsRaw] = await Promise.all([
         fetch('/api/leads').then((r) => r.json()),
         fetch('/api/owners').then((r) => r.json()),
         fetch('/api/properties').then((r) => r.json()),
         fetch('/api/reports').then((r) => r.json()),
       ])
+      const leads = Array.isArray(leadsRaw) ? leadsRaw : []
+      const clients = Array.isArray(clientsRaw) ? clientsRaw : []
+      const logements = Array.isArray(logementsRaw) ? logementsRaw : []
+      const rapports = Array.isArray(rapportsRaw) ? rapportsRaw : []
       const backup = {
         exportedAt: new Date().toISOString(),
         version: '1.0',
