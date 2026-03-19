@@ -151,21 +151,29 @@ export default function EquipePage() {
   }
 
   const loadData = useCallback(async () => {
-    const [teamRes, reportsRes] = await Promise.all([
-      fetch('/api/team'),
-      fetch('/api/reports'),
-    ])
-    const [teamData, reportsData] = await Promise.all([teamRes.json(), reportsRes.json()])
-    setData(teamData)
-    setReports(reportsData)
-    if (teamData.currentReport) {
-      setSelectedReportId(teamData.currentReport.id)
-      setSelectedReport(teamData.currentReport)
-    } else if (reportsData.length > 0) {
-      setSelectedReportId(reportsData[0].id)
-      loadReportDetails(reportsData[0].id)
+    try {
+      const [teamRes, reportsRes] = await Promise.all([
+        fetch('/api/team'),
+        fetch('/api/reports'),
+      ])
+      const [teamData, reportsData] = await Promise.all([teamRes.json(), reportsRes.json()])
+      // Only store if valid response (has .users array)
+      if (Array.isArray(teamData.users)) setData(teamData)
+      if (Array.isArray(reportsData)) {
+        setReports(reportsData)
+        if (teamData.currentReport) {
+          setSelectedReportId(teamData.currentReport.id)
+          setSelectedReport(teamData.currentReport)
+        } else if (reportsData.length > 0) {
+          setSelectedReportId(reportsData[0].id)
+          loadReportDetails(reportsData[0].id)
+        }
+      }
+    } catch (e) {
+      console.error('Team load error:', e)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [])
 
   const loadReportDetails = async (reportId: number) => {
@@ -229,12 +237,13 @@ export default function EquipePage() {
     setSaving(false)
   }
 
-  const sortedUsers = data?.users.slice().sort((a, b) => b.totalSigned - a.totalSigned) ?? []
+  if (loading) return <LoadingPage />
+  // Guard against API error responses (e.g. { error: '...' } with no .users)
+  if (!data?.users) return <div className="text-gray-400 text-center py-20">Erreur de chargement de l'équipe</div>
+
+  const sortedUsers = data.users.slice().sort((a, b) => b.totalSigned - a.totalSigned)
   const rankIcons = [Crown, Medal, Medal]
   const rankColors = ['text-[#D4AF37]', 'text-gray-300', 'text-amber-600']
-
-  if (loading) return <LoadingPage />
-  if (!data) return null
 
   return (
     <div className="space-y-6">

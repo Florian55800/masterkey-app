@@ -281,14 +281,19 @@ export default function ObjectifsPage() {
   }, [])
 
   const loadAll = async () => {
-    const [monthlyRes, overviewRes] = await Promise.all([
-      fetch('/api/objectives/monthly'),
-      fetch('/api/objectives'),
-    ])
-    const [monthlyData, overview] = await Promise.all([monthlyRes.json(), overviewRes.json()])
-    setPeriods(monthlyData.periods ?? [])
-    setOverviewData(overview)
-    setLoading(false)
+    try {
+      const [monthlyRes, overviewRes] = await Promise.all([
+        fetch('/api/objectives/monthly'),
+        fetch('/api/objectives'),
+      ])
+      const [monthlyData, overview] = await Promise.all([monthlyRes.json(), overviewRes.json()])
+      setPeriods(monthlyData.periods ?? [])
+      setOverviewData(typeof overview?.activeProperties === 'number' ? overview : null)
+    } catch (e) {
+      console.error('Objectifs load error:', e)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const selectedPeriod = periods[selectedIdx] ?? null
