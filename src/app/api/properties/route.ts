@@ -5,7 +5,22 @@ import { prisma } from '@/lib/prisma'
 export async function GET() {
   try {
     const properties = await prisma.property.findMany({
-      include: { owner: true },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        city: true,
+        type: true,
+        typeGestion: true,
+        ownerId: true,
+        commissionRate: true,
+        dateSigned: true,
+        dateLost: true,
+        status: true,
+        photo: true,
+        createdAt: true,
+        owner: { select: { id: true, name: true } },
+      },
       orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json(properties)
@@ -18,7 +33,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, address, city, type, ownerId, commissionRate, dateSigned, photo } = body
+    const { name, address, city, type, typeGestion, ownerId, commissionRate, dateSigned, photo } = body
 
     const property = await prisma.property.create({
       data: {
@@ -26,6 +41,7 @@ export async function POST(request: NextRequest) {
         address,
         city,
         type,
+        typeGestion: typeGestion || 'conciergerie',
         ownerId: Number(ownerId),
         commissionRate: Number(commissionRate),
         dateSigned: new Date(dateSigned),
