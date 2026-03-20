@@ -127,6 +127,24 @@ async function migrate() {
     }
   }
 
+  // Add description to Property
+  try {
+    await client.execute(`ALTER TABLE "Property" ADD COLUMN "description" TEXT`)
+    console.log('[migrate-turso] ✓ Added description to Property')
+  } catch {
+    console.log('[migrate-turso] ✓ description already exists on Property')
+  }
+
+  // Add nbSejours/nbNuits to PropertyRevenue
+  for (const col of ['nbSejours', 'nbNuits']) {
+    try {
+      await client.execute(`ALTER TABLE "PropertyRevenue" ADD COLUMN "${col}" INTEGER NOT NULL DEFAULT 0`)
+      console.log(`[migrate-turso] ✓ Added ${col} to PropertyRevenue`)
+    } catch {
+      console.log(`[migrate-turso] ✓ ${col} already exists on PropertyRevenue`)
+    }
+  }
+
   console.log('[migrate-turso] Migration complete ✅')
   await client.close()
 }

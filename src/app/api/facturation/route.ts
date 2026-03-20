@@ -45,6 +45,8 @@ export async function POST(req: NextRequest) {
         cleaningFees: Number(cleaningFees) || 0,
         commissionRate: Number(commissionRate) || 0,
         notes: notes ?? null,
+        nbSejours: Number(body.nbSejours) || 0,
+        nbNuits:   Number(body.nbNuits)   || 0,
       },
       create: {
         propertyId: Number(propertyId),
@@ -55,6 +57,8 @@ export async function POST(req: NextRequest) {
         cleaningFees: Number(cleaningFees) || 0,
         commissionRate: Number(commissionRate) || 0,
         notes: notes ?? null,
+        nbSejours: Number(body.nbSejours) || 0,
+        nbNuits:   Number(body.nbNuits)   || 0,
       },
     })
 

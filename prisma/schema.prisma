@@ -47,6 +47,7 @@ model Property {
   owner          Owner             @relation(fields: [ownerId], references: [id])
   commissionRate Float
   photo          String?
+  description    String?
   dateSigned     DateTime
   dateLost       DateTime?
   status         String            @default("active")
@@ -67,6 +68,8 @@ model PropertyRevenue {
   cleaningFees   Float    @default(0)
   commissionRate Float    @default(0)
   notes          String?
+  nbSejours      Int      @default(0)
+  nbNuits        Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   @@unique([propertyId, month, year, platform])

@@ -14,6 +14,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         cleaningFees: Number(cleaningFees) || 0,
         commissionRate: Number(commissionRate) || 0,
         notes: notes ?? null,
+        nbSejours: body.nbSejours !== undefined ? Number(body.nbSejours) : undefined,
+        nbNuits:   body.nbNuits   !== undefined ? Number(body.nbNuits)   : undefined,
       },
     })
 
