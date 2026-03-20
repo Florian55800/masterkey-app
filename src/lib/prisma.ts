@@ -13,22 +13,11 @@ function getClient(): PrismaClient {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { PrismaLibSQL } = require('@prisma/adapter-libsql')
 
-    // Force HTTP mode (https://) : chaque requête est un POST indépendant,
-    // pas de WebSocket persistant qui peut se déconnecter silencieusement.
-    // Cela permet aussi d'appliquer un vrai timeout par requête via fetch.
-    const httpUrl = process.env.TURSO_DATABASE_URL.replace(/^libsql:\/\//, 'https://')
+    // HTTP mode (https://) : pas de WebSocket persistant qui se déconnecte
+    // silencieusement. Chaque requête = POST HTTP indépendant.
+    const url = process.env.TURSO_DATABASE_URL.replace(/^libsql:\/\//, 'https://')
 
-    const libsql = createClient({
-      url: httpUrl,
-      authToken: process.env.TURSO_AUTH_TOKEN,
-      // Timeout de 12s par requête — évite les blocages infinis
-      fetch: (url: string, init?: RequestInit) => {
-        const ctrl = new AbortController()
-        const tid = setTimeout(() => ctrl.abort(), 12_000)
-        return fetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(tid))
-      },
-    })
-
+    const libsql = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN })
     const adapter = new PrismaLibSQL(libsql)
     _client = new PrismaClient({ adapter })
   } else {

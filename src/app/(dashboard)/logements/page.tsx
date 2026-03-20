@@ -81,6 +81,14 @@ export default function LogementsPage() {
   }
 
   useEffect(() => {
+    // Affiche immédiatement depuis le cache local pour éviter tout spinner
+    const cached = localStorage.getItem('mk_properties_cache')
+    if (cached) {
+      try {
+        const { properties: p, owners: o } = JSON.parse(cached)
+        if (Array.isArray(p)) { setProperties(p); setOwners(o ?? []); setLoading(false) }
+      } catch { /* cache corrompu, on ignore */ }
+    }
     loadData()
   }, [])
 
@@ -95,16 +103,19 @@ export default function LogementsPage() {
       ]).finally(() => clearTimeout(tid))
       const [propsData, ownersData] = await Promise.all([propsRes.json(), ownersRes.json()])
       if (!Array.isArray(propsData)) {
-        setLoadError(propsData?.error || 'Erreur de chargement des logements')
-        setProperties([])
+        setLoadError(propsData?.error || 'Erreur de chargement')
+        // Garde les données en cache si l'API plante
       } else {
         setProperties(propsData)
+        setOwners(Array.isArray(ownersData) ? ownersData : [])
+        // Sauvegarde dans le cache pour le prochain chargement
+        localStorage.setItem('mk_properties_cache', JSON.stringify({
+          properties: propsData,
+          owners: Array.isArray(ownersData) ? ownersData : [],
+        }))
       }
-      setOwners(Array.isArray(ownersData) ? ownersData : [])
     } catch {
-      setLoadError('Impossible de joindre le serveur')
-      setProperties([])
-      setOwners([])
+      setLoadError('Serveur lent — données en cache affichées')
     } finally {
       setLoading(false)
     }
