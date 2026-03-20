@@ -28,22 +28,22 @@ export async function GET() {
   try {
     const periods = getTargetPeriods()
 
-    // Fetch all stored objectives
-    const storedObjectives = await prisma.monthlyObjective.findMany()
-
-    // Fetch all monthly reports for actuals
-    const reports = await prisma.monthlyReport.findMany({
-      include: { teamGoals: true },
-    })
-
-    // Count leads per month from Lead table
-    const leads = await prisma.lead.findMany({
-      select: { createdAt: true, statut: true },
-    })
-
-    // Live count of active properties (both types)
-    const totalActiveProperties = await prisma.property.count({ where: { status: 'active' } })
-    const conciergerieCount = await prisma.property.count({ where: { status: 'active', typeGestion: 'conciergerie' } })
+    // All 5 queries are independent — run in parallel
+    const [storedObjectives, reports, leads, totalActiveProperties, conciergerieCount] = await Promise.all([
+      // Fetch all stored objectives
+      prisma.monthlyObjective.findMany(),
+      // Fetch all monthly reports for actuals
+      prisma.monthlyReport.findMany({
+        include: { teamGoals: true },
+      }),
+      // Count leads per month from Lead table
+      prisma.lead.findMany({
+        select: { createdAt: true, statut: true },
+      }),
+      // Live count of active properties (both types)
+      prisma.property.count({ where: { status: 'active' } }),
+      prisma.property.count({ where: { status: 'active', typeGestion: 'conciergerie' } }),
+    ])
     const sousLocationCount = totalActiveProperties - conciergerieCount
 
     const result = periods.map((period) => {

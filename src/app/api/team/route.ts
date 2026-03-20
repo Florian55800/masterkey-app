@@ -8,25 +8,27 @@ export async function GET() {
     const currentMonth = now.getMonth() + 1
     const currentYear = now.getFullYear()
 
-    const users = await prisma.user.findMany({
-      include: {
-        teamGoals: {
-          include: { report: true },
-          orderBy: { createdAt: 'desc' },
+    // Both queries are independent — run in parallel
+    const [users, currentReport] = await Promise.all([
+      prisma.user.findMany({
+        include: {
+          teamGoals: {
+            include: { report: true },
+            orderBy: { createdAt: 'desc' },
+          },
         },
-      },
-      orderBy: { id: 'asc' },
-    })
-
-    // Get or compute current month report
-    const currentReport = await prisma.monthlyReport.findUnique({
-      where: { month_year: { month: currentMonth, year: currentYear } },
-      include: {
-        teamGoals: {
-          include: { user: true },
+        orderBy: { id: 'asc' },
+      }),
+      // Get or compute current month report
+      prisma.monthlyReport.findUnique({
+        where: { month_year: { month: currentMonth, year: currentYear } },
+        include: {
+          teamGoals: {
+            include: { user: true },
+          },
         },
-      },
-    })
+      }),
+    ])
 
     // Compute cumulative stats for each user
     const usersWithStats = users.map((user) => {
