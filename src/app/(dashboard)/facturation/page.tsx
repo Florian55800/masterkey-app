@@ -253,6 +253,153 @@ function PlatformRow({
   )
 }
 
+// ─── Sublet Platform Row (sans commission) ───────────────────────────────────
+// Version simplifiée pour la sous-location : montant + ménage uniquement.
+
+function SubletPlatformRow({
+  property, platform, existing, month, year, onReload,
+}: {
+  property: Property; platform: string
+  existing: PropertyRevenue | null
+  month: number; year: number; onReload: () => void
+}) {
+  const [amount,   setAmount]   = useState(existing ? String(existing.platformAmount) : '')
+  const [cleaning, setCleaning] = useState(existing ? String(existing.cleaningFees)   : '')
+  const [dirty,    setDirty]    = useState(false)
+  const [saving,   setSaving]   = useState(false)
+
+  useEffect(() => {
+    if (!dirty) {
+      setAmount(existing   ? String(existing.platformAmount) : '')
+      setCleaning(existing ? String(existing.cleaningFees)   : '')
+    }
+  }, [existing, dirty])
+
+  const f         = (v: string) => parseFloat(v) || 0
+  const net       = f(amount) - f(cleaning)
+  const hasAmount = f(amount) > 0
+
+  const mark = (setter: (v: string) => void) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => { setter(e.target.value); setDirty(true) }
+
+  const handleSave = async () => {
+    setSaving(true)
+    const payload = {
+      propertyId: property.id, month, year, platform,
+      platformAmount: f(amount), cleaningFees: f(cleaning), commissionRate: 0,
+    }
+    if (existing?.id) {
+      await fetch(`/api/facturation/${existing.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+    } else {
+      await fetch('/api/facturation', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+    }
+    setDirty(false); setSaving(false); onReload()
+  }
+
+  const handleDelete = async () => {
+    if (!existing?.id || !confirm(`Supprimer la ligne ${PLATFORM_LABELS[platform]} ?`)) return
+    await fetch(`/api/facturation/${existing.id}`, { method: 'DELETE' })
+    setAmount(''); setCleaning(''); setDirty(false); onReload()
+  }
+
+  return (
+    <div className={`border-b border-white/[0.04] last:border-0 transition-opacity ${hasAmount || dirty ? '' : 'opacity-50'}`}>
+      {/* Mobile */}
+      <div className="md:hidden px-4 py-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <span className={`px-2 py-0.5 rounded-lg text-[11px] font-medium border flex-shrink-0 ${PLATFORM_COLORS[platform]}`}>
+            {PLATFORM_LABELS[platform]}
+          </span>
+          {hasAmount && !dirty && (
+            <span className="text-green-400 font-bold text-sm ml-auto">net {formatCurrency(net)}</span>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] text-white/30 block mb-1">Montant plateforme (€)</label>
+            <input type="number" min="0" step="0.01" value={amount} onChange={mark(setAmount)}
+              placeholder="0.00"
+              className="w-full bg-[#141414] border border-white/[0.06] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
+          </div>
+          <div>
+            <label className="text-[10px] text-white/30 block mb-1">Frais ménage (€)</label>
+            <input type="number" min="0" step="0.01" value={cleaning} onChange={mark(setCleaning)}
+              placeholder="0.00"
+              className="w-full bg-[#141414] border border-white/[0.06] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
+          </div>
+        </div>
+        {hasAmount && (
+          <div className="flex items-center gap-3 text-center">
+            <div className="flex-1">
+              <p className="text-white/25 text-[9px]">Brut</p>
+              <p className="text-white/60 text-xs font-medium">{formatCurrency(f(amount))}</p>
+            </div>
+            <div className="text-white/20 text-xs">−</div>
+            <div className="flex-1">
+              <p className="text-white/25 text-[9px]">Ménage</p>
+              <p className="text-red-400/70 text-xs font-medium">{formatCurrency(f(cleaning))}</p>
+            </div>
+            <div className="text-white/20 text-xs">=</div>
+            <div className="flex-1">
+              <p className="text-white/25 text-[9px]">Net</p>
+              <p className="text-green-400 text-xs font-bold">{formatCurrency(net)}</p>
+            </div>
+          </div>
+        )}
+        {dirty && (
+          <button onClick={handleSave} disabled={saving}
+            className="w-full py-1.5 rounded-lg text-xs font-medium bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/20 hover:bg-[#D4AF37]/25 transition-all disabled:opacity-40">
+            {saving ? 'Enregistrement...' : 'Enregistrer'}
+          </button>
+        )}
+      </div>
+
+      {/* Desktop */}
+      <div className="hidden md:flex items-center group">
+        <div className="w-[120px] px-4 py-3 flex-shrink-0">
+          <span className={`px-2 py-0.5 rounded-lg text-[11px] font-medium border ${PLATFORM_COLORS[platform]}`}>
+            {PLATFORM_LABELS[platform]}
+          </span>
+        </div>
+        <div className="flex-1 px-2 py-2">
+          <input type="number" min="0" step="0.01" value={amount} onChange={mark(setAmount)}
+            placeholder="0.00"
+            className="w-full bg-transparent border-b border-white/[0.08] focus:border-[#D4AF37]/50 px-1 py-1 text-white text-sm outline-none transition-colors placeholder:text-white/15" />
+        </div>
+        <div className="flex-1 px-2 py-2">
+          <input type="number" min="0" step="0.01" value={cleaning} onChange={mark(setCleaning)}
+            placeholder="0.00"
+            className="w-full bg-transparent border-b border-white/[0.08] focus:border-red-400/30 px-1 py-1 text-red-400/70 text-sm outline-none transition-colors placeholder:text-white/15" />
+        </div>
+        <div className="w-[110px] px-4 py-3 text-green-400 font-semibold text-sm text-right flex-shrink-0">
+          {hasAmount ? formatCurrency(net) : <span className="text-white/15">—</span>}
+        </div>
+        <div className="w-[90px] px-3 py-3 flex items-center justify-end gap-1 flex-shrink-0">
+          {dirty ? (
+            <button onClick={handleSave} disabled={saving}
+              className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-[#D4AF37]/15 text-[#D4AF37] border border-[#D4AF37]/20 hover:bg-[#D4AF37]/25 transition-all disabled:opacity-40 whitespace-nowrap">
+              {saving ? '...' : 'Sauver'}
+            </button>
+          ) : (
+            existing?.id && (
+              <button onClick={handleDelete}
+                className="p-1.5 rounded-lg text-white/20 hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Extra Platform Modal (Direct / Autre) ────────────────────────────────────
 
 function ExtraPlatformModal({
@@ -660,11 +807,13 @@ function SubletPropertyCard({
 }) {
   const [expenseModalOpen, setExpenseModalOpen] = useState(false)
 
-  const revenues     = property.revenues
-  const expense      = property.subletExpenses[0] ?? null
-  const totalRevenue = revenues.reduce((s, r) => s + r.platformAmount, 0)
-  const totalCharges = expense ? expense.loyer + expense.electricite + expense.wifi + expense.autresCharges : 0
-  const netProfit    = totalRevenue - totalCharges
+  const revenues        = property.revenues
+  const expense         = property.subletExpenses[0] ?? null
+  const totalGross      = revenues.reduce((s, r) => s + r.platformAmount, 0)
+  const totalCleaning   = revenues.reduce((s, r) => s + r.cleaningFees, 0)
+  const totalRevenueNet = totalGross - totalCleaning
+  const totalCharges    = expense ? expense.loyer + expense.electricite + expense.wifi + expense.autresCharges : 0
+  const netProfit       = totalRevenueNet - totalCharges
 
   const handleSaveExpense = async (data: Partial<SubletExpense>) => {
     if (data.id) {
@@ -696,25 +845,39 @@ function SubletPropertyCard({
         </div>
       </div>
 
-      {/* Revenus section — inline Airbnb + Booking rows */}
+      {/* Revenus section — inline Airbnb + Booking rows (sans commission) */}
       <div className="border-b border-white/[0.04]">
-        <div className="px-5 pt-3 pb-1">
-          <p className="text-white/40 text-[10px] font-semibold uppercase tracking-wider">Revenus plateformes</p>
+        {/* En-têtes colonnes desktop */}
+        <div className="hidden md:flex items-center border-b border-white/[0.04] bg-white/[0.01]">
+          <div className="w-[120px] px-4 py-2 text-white/25 text-[10px] font-medium flex-shrink-0">Plateforme</div>
+          <div className="flex-1 px-3 py-2 text-white/25 text-[10px] font-medium">Montant brut (€)</div>
+          <div className="flex-1 px-3 py-2 text-white/25 text-[10px] font-medium">Frais ménage (€)</div>
+          <div className="w-[110px] px-4 py-2 text-white/25 text-[10px] font-medium text-right flex-shrink-0">Net</div>
+          <div className="w-[90px] flex-shrink-0" />
         </div>
-        <PlatformRow property={property} platform="airbnb"
+        <SubletPlatformRow property={property} platform="airbnb"
           existing={revenues.find(r => r.platform === 'airbnb') ?? null}
           month={month} year={year} onReload={onReload} />
-        <PlatformRow property={property} platform="booking"
+        <SubletPlatformRow property={property} platform="booking"
           existing={revenues.find(r => r.platform === 'booking') ?? null}
           month={month} year={year} onReload={onReload} />
         {revenues.filter(r => !['airbnb', 'booking'].includes(r.platform)).map(r => (
-          <PlatformRow key={r.id} property={property} platform={r.platform}
+          <SubletPlatformRow key={r.id} property={property} platform={r.platform}
             existing={r} month={month} year={year} onReload={onReload} />
         ))}
-        {totalRevenue > 0 && (
-          <div className="flex justify-between px-5 py-2.5 bg-white/[0.01]">
-            <span className="text-white/30 text-xs font-medium">Total revenus</span>
-            <span className="text-white font-semibold text-sm">{formatCurrency(totalRevenue)}</span>
+        {totalGross > 0 && (
+          <div className="hidden md:flex items-center border-t border-white/[0.08] bg-white/[0.02]">
+            <div className="w-[120px] px-4 py-3 text-white/30 text-xs font-semibold flex-shrink-0">TOTAL</div>
+            <div className="flex-1 px-3 py-3 text-white/60 text-sm">{formatCurrency(totalGross)}</div>
+            <div className="flex-1 px-3 py-3 text-red-400/70 text-sm">− {formatCurrency(totalCleaning)}</div>
+            <div className="w-[110px] px-4 py-3 text-green-400 font-bold text-sm text-right flex-shrink-0">{formatCurrency(totalRevenueNet)}</div>
+            <div className="w-[90px] flex-shrink-0" />
+          </div>
+        )}
+        {totalGross > 0 && (
+          <div className="md:hidden flex justify-between px-5 py-2.5 bg-white/[0.01] border-t border-white/[0.04]">
+            <span className="text-white/30 text-xs font-medium">Net revenus</span>
+            <span className="text-green-400 font-semibold text-sm">{formatCurrency(totalRevenueNet)}</span>
           </div>
         )}
       </div>
@@ -753,7 +916,7 @@ function SubletPropertyCard({
           </button>
         )}
 
-        {(totalRevenue > 0 || expense) && (
+        {(totalGross > 0 || expense) && (
           <div className={`flex items-center justify-between rounded-xl px-4 py-3 border ${
             netProfit >= 0 ? 'bg-green-500/5 border-green-500/15' : 'bg-red-500/5 border-red-500/15'
           }`}>
