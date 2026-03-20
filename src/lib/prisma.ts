@@ -15,6 +15,13 @@ function getClient(): PrismaClient {
     const libsql = createClient({
       url: process.env.TURSO_DATABASE_URL,
       authToken: process.env.TURSO_AUTH_TOKEN,
+      fetch: (url: string, init?: RequestInit) => {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 10000) // 10s timeout
+        return fetch(url, { ...init, signal: controller.signal }).finally(() =>
+          clearTimeout(timeout)
+        )
+      },
     })
     const adapter = new PrismaLibSQL(libsql)
     _client = new PrismaClient({ adapter })
