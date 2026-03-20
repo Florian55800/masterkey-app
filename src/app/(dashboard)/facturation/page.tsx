@@ -25,6 +25,8 @@ interface PropertyRevenue {
   platformAmount: number
   cleaningFees: number
   commissionRate: number
+  nbSejours: number
+  nbNuits: number
   notes: string | null
 }
 
@@ -112,6 +114,8 @@ function PlatformRow({
   const [commission, setCommission] = useState(
     existing ? String(existing.commissionRate) : String(property.commissionRate)
   )
+  const [sejours, setSejours] = useState(existing ? String(existing.nbSejours || '') : '')
+  const [nuits,   setNuits]   = useState(existing ? String(existing.nbNuits    || '') : '')
   const [dirty,  setDirty]  = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -121,6 +125,8 @@ function PlatformRow({
       setAmount(existing    ? String(existing.platformAmount)  : '')
       setCleaning(existing  ? String(existing.cleaningFees)    : '')
       setCommission(existing ? String(existing.commissionRate) : String(property.commissionRate))
+      setSejours(existing ? String(existing.nbSejours || '') : '')
+      setNuits(existing   ? String(existing.nbNuits    || '') : '')
     }
   }, [existing, property.commissionRate, dirty])
 
@@ -138,6 +144,7 @@ function PlatformRow({
     const payload = {
       propertyId: property.id, month, year, platform,
       platformAmount: f(amount), cleaningFees: f(cleaning), commissionRate: f(commission),
+      nbSejours: parseInt(sejours) || 0, nbNuits: parseInt(nuits) || 0,
     }
     if (existing?.id) {
       await fetch(`/api/facturation/${existing.id}`, {
@@ -188,6 +195,20 @@ function PlatformRow({
               className="w-full bg-[#141414] border border-white/[0.06] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
           </div>
         </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] text-white/30 block mb-1">Séjours</label>
+            <input type="number" min="0" step="1" value={sejours} onChange={mark(setSejours)}
+              placeholder="0"
+              className="w-full bg-[#141414] border border-white/[0.06] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
+          </div>
+          <div>
+            <label className="text-[10px] text-white/30 block mb-1">Nuits</label>
+            <input type="number" min="0" step="1" value={nuits} onChange={mark(setNuits)}
+              placeholder="0"
+              className="w-full bg-[#141414] border border-white/[0.06] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
+          </div>
+        </div>
         {hasAmount && (
           <div className="grid grid-cols-3 gap-2 text-center">
             <div><p className="text-white/25 text-[9px]">Base</p><p className="text-white/70 text-xs font-medium">{formatCurrency(base)}</p></div>
@@ -219,6 +240,16 @@ function PlatformRow({
           <input type="number" min="0" step="0.01" value={cleaning} onChange={mark(setCleaning)}
             placeholder="0.00"
             className="w-full bg-transparent border-b border-white/[0.08] focus:border-[#D4AF37]/50 px-1 py-1 text-white/60 text-sm outline-none transition-colors placeholder:text-white/15" />
+        </div>
+        <div className="w-[70px] px-2 py-2 flex-shrink-0">
+          <input type="number" min="0" step="1" value={sejours} onChange={mark(setSejours)}
+            placeholder="0"
+            className="w-full bg-transparent border-b border-white/[0.08] focus:border-[#D4AF37]/50 px-1 py-1 text-white/40 text-sm outline-none transition-colors text-center placeholder:text-white/15" />
+        </div>
+        <div className="w-[70px] px-2 py-2 flex-shrink-0">
+          <input type="number" min="0" step="1" value={nuits} onChange={mark(setNuits)}
+            placeholder="0"
+            className="w-full bg-transparent border-b border-white/[0.08] focus:border-[#D4AF37]/50 px-1 py-1 text-white/40 text-sm outline-none transition-colors text-center placeholder:text-white/15" />
         </div>
         <div className="w-[70px] px-2 py-2 flex-shrink-0">
           <input type="number" min="0" max="100" step="0.5" value={commission} onChange={mark(setCommission)}
@@ -744,6 +775,8 @@ function PropertyRevenueCard({
         <div className="w-[110px] px-4 py-2 text-white/25 text-[10px] font-medium flex-shrink-0">Plateforme</div>
         <div className="flex-1 px-3 py-2 text-white/25 text-[10px] font-medium">Montant (€)</div>
         <div className="flex-1 px-3 py-2 text-white/25 text-[10px] font-medium">Ménage (€)</div>
+        <div className="w-[70px] px-3 py-2 text-white/25 text-[10px] font-medium text-center flex-shrink-0">Séjours</div>
+        <div className="w-[70px] px-3 py-2 text-white/25 text-[10px] font-medium text-center flex-shrink-0">Nuits</div>
         <div className="w-[70px] px-3 py-2 text-white/25 text-[10px] font-medium text-center flex-shrink-0">Com.%</div>
         <div className="w-[90px] px-4 py-2 text-white/25 text-[10px] font-medium text-right flex-shrink-0">Base</div>
         <div className="w-[90px] px-4 py-2 text-white/25 text-[10px] font-medium text-right flex-shrink-0">Part MK</div>
@@ -772,6 +805,8 @@ function PropertyRevenueCard({
             <div className="w-[110px] px-4 py-3 text-white/30 text-xs font-semibold flex-shrink-0">TOTAL</div>
             <div className="flex-1 px-3 py-3 text-white font-semibold text-sm">{formatCurrency(totals.platformAmount)}</div>
             <div className="flex-1 px-3 py-3 text-white/50 text-sm">{formatCurrency(totals.cleaningFees)}</div>
+            <div className="w-[70px] flex-shrink-0" />
+            <div className="w-[70px] flex-shrink-0" />
             <div className="w-[70px] flex-shrink-0" />
             <div className="w-[90px] px-4 py-3 text-white/70 font-semibold text-sm text-right flex-shrink-0">{formatCurrency(totals.base)}</div>
             <div className="w-[90px] px-4 py-3 text-[#D4AF37] font-bold text-sm text-right flex-shrink-0">{formatCurrency(totals.partMK)}</div>

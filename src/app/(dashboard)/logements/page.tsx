@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Building2, Edit2, Trash2, Home, Star } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Plus, Building2, Edit2, Trash2, Home, Star, Eye } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -46,6 +47,7 @@ const PROPERTY_MILESTONES = [
 const PROPERTY_TYPES = ['Appartement', 'Studio', 'Maison', 'Villa', 'Loft', 'Chambre', 'Autre']
 
 export default function LogementsPage() {
+  const router = useRouter()
   const [properties, setProperties] = useState<Property[]>([])
   const [owners, setOwners] = useState<Owner[]>([])
   const [loading, setLoading] = useState(true)
@@ -349,6 +351,13 @@ export default function LogementsPage() {
               <p className="text-gray-500 text-xs mb-4 truncate">{property.address}</p>
 
               <div className="flex gap-2">
+                <button
+                  onClick={() => router.push(`/logements/${property.id}`)}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-[#2e2e2e] text-gray-400 hover:text-[#D4AF37] hover:border-[#D4AF37]/30 transition-all text-sm"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  Voir la fiche
+                </button>
                 <button
                   onClick={() => openEditModal(property)}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-[#2e2e2e] text-gray-400 hover:text-white hover:border-[#D4AF37]/30 transition-all text-sm"
