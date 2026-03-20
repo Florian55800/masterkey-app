@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import {
   Target, UserSearch, PenSquare, Phone, Calendar, Building2,
-  Euro, TrendingUp, Trophy, Lock, ChevronRight, Edit2, X, Check
+  Euro, TrendingUp, Trophy, Lock, ChevronRight, Edit2, X, Check, ClipboardList
 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -29,6 +29,8 @@ interface PeriodActuals {
   appels: number
   caParLogement: number | null
   logements: number | null
+  logementsConcierge?: number
+  logementsSublet?: number
 }
 
 interface Period {
@@ -42,6 +44,8 @@ interface Period {
 
 interface ObjectivesData {
   activeProperties: number
+  conciergerieProperties: number
+  sousLocationProperties: number
   activeCities: number
   totalRevenue: number
 }
@@ -224,6 +228,80 @@ function KPIObjectiveCard({
   )
 }
 
+// ─── Actuals Modal ────────────────────────────────────────────────────────────
+
+function ActualsModal({
+  isOpen,
+  onClose,
+  period,
+  onSave,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  period: Period | null
+  onSave: (actuals: { leads: number; signatures: number; visites: number; appels: number }) => Promise<void>
+}) {
+  const [form, setForm] = useState({ leads: 0, signatures: 0, visites: 0, appels: 0 })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (period?.actuals) {
+      setForm({
+        leads: period.actuals.leads ?? 0,
+        signatures: period.actuals.signatures ?? 0,
+        visites: period.actuals.visites ?? 0,
+        appels: period.actuals.appels ?? 0,
+      })
+    } else {
+      setForm({ leads: 0, signatures: 0, visites: 0, appels: 0 })
+    }
+  }, [period])
+
+  const handleSave = async () => {
+    setSaving(true)
+    await onSave(form)
+    setSaving(false)
+    onClose()
+  }
+
+  const fields = [
+    { key: 'leads' as const, label: 'Leads générés', icon: UserSearch, color: 'text-blue-400' },
+    { key: 'signatures' as const, label: 'Signatures', icon: PenSquare, color: 'text-[#D4AF37]' },
+    { key: 'visites' as const, label: 'Visites / RDV', icon: Calendar, color: 'text-purple-400' },
+    { key: 'appels' as const, label: 'Appels passés', icon: Phone, color: 'text-green-400' },
+  ]
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Saisir les résultats — ${period?.label ?? ''}`}>
+      <div className="space-y-4">
+        <p className="text-white/40 text-sm">Entrez les résultats réels pour cette période. Les leads et signatures sont pré-remplis automatiquement.</p>
+        <div className="grid grid-cols-2 gap-4">
+          {fields.map(f => (
+            <div key={f.key} className="space-y-1.5">
+              <label className="text-sm text-white/40 flex items-center gap-1.5">
+                <f.icon className={`w-3.5 h-3.5 ${f.color}`} />
+                {f.label}
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={form[f.key] || ''}
+                onChange={e => setForm(prev => ({ ...prev, [f.key]: parseInt(e.target.value) || 0 }))}
+                placeholder="0"
+                className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40 transition-colors"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-3 justify-end pt-2">
+          <Button variant="ghost" onClick={onClose}>Annuler</Button>
+          <Button isLoading={saving} onClick={handleSave}>Enregistrer</Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ─── Edit Modal ───────────────────────────────────────────────────────────────
 
 function EditObjectiveModal({
@@ -297,6 +375,7 @@ export default function ObjectifsPage() {
   const [loading, setLoading] = useState(true)
   const [selectedIdx, setSelectedIdx] = useState(0)
   const [editModalOpen, setEditModalOpen] = useState(false)
+  const [actualsModalOpen, setActualsModalOpen] = useState(false)
 
   useEffect(() => {
     loadAll()
@@ -319,6 +398,16 @@ export default function ObjectifsPage() {
   }
 
   const selectedPeriod = periods[selectedIdx] ?? null
+
+  const handleSaveActuals = async (actuals: { leads: number; signatures: number; visites: number; appels: number }) => {
+    if (!selectedPeriod) return
+    await fetch('/api/objectives/monthly', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ month: selectedPeriod.month, year: selectedPeriod.year, actuals }),
+    })
+    await loadAll()
+  }
 
   const handleSaveTargets = async (targets: PeriodTargets) => {
     if (!selectedPeriod) return
@@ -345,14 +434,23 @@ export default function ObjectifsPage() {
           <h1 className="text-2xl font-bold text-white">Objectifs & Performance</h1>
           <p className="text-white/40 mt-1">Cibles mensuelles et suivi de progression</p>
         </div>
-        {selectedPeriod && (
-          <Button
-            variant="outline"
-            onClick={() => setEditModalOpen(true)}
-          >
-            <Edit2 className="w-4 h-4 mr-1.5" />
-            Modifier les cibles
-          </Button>
+        {selectedPeriod && !selectedPeriod.isAnnual && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={() => setActualsModalOpen(true)}
+            >
+              <ClipboardList className="w-4 h-4 mr-1.5" />
+              Saisir les résultats
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setEditModalOpen(true)}
+            >
+              <Edit2 className="w-4 h-4 mr-1.5" />
+              Modifier les cibles
+            </Button>
+          </div>
         )}
       </div>
 
@@ -362,6 +460,11 @@ export default function ObjectifsPage() {
           <div className="bg-[#181818] border border-white/[0.06] rounded-2xl p-4 text-center">
             <p className="text-white/40 text-xs mb-1">Logements actifs</p>
             <p className="text-[#D4AF37] text-3xl font-bold">{overviewData.activeProperties}</p>
+            {(overviewData.conciergerieProperties > 0 || overviewData.sousLocationProperties > 0) && (
+              <p className="text-white/25 text-[10px] mt-1">
+                {overviewData.conciergerieProperties} conciergerie · {overviewData.sousLocationProperties} sous-loc
+              </p>
+            )}
           </div>
           <div className="bg-[#181818] border border-white/[0.06] rounded-2xl p-4 text-center">
             <p className="text-white/40 text-xs mb-1">Villes couvertes</p>
@@ -534,6 +637,14 @@ export default function ObjectifsPage() {
         onClose={() => setEditModalOpen(false)}
         period={selectedPeriod}
         onSave={handleSaveTargets}
+      />
+
+      {/* Actuals Modal */}
+      <ActualsModal
+        isOpen={actualsModalOpen}
+        onClose={() => setActualsModalOpen(false)}
+        period={selectedPeriod}
+        onSave={handleSaveActuals}
       />
     </div>
   )
