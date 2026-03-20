@@ -25,8 +25,9 @@ export async function GET() {
     })
     return NextResponse.json(properties)
   } catch (error) {
-    console.error('Properties GET error:', error)
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error('Properties GET error:', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
 
