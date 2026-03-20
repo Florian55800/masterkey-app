@@ -4,21 +4,22 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    const [activeProperties, cities, reports, propertyCities] = await Promise.all([
-      // Only count conciergerie properties (sous-location is a different business model)
+    const [conciergerieProperties, sousLocationProperties, cities, reports, propertyCities] = await Promise.all([
       prisma.property.count({ where: { status: 'active', typeGestion: 'conciergerie' } }),
+      prisma.property.count({ where: { status: 'active', typeGestion: 'sous-location' } }),
       prisma.city.findMany({ orderBy: { name: 'asc' } }),
       prisma.monthlyReport.findMany({
         orderBy: [{ year: 'desc' }, { month: 'desc' }],
         take: 12,
       }),
-      // Count distinct cities from active conciergerie properties (source of truth)
+      // Count distinct cities from active properties (source of truth)
       prisma.property.findMany({
-        where: { status: 'active', typeGestion: 'conciergerie' },
+        where: { status: 'active' },
         select: { city: true },
         distinct: ['city'],
       }),
     ])
+    const activeProperties = conciergerieProperties + sousLocationProperties
 
     // activeCities = distinct cities from active properties (not manual toggle)
     const activeCities = propertyCities.length
@@ -55,7 +56,7 @@ export async function GET() {
       },
     }
 
-    return NextResponse.json({ milestones, cities, activeProperties, activeCities, totalReports, totalRevenue, totalNights })
+    return NextResponse.json({ milestones, cities, activeProperties, conciergerieProperties, sousLocationProperties, activeCities, totalReports, totalRevenue, totalNights })
   } catch (error) {
     console.error('Objectives GET error:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })

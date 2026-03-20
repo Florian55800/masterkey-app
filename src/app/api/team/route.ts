@@ -41,6 +41,7 @@ export async function GET() {
         name: user.name,
         color: user.color,
         photo: user.photo ?? null,
+        role: user.role ?? '',
         totalSigned,
         totalAppointments,
         goalsAchieved,

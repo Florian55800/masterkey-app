@@ -14,6 +14,7 @@ model User {
   pin       String
   color     String
   photo     String?
+  role      String   @default("")
   createdAt DateTime @default(now())
   teamGoals TeamGoal[]
 }
@@ -154,6 +155,10 @@ model MonthlyObjective {
   targetAppels        Int      @default(0)
   targetCAParLogement Float    @default(0)
   targetLogements     Int      @default(0)
+  actualLeads         Int      @default(0)
+  actualSignatures    Int      @default(0)
+  actualVisites       Int      @default(0)
+  actualAppels        Int      @default(0)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   @@unique([month, year])

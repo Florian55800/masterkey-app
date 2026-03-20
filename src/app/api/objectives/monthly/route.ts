@@ -41,10 +41,10 @@ export async function GET() {
       select: { createdAt: true, statut: true },
     })
 
-    // Live count of active conciergerie properties (exclude sous-location — different business model)
-    const conciergerieCount = await prisma.property.count({
-      where: { status: 'active', typeGestion: 'conciergerie' },
-    })
+    // Live count of active properties (both types)
+    const totalActiveProperties = await prisma.property.count({ where: { status: 'active' } })
+    const conciergerieCount = await prisma.property.count({ where: { status: 'active', typeGestion: 'conciergerie' } })
+    const sousLocationCount = totalActiveProperties - conciergerieCount
 
     const result = periods.map((period) => {
       const stored = storedObjectives.find(
@@ -58,6 +58,8 @@ export async function GET() {
         appels: number
         caParLogement: number | null
         logements: number | null
+        logementsConcierge?: number
+        logementsSublet?: number
       } | null = null
 
       if (!period.isAnnual) {
@@ -74,16 +76,18 @@ export async function GET() {
         const totalVisites = teamGoalsForMonth.reduce((s, g) => s + g.appointmentsMade, 0)
 
         actuals = {
-          leads: leadsThisMonth,
-          signatures: report?.newSignatures ?? 0,
-          visites: totalVisites,
-          appels: 0,
+          leads: (stored?.actualLeads ?? 0) > 0 ? stored!.actualLeads : leadsThisMonth,
+          signatures: (stored?.actualSignatures ?? 0) > 0 ? stored!.actualSignatures : (report?.newSignatures ?? 0),
+          visites: stored?.actualVisites ?? 0,
+          appels: stored?.actualAppels ?? 0,
           // caParLogement uses only conciergerie properties (sous-location excluded)
           caParLogement:
             report && conciergerieCount > 0
               ? Math.round(report.caBrut / conciergerieCount)
               : null,
-          logements: conciergerieCount,
+          logements: totalActiveProperties,
+          logementsConcierge: conciergerieCount,
+          logementsSublet: sousLocationCount,
         }
       } else {
         // Annual 2027: no actuals yet
@@ -157,6 +161,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(objective)
   } catch (error) {
     console.error('Monthly objectives POST error:', error)
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const { month, year, actuals } = body as {
+      month: number
+      year: number
+      actuals: { leads: number; signatures: number; visites: number; appels: number }
+    }
+
+    const objective = await prisma.monthlyObjective.upsert({
+      where: { month_year: { month, year } },
+      update: {
+        actualLeads: actuals.leads,
+        actualSignatures: actuals.signatures,
+        actualVisites: actuals.visites,
+        actualAppels: actuals.appels,
+      },
+      create: {
+        month,
+        year,
+        targetLeads: 0,
+        targetSignatures: 0,
+        targetVisites: 0,
+        targetAppels: 0,
+        targetCAParLogement: 0,
+        targetLogements: 0,
+        actualLeads: actuals.leads,
+        actualSignatures: actuals.signatures,
+        actualVisites: actuals.visites,
+        actualAppels: actuals.appels,
+      },
+    })
+
+    return NextResponse.json(objective)
+  } catch (error) {
+    console.error('Monthly objectives PATCH error:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

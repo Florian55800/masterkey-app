@@ -109,6 +109,24 @@ async function migrate() {
     console.log('[migrate-turso] ✓ typeGestion column already exists on Property')
   }
 
+  // Add role to User
+  try {
+    await client.execute(`ALTER TABLE "User" ADD COLUMN "role" TEXT NOT NULL DEFAULT ''`)
+    console.log('[migrate-turso] ✓ Added role column to User')
+  } catch {
+    console.log('[migrate-turso] ✓ role column already exists on User')
+  }
+
+  // Add actuals to MonthlyObjective
+  for (const col of ['actualLeads', 'actualSignatures', 'actualVisites', 'actualAppels']) {
+    try {
+      await client.execute(`ALTER TABLE "MonthlyObjective" ADD COLUMN "${col}" INTEGER NOT NULL DEFAULT 0`)
+      console.log(`[migrate-turso] ✓ Added ${col} to MonthlyObjective`)
+    } catch {
+      console.log(`[migrate-turso] ✓ ${col} already exists on MonthlyObjective`)
+    }
+  }
+
   console.log('[migrate-turso] Migration complete ✅')
   await client.close()
 }
