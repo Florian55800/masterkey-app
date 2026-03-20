@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Plus, FileBarChart, TrendingUp, TrendingDown, ChevronRight } from 'lucide-react'
+import { Plus, FileBarChart, TrendingUp, TrendingDown, ChevronRight, Trash2 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -52,6 +52,8 @@ export default function RapportsPage() {
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
 
   const updateFinances = (field: 'caBrut' | 'commissions', value: string) => {
     const ca = parseFloat(field === 'caBrut' ? value : form.caBrut) || 0
@@ -134,6 +136,17 @@ export default function RapportsPage() {
     })
     setError('')
     setIsModalOpen(true)
+  }
+
+  const handleDelete = async (id: number) => {
+    setDeletingId(id)
+    try {
+      await fetch(`/api/reports/${id}`, { method: 'DELETE' })
+      await loadReports()
+    } finally {
+      setDeletingId(null)
+      setConfirmDeleteId(null)
+    }
   }
 
   const handleSave = async () => {
@@ -269,6 +282,13 @@ export default function RapportsPage() {
                     >
                       Modifier
                     </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(report.id)}
+                      className="px-3 py-2 rounded-lg bg-[#1b1b1b] border border-[#2e2e2e] text-gray-400 hover:text-red-400 hover:border-red-500/30 transition-all"
+                      title="Supprimer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </Card>
               ) : (
@@ -293,6 +313,32 @@ export default function RapportsPage() {
           )
         })}
       </div>
+
+      {/* Confirm Delete Modal */}
+      <Modal
+        isOpen={confirmDeleteId !== null}
+        onClose={() => setConfirmDeleteId(null)}
+        title="Supprimer le rapport"
+      >
+        <div className="space-y-4">
+          <p className="text-white/60 text-sm">
+            Es-tu sûr de vouloir supprimer ce rapport ? Cette action est <span className="text-red-400 font-medium">irréversible</span>.
+          </p>
+          <div className="flex gap-3 justify-end">
+            <Button variant="ghost" onClick={() => setConfirmDeleteId(null)}>
+              Annuler
+            </Button>
+            <Button
+              variant="danger"
+              isLoading={deletingId !== null}
+              onClick={() => confirmDeleteId && handleDelete(confirmDeleteId)}
+            >
+              <Trash2 className="w-4 h-4 mr-1.5" />
+              Supprimer définitivement
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Create/Edit Modal */}
       <Modal
