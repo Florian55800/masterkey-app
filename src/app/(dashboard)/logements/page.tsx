@@ -70,6 +70,7 @@ export default function LogementsPage() {
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [loadError, setLoadError] = useState('')
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -85,14 +86,23 @@ export default function LogementsPage() {
 
   const loadData = async () => {
     try {
+      setLoadError('')
+      const abort = new AbortController()
+      const tid = setTimeout(() => abort.abort(), 15_000)
       const [propsRes, ownersRes] = await Promise.all([
-        fetch('/api/properties'),
-        fetch('/api/owners'),
-      ])
+        fetch('/api/properties', { signal: abort.signal }),
+        fetch('/api/owners', { signal: abort.signal }),
+      ]).finally(() => clearTimeout(tid))
       const [propsData, ownersData] = await Promise.all([propsRes.json(), ownersRes.json()])
-      setProperties(Array.isArray(propsData) ? propsData : [])
+      if (!Array.isArray(propsData)) {
+        setLoadError(propsData?.error || 'Erreur de chargement des logements')
+        setProperties([])
+      } else {
+        setProperties(propsData)
+      }
       setOwners(Array.isArray(ownersData) ? ownersData : [])
     } catch {
+      setLoadError('Impossible de joindre le serveur')
       setProperties([])
       setOwners([])
     } finally {
@@ -209,6 +219,12 @@ export default function LogementsPage() {
           Ajouter logement
         </Button>
       </div>
+
+      {loadError && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-red-400 text-sm">
+          ⚠️ {loadError}
+        </div>
+      )}
 
       {/* TypeGestion Tabs */}
       <div className="flex items-center bg-[#1a1a1a] border border-[#2e2e2e] rounded-2xl p-1 w-fit">

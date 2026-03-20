@@ -1,10 +1,9 @@
 import type { PrismaClient } from '@prisma/client'
 
-// ── Remote client (immediate, always available) ──────────────────────────────
-let _remoteClient: PrismaClient | undefined
+let _client: PrismaClient | undefined
 
-function getRemoteClient(): PrismaClient {
-  if (_remoteClient) return _remoteClient
+function getClient(): PrismaClient {
+  if (_client) return _client
 
   if (process.env.TURSO_DATABASE_URL) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -13,57 +12,36 @@ function getRemoteClient(): PrismaClient {
     const { createClient } = require('@libsql/client')
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { PrismaLibSQL } = require('@prisma/adapter-libsql')
+
+    // Force HTTP mode (https://) : chaque requête est un POST indépendant,
+    // pas de WebSocket persistant qui peut se déconnecter silencieusement.
+    // Cela permet aussi d'appliquer un vrai timeout par requête via fetch.
+    const httpUrl = process.env.TURSO_DATABASE_URL.replace(/^libsql:\/\//, 'https://')
+
     const libsql = createClient({
-      url: process.env.TURSO_DATABASE_URL,
+      url: httpUrl,
       authToken: process.env.TURSO_AUTH_TOKEN,
+      // Timeout de 12s par requête — évite les blocages infinis
+      fetch: (url: string, init?: RequestInit) => {
+        const ctrl = new AbortController()
+        const tid = setTimeout(() => ctrl.abort(), 12_000)
+        return fetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(tid))
+      },
     })
+
     const adapter = new PrismaLibSQL(libsql)
-    _remoteClient = new PrismaClient({ adapter })
+    _client = new PrismaClient({ adapter })
   } else {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { PrismaClient } = require('@prisma/client')
-    _remoteClient = new PrismaClient()
+    _client = new PrismaClient()
   }
 
-  return _remoteClient!
+  return _client!
 }
 
-// ── Embedded replica (background init — instant reads once ready) ─────────────
-let _replicaClient: PrismaClient | undefined
-
-async function initEmbeddedReplica(): Promise<void> {
-  if (!process.env.TURSO_DATABASE_URL) return
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { PrismaClient } = require('@prisma/client')
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { createClient } = require('@libsql/client')
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { PrismaLibSQL } = require('@prisma/adapter-libsql')
-
-    const libsql = createClient({
-      url: 'file:/tmp/turso-replica.db',
-      syncUrl: process.env.TURSO_DATABASE_URL,
-      authToken: process.env.TURSO_AUTH_TOKEN,
-      syncInterval: 30, // sync every 30 seconds
-    })
-
-    await libsql.sync() // initial pull from Turso → local file
-    const adapter = new PrismaLibSQL(libsql)
-    _replicaClient = new PrismaClient({ adapter })
-    console.log('[prisma] Embedded replica ready — reads are now local ⚡')
-  } catch (err) {
-    console.warn('[prisma] Embedded replica init failed, using remote:', err)
-  }
-}
-
-// Start replica init in background — do NOT await here
-initEmbeddedReplica()
-
-// ── Export: use replica if ready, else remote ─────────────────────────────────
 export const prisma = new Proxy({} as PrismaClient, {
   get(_: PrismaClient, prop: string | symbol) {
-    const client = _replicaClient ?? getRemoteClient()
-    return (client as unknown as Record<string | symbol, unknown>)[prop]
+    return (getClient() as unknown as Record<string | symbol, unknown>)[prop]
   },
 })
