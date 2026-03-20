@@ -1,94 +1,36 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import {
-  Trophy, Edit2, Star, Target, Check, Calendar,
-  TrendingUp, Medal, Crown
-} from 'lucide-react'
-import { Card } from '@/components/ui/Card'
+import { Users, Edit2, Plus, Crown, Medal, TrendingUp, Star, Calendar } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
-import { Textarea } from '@/components/ui/Textarea'
-import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
 import { LoadingPage } from '@/components/ui/LoadingSpinner'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface TeamGoal {
-  id: number
-  userId: number
-  reportId: number
-  propertiesSigned: number
-  appointmentsMade: number
-  personalGoal: string | null
-  goalStatus: string
-}
 
 interface TeamUser {
   id: number
   name: string
   color: string
   photo?: string | null
+  role: string
   totalSigned: number
   totalAppointments: number
   goalsAchieved: number
-  currentGoal: TeamGoal | null
-}
-
-interface Report {
-  id: number
-  month: number
-  year: number
-  teamGoals: Array<TeamGoal & { user: TeamUser }>
-}
-
-interface TeamData {
-  users: TeamUser[]
-  currentReport: Report | null
-}
-
-interface Period {
-  month: number
-  year: number
-  label: string
-  isAnnual: boolean
-}
-
-// ─── Future Periods ───────────────────────────────────────────────────────────
-
-function getFuturePeriods(): Period[] {
-  const MONTHS_FR = [
-    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
-  ]
-  const now = new Date()
-  let m = now.getMonth() + 1
-  let y = now.getFullYear()
-  const periods: Period[] = []
-
-  while (y < 2026 || (y === 2026 && m <= 12)) {
-    periods.push({ month: m, year: y, label: `${MONTHS_FR[m - 1]} ${y}`, isAnnual: false })
-    m++
-    if (m > 12) { m = 1; y++ }
-  }
-
-  periods.push({ month: 0, year: 2027, label: '2027 — Annuel', isAnnual: true })
-  return periods
 }
 
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
 function Avatar({ user, size = 'md' }: { user: TeamUser; size?: 'sm' | 'md' | 'lg' }) {
-  const sizes = { sm: 'w-8 h-8 text-sm', md: 'w-11 h-11 text-base', lg: 'w-14 h-14 text-xl' }
-  const cls = sizes[size]
+  const sizes = { sm: 'w-8 h-8 text-sm', md: 'w-14 h-14 text-xl', lg: 'w-20 h-20 text-3xl' }
   if (user.photo) {
-    return <img src={user.photo} alt={user.name} className={`${cls} rounded-xl object-cover flex-shrink-0`} />
+    return <img src={user.photo} alt={user.name} className={`${sizes[size]} rounded-2xl object-cover flex-shrink-0`} />
   }
   return (
     <div
-      className={`${cls} rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0`}
+      className={`${sizes[size]} rounded-2xl flex items-center justify-center text-white font-bold flex-shrink-0`}
       style={{ backgroundColor: user.color }}
     >
       {user.name.charAt(0)}
@@ -96,165 +38,195 @@ function Avatar({ user, size = 'md' }: { user: TeamUser; size?: 'sm' | 'md' | 'l
   )
 }
 
-// ─── Stat Pill ────────────────────────────────────────────────────────────────
+// ─── Member Form Modal ────────────────────────────────────────────────────────
 
-function StatPill({
-  icon: Icon,
-  value,
-  label,
-  color,
+const COLORS = ['#D4AF37', '#3B82F6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4']
+
+function MemberModal({
+  isOpen,
+  onClose,
+  initial,
+  onSave,
 }: {
-  icon: React.ElementType
-  value: number
-  label: string
-  color: string
+  isOpen: boolean
+  onClose: () => void
+  initial: TeamUser | null
+  onSave: (data: { name: string; color: string; pin: string; photo: string; role: string }) => Promise<void>
 }) {
+  const isEdit = !!initial
+  const [form, setForm] = useState({ name: '', color: '#D4AF37', pin: '', photo: '', role: '' })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (isOpen) {
+      setForm({
+        name: initial?.name ?? '',
+        color: initial?.color ?? '#D4AF37',
+        pin: '',
+        photo: initial?.photo ?? '',
+        role: initial?.role ?? '',
+      })
+    }
+  }, [isOpen, initial])
+
+  const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => setForm(f => ({ ...f, photo: ev.target?.result as string }))
+    reader.readAsDataURL(file)
+  }
+
+  const handleSave = async () => {
+    if (!form.name.trim()) return
+    if (!isEdit && form.pin.length !== 4) return
+    setSaving(true)
+    await onSave(form)
+    setSaving(false)
+    onClose()
+  }
+
   return (
-    <div className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl bg-[#141414] min-w-[64px]">
-      <div className="flex items-center gap-1">
-        <Icon className={`w-3.5 h-3.5 ${color}`} />
-        <span className={`font-bold text-lg leading-none ${color}`}>{value}</span>
+    <Modal isOpen={isOpen} onClose={onClose} title={isEdit ? `Modifier — ${initial?.name}` : 'Ajouter un membre'}>
+      <div className="space-y-5">
+        {/* Photo */}
+        <div className="flex items-center gap-4">
+          <div
+            className="w-16 h-16 rounded-2xl flex-shrink-0 flex items-center justify-center text-white font-bold text-2xl overflow-hidden"
+            style={{ backgroundColor: form.photo ? 'transparent' : form.color }}
+          >
+            {form.photo ? (
+              <img src={form.photo} alt="Photo" className="w-full h-full object-cover" />
+            ) : (
+              form.name.charAt(0) || '?'
+            )}
+          </div>
+          <div className="space-y-2 flex-1">
+            <p className="text-sm text-white/40 font-medium">Photo de profil</p>
+            <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white/60 hover:text-white transition-all bg-white/5 border border-white/[0.08]">
+              Choisir une image
+              <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
+            </label>
+            {form.photo && (
+              <button onClick={() => setForm(f => ({ ...f, photo: '' }))} className="text-xs text-red-400/60 hover:text-red-400 transition-colors ml-2">
+                Supprimer
+              </button>
+            )}
+          </div>
+        </div>
+
+        <Input
+          label="Prénom / Nom"
+          value={form.name}
+          onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+          placeholder="ex: Florian"
+        />
+
+        <Input
+          label="Poste / Fonction"
+          value={form.role}
+          onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
+          placeholder="ex: Gestionnaire, Commercial, Ménage..."
+        />
+
+        <div>
+          <p className="text-sm text-white/40 font-medium mb-2">Couleur</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            {COLORS.map(c => (
+              <button
+                key={c}
+                onClick={() => setForm(f => ({ ...f, color: c }))}
+                className="w-8 h-8 rounded-lg transition-all"
+                style={{
+                  backgroundColor: c,
+                  outline: form.color === c ? '2px solid white' : 'none',
+                  outlineOffset: '2px',
+                  transform: form.color === c ? 'scale(1.15)' : 'scale(1)',
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-sm text-white/40 font-medium block mb-1.5">
+            {isEdit ? 'Nouveau code PIN (laisser vide pour ne pas changer)' : 'Code PIN — 4 chiffres *'}
+          </label>
+          <input
+            type="password"
+            maxLength={4}
+            inputMode="numeric"
+            value={form.pin}
+            onChange={e => setForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+            placeholder={isEdit ? 'Laisser vide pour conserver' : '••••'}
+            className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#D4AF37]/40 transition-colors text-sm tracking-widest"
+          />
+          {form.pin.length > 0 && form.pin.length < 4 && (
+            <p className="text-amber-400 text-xs mt-1">{4 - form.pin.length} chiffre(s) restant(s)</p>
+          )}
+          {form.pin.length === 4 && <p className="text-green-400 text-xs mt-1">✓ PIN valide</p>}
+        </div>
+
+        <div className="flex gap-3 justify-end pt-2">
+          <Button variant="ghost" onClick={onClose}>Annuler</Button>
+          <Button
+            isLoading={saving}
+            onClick={handleSave}
+            disabled={!form.name.trim() || (!isEdit && form.pin.length !== 4)}
+          >
+            {isEdit ? 'Enregistrer' : 'Ajouter'}
+          </Button>
+        </div>
       </div>
-      <span className="text-white/30 text-[10px]">{label}</span>
-    </div>
+    </Modal>
   )
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function EquipePage() {
-  const FUTURE_PERIODS = getFuturePeriods()
-
-  const [data, setData] = useState<TeamData | null>(null)
+  const [users, setUsers] = useState<TeamUser[]>([])
   const [loading, setLoading] = useState(true)
-  // All existing reports keyed by "month-year"
-  const [reportMap, setReportMap] = useState<Record<string, Report>>({})
-  const [selectedPeriod, setSelectedPeriod] = useState<Period>(FUTURE_PERIODS[0])
-
-  // Goal modal
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingUserId, setEditingUserId] = useState<number | null>(null)
-  const [goalForm, setGoalForm] = useState({
-    propertiesSigned: '0',
-    appointmentsMade: '0',
-    personalGoal: '',
-    goalStatus: 'en_cours',
-  })
-  const [saving, setSaving] = useState(false)
-
-  // User profile modal
-  const [isUserModalOpen, setIsUserModalOpen] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<TeamUser | null>(null)
-  const [userForm, setUserForm] = useState({ name: '', color: '', photo: '', pin: '' })
-  const [savingUser, setSavingUser] = useState(false)
 
-  const COLORS = ['#D4AF37', '#3B82F6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4']
-
-  const periodKey = (m: number, y: number) => `${m}-${y}`
-
-  const openUserModal = (user: TeamUser) => {
-    setEditingUser(user)
-    setUserForm({ name: user.name, color: user.color, photo: user.photo ?? '', pin: '' })
-    setIsUserModalOpen(true)
-  }
-
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => setUserForm((f) => ({ ...f, photo: ev.target?.result as string }))
-    reader.readAsDataURL(file)
-  }
-
-  const handleSaveUser = async () => {
-    if (!editingUser) return
-    setSavingUser(true)
-    await fetch(`/api/users/${editingUser.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(userForm),
-    })
-    await loadData()
-    setSavingUser(false)
-    setIsUserModalOpen(false)
-  }
-
-  const loadData = useCallback(async () => {
+  const load = useCallback(async () => {
     try {
-      const [teamRes, reportsRes] = await Promise.all([
-        fetch('/api/team'),
-        fetch('/api/reports'),
-      ])
-      const [teamData, reportsData] = await Promise.all([teamRes.json(), reportsRes.json()])
-      if (Array.isArray(teamData.users)) setData(teamData)
-      if (Array.isArray(reportsData)) {
-        const map: Record<string, Report> = {}
-        for (const r of reportsData) {
-          map[periodKey(r.month, r.year)] = r
-        }
-        setReportMap(map)
-      }
+      const res = await fetch('/api/team')
+      const data = await res.json()
+      if (Array.isArray(data.users)) setUsers(data.users)
     } catch (e) {
-      console.error('Team load error:', e)
+      console.error(e)
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => {
-    loadData()
-  }, [loadData])
+  useEffect(() => { load() }, [load])
 
-  const currentReport = reportMap[periodKey(selectedPeriod.month, selectedPeriod.year)] ?? null
+  const openAdd = () => { setEditingUser(null); setModalOpen(true) }
+  const openEdit = (user: TeamUser) => { setEditingUser(user); setModalOpen(true) }
 
-  const openGoalModal = (userId: number) => {
-    const existingGoal = currentReport?.teamGoals.find((g) => g.userId === userId)
-    setEditingUserId(userId)
-    setGoalForm({
-      propertiesSigned: String(existingGoal?.propertiesSigned ?? 0),
-      appointmentsMade: String(existingGoal?.appointmentsMade ?? 0),
-      personalGoal: existingGoal?.personalGoal ?? '',
-      goalStatus: existingGoal?.goalStatus ?? 'en_cours',
-    })
-    setIsModalOpen(true)
-  }
-
-  const handleSaveGoal = async () => {
-    if (!editingUserId) return
-    setSaving(true)
-
-    if (goalForm.goalStatus === 'atteint') {
-      try {
-        const confetti = (await import('canvas-confetti')).default
-        confetti({
-          particleCount: 150,
-          spread: 70,
-          origin: { y: 0.6 },
-          colors: ['#D4AF37', '#E8C84D', '#B8962B', '#ffffff'],
-        })
-      } catch {}
+  const handleSave = async (form: { name: string; color: string; pin: string; photo: string; role: string }) => {
+    if (editingUser) {
+      await fetch(`/api/users/${editingUser.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+    } else {
+      await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
     }
-
-    await fetch('/api/team/goals', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: editingUserId,
-        month: selectedPeriod.month,
-        year: selectedPeriod.year,
-        ...goalForm,
-      }),
-    })
-
-    await loadData()
-    setIsModalOpen(false)
-    setSaving(false)
+    await load()
   }
 
   if (loading) return <LoadingPage />
-  if (!data?.users) return <div className="text-gray-400 text-center py-20">Erreur de chargement de l&apos;équipe</div>
 
-  const sortedUsers = data.users.slice().sort((a, b) => b.totalSigned - a.totalSigned)
+  const sorted = [...users].sort((a, b) => b.totalSigned - a.totalSigned)
   const rankIcons = [Crown, Medal, Medal]
   const rankColors = ['text-[#D4AF37]', 'text-gray-300', 'text-amber-600']
 
@@ -264,338 +236,118 @@ export default function EquipePage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">Équipe</h1>
-          <p className="text-white/40 mt-1">Objectifs et performances</p>
+          <p className="text-white/40 mt-1">{users.length} membre{users.length > 1 ? 's' : ''}</p>
         </div>
-        {/* Team profile quick-access */}
-        <div className="flex items-center gap-2">
-          {data.users.map((user) => (
-            <button
+        <Button onClick={openAdd}>
+          <Plus className="w-4 h-4 mr-1.5" />
+          Ajouter un membre
+        </Button>
+      </div>
+
+      {/* Members Grid */}
+      {users.length === 0 ? (
+        <div className="text-center py-16 bg-[#181818] border border-white/[0.06] rounded-2xl">
+          <Users className="w-10 h-10 text-white/10 mx-auto mb-3" />
+          <p className="text-white/40 text-sm mb-4">Aucun membre dans l&apos;équipe</p>
+          <Button onClick={openAdd}>
+            <Plus className="w-4 h-4 mr-1.5" />
+            Ajouter le premier membre
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {users.map(user => (
+            <div
               key={user.id}
-              onClick={() => openUserModal(user)}
-              title={`Modifier ${user.name}`}
-              className="relative group"
+              className="relative bg-[#181818] border border-white/[0.06] rounded-2xl p-5 hover:border-white/[0.12] transition-all"
             >
-              <Avatar user={user} size="sm" />
-              <div className="absolute inset-0 rounded-xl bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                <Edit2 className="w-3 h-3 text-white" />
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Period Tabs */}
-      <div className="flex items-center gap-3">
-        <span className="text-white/40 text-sm flex-shrink-0">Période :</span>
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          {FUTURE_PERIODS.map((p) => (
-            <button
-              key={periodKey(p.month, p.year)}
-              onClick={() => setSelectedPeriod(p)}
-              className={`px-3 py-1.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all flex-shrink-0 ${
-                selectedPeriod.month === p.month && selectedPeriod.year === p.year
-                  ? 'bg-[#D4AF37] text-black'
-                  : 'bg-[#242424] border border-white/[0.06] text-white/40 hover:text-white hover:border-white/20'
-              }`}
-            >
-              {p.isAnnual ? p.label : p.label.substring(0, 3) + ' ' + p.year}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Monthly Goal Cards */}
-      <div>
-        <h2 className="text-white/60 text-sm font-medium mb-3 uppercase tracking-wider">
-          {selectedPeriod.label}
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {data.users.map((user) => {
-            const goal = currentReport?.teamGoals.find((g) => g.userId === user.id)
-            const isAchieved = goal?.goalStatus === 'atteint'
-
-            return (
+              {/* Color bar */}
               <div
-                key={user.id}
-                className={`relative rounded-2xl border p-5 transition-all ${
-                  isAchieved
-                    ? 'border-green-500/20 bg-green-500/5'
-                    : 'border-white/[0.06] bg-[#181818]'
-                }`}
-              >
-                {/* Card header */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <Avatar user={user} size="md" />
-                    <div>
-                      <p className="text-white font-semibold">{user.name}</p>
-                      <Badge variant={isAchieved ? 'success' : goal ? 'warning' : 'default'}>
-                        {goal
-                          ? isAchieved
-                            ? '✓ Objectif atteint'
-                            : 'En cours'
-                          : 'Non défini'}
-                      </Badge>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => openGoalModal(user.id)}
-                    className="p-2 rounded-xl text-white/20 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                </div>
+                className="absolute top-0 left-6 right-6 h-0.5 rounded-b-full"
+                style={{ backgroundColor: user.color }}
+              />
 
-                {/* Stats */}
-                {goal ? (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <StatPill icon={Star} value={goal.propertiesSigned} label="Signatures" color="text-[#D4AF37]" />
-                    <StatPill icon={Calendar} value={goal.appointmentsMade} label="Visites" color="text-purple-400" />
-                    {goal.personalGoal && (
-                      <p className="text-white/30 text-xs italic ml-auto max-w-[120px] text-right line-clamp-2">
-                        &quot;{goal.personalGoal}&quot;
-                      </p>
+              <div className="flex items-start justify-between mt-1">
+                <div className="flex items-center gap-3">
+                  <Avatar user={user} size="md" />
+                  <div>
+                    <p className="text-white font-semibold">{user.name}</p>
+                    {user.role ? (
+                      <Badge variant="default" className="mt-1">{user.role}</Badge>
+                    ) : (
+                      <p className="text-white/30 text-xs mt-0.5 italic">Aucun poste défini</p>
                     )}
                   </div>
-                ) : (
-                  <div className="text-center py-3">
-                    <p className="text-white/30 text-sm mb-3">Aucun objectif ce mois</p>
-                    <Button size="sm" variant="outline" onClick={() => openGoalModal(user.id)}>
-                      Définir un objectif
-                    </Button>
-                  </div>
-                )}
+                </div>
+                <button
+                  onClick={() => openEdit(user)}
+                  className="p-2 rounded-xl text-white/20 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all flex-shrink-0"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
               </div>
-            )
-          })}
+
+              {/* Mini stats */}
+              <div className="flex items-center gap-2 mt-4 pt-4 border-t border-white/[0.04]">
+                <div className="flex items-center gap-1.5 text-[#D4AF37]">
+                  <Star className="w-3.5 h-3.5" />
+                  <span className="font-bold text-sm">{user.totalSigned}</span>
+                  <span className="text-white/30 text-xs">signatures</span>
+                </div>
+                <div className="w-px h-4 bg-white/10" />
+                <div className="flex items-center gap-1.5 text-purple-400">
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span className="font-bold text-sm">{user.totalAppointments}</span>
+                  <span className="text-white/30 text-xs">visites</span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      )}
 
       {/* Leaderboard */}
-      <Card>
-        <div className="flex items-center gap-2 mb-5">
-          <div className="w-8 h-8 rounded-lg bg-[#D4AF37]/20 flex items-center justify-center">
-            <Trophy className="w-4 h-4 text-[#D4AF37]" />
+      {users.length > 1 && (
+        <div className="bg-[#181818] border border-white/[0.06] rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-[#D4AF37]/20 flex items-center justify-center">
+              <TrendingUp className="w-4 h-4 text-[#D4AF37]" />
+            </div>
+            <h3 className="text-white font-semibold">Classement</h3>
+            <span className="ml-auto text-white/30 text-xs">Signatures cumulées</span>
           </div>
-          <h3 className="text-white font-semibold">Classement général</h3>
-          <span className="ml-auto text-white/30 text-xs">Cumulé toutes périodes</span>
-        </div>
-
-        <div className="space-y-3">
-          {sortedUsers.map((user, index) => {
-            const RankIcon = rankIcons[index] ?? TrendingUp
-            const rankColor = rankColors[index] ?? 'text-white/40'
-            const isFirst = index === 0
-
-            return (
-              <div
-                key={user.id}
-                className={`flex items-center gap-3 p-4 rounded-2xl border transition-all ${
-                  isFirst
-                    ? 'border-[#D4AF37]/20 bg-[#D4AF37]/5'
-                    : 'border-white/[0.04] bg-[#141414]'
-                }`}
-              >
-                <RankIcon className={`w-5 h-5 ${rankColor} flex-shrink-0`} />
-                <Avatar user={user} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-white font-medium text-sm">{user.name}</p>
-                  <p className="text-white/30 text-xs">
-                    {user.goalsAchieved} objectif(s) atteint(s)
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <div className="text-center hidden sm:block">
-                    <div className="flex items-center gap-1 justify-center">
-                      <Star className="w-3.5 h-3.5 text-[#D4AF37]" />
-                      <span className="text-[#D4AF37] font-bold text-lg">{user.totalSigned}</span>
-                    </div>
-                    <p className="text-white/30 text-[10px]">signatures</p>
-                  </div>
-                  <div className="text-center hidden sm:block">
-                    <div className="flex items-center gap-1 justify-center">
-                      <Calendar className="w-3.5 h-3.5 text-purple-400" />
-                      <span className="text-white font-bold text-lg">{user.totalAppointments}</span>
-                    </div>
-                    <p className="text-white/30 text-[10px]">visites</p>
-                  </div>
-                  {/* Mobile */}
-                  <div className="text-center sm:hidden">
-                    <div className="flex items-center gap-1 justify-center">
-                      <Star className="w-3.5 h-3.5 text-[#D4AF37]" />
-                      <span className="text-[#D4AF37] font-bold text-lg">{user.totalSigned}</span>
-                    </div>
-                    <p className="text-white/30 text-[10px]">sign.</p>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </Card>
-
-      {/* User Profile Modal */}
-      <Modal
-        isOpen={isUserModalOpen}
-        onClose={() => setIsUserModalOpen(false)}
-        title={`Modifier — ${editingUser?.name}`}
-      >
-        <div className="space-y-5">
-          {/* Photo */}
-          <div className="flex items-center gap-4">
-            <div className="flex-shrink-0">
-              {userForm.photo ? (
-                <img src={userForm.photo} alt="Photo" className="w-16 h-16 rounded-2xl object-cover" />
-              ) : (
+          <div className="space-y-2">
+            {sorted.map((user, i) => {
+              const RankIcon = rankIcons[i] ?? TrendingUp
+              const rankColor = rankColors[i] ?? 'text-white/40'
+              return (
                 <div
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-2xl"
-                  style={{ backgroundColor: userForm.color || editingUser?.color }}
+                  key={user.id}
+                  className={`flex items-center gap-3 p-3 rounded-xl ${i === 0 ? 'bg-[#D4AF37]/5 border border-[#D4AF37]/10' : 'bg-[#141414]'}`}
                 >
-                  {userForm.name.charAt(0) || editingUser?.name.charAt(0)}
+                  <RankIcon className={`w-4 h-4 ${rankColor} flex-shrink-0`} />
+                  <Avatar user={user} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-medium">{user.name}</p>
+                    {user.role && <p className="text-white/30 text-xs truncate">{user.role}</p>}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Star className="w-3.5 h-3.5 text-[#D4AF37]" />
+                    <span className="text-[#D4AF37] font-bold">{user.totalSigned}</span>
+                  </div>
                 </div>
-              )}
-            </div>
-            <div className="flex-1 space-y-2">
-              <label className="text-sm text-white/40 font-medium block">Photo de profil</label>
-              <label
-                className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white/60 hover:text-white transition-all"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
-              >
-                <span>Choisir une image</span>
-                <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
-              </label>
-              {userForm.photo && (
-                <button
-                  onClick={() => setUserForm((f) => ({ ...f, photo: '' }))}
-                  className="text-xs text-red-400/60 hover:text-red-400 transition-colors ml-2"
-                >
-                  Supprimer
-                </button>
-              )}
-            </div>
-          </div>
-
-          <Input
-            label="Prénom"
-            value={userForm.name}
-            onChange={(e) => setUserForm((f) => ({ ...f, name: e.target.value }))}
-          />
-
-          <div>
-            <label className="text-sm text-white/40 font-medium block mb-2">Couleur</label>
-            <div className="flex items-center gap-2 flex-wrap">
-              {COLORS.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setUserForm((f) => ({ ...f, color: c }))}
-                  className="w-8 h-8 rounded-lg transition-all"
-                  style={{
-                    backgroundColor: c,
-                    outline: userForm.color === c ? '2px solid white' : 'none',
-                    outlineOffset: '2px',
-                    transform: userForm.color === c ? 'scale(1.15)' : 'scale(1)',
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-sm text-white/40 font-medium block mb-1.5">
-              Nouveau code PIN (4 chiffres)
-            </label>
-            <input
-              type="password"
-              maxLength={4}
-              inputMode="numeric"
-              pattern="[0-9]{4}"
-              value={userForm.pin}
-              onChange={(e) =>
-                setUserForm((f) => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 4) }))
-              }
-              placeholder="Laisser vide pour ne pas changer"
-              className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#D4AF37]/40 transition-colors text-sm tracking-widest"
-            />
-            {userForm.pin.length > 0 && userForm.pin.length < 4 && (
-              <p className="text-amber-400 text-xs mt-1">{4 - userForm.pin.length} chiffre(s) restant(s)</p>
-            )}
-            {userForm.pin.length === 4 && (
-              <p className="text-green-400 text-xs mt-1">✓ PIN valide</p>
-            )}
-          </div>
-
-          <div className="flex gap-3 justify-end pt-2">
-            <Button variant="ghost" onClick={() => setIsUserModalOpen(false)}>Annuler</Button>
-            <Button isLoading={savingUser} onClick={handleSaveUser}>Enregistrer</Button>
+              )
+            })}
           </div>
         </div>
-      </Modal>
+      )}
 
-      {/* Goal Edit Modal */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={`Objectif — ${selectedPeriod.label}`}
-      >
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs text-white/40 flex items-center gap-1">
-                <Star className="w-3 h-3 text-[#D4AF37]" /> Signatures
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={goalForm.propertiesSigned}
-                onChange={(e) => setGoalForm({ ...goalForm, propertiesSigned: e.target.value })}
-                className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40 transition-colors"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs text-white/40 flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-purple-400" /> Visites
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={goalForm.appointmentsMade}
-                onChange={(e) => setGoalForm({ ...goalForm, appointmentsMade: e.target.value })}
-                className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40 transition-colors"
-              />
-            </div>
-          </div>
-
-          <Textarea
-            label="Objectif personnel"
-            value={goalForm.personalGoal}
-            onChange={(e) => setGoalForm({ ...goalForm, personalGoal: e.target.value })}
-            placeholder="Décrivez votre objectif pour cette période..."
-            rows={2}
-          />
-
-          <Select
-            label="Statut"
-            value={goalForm.goalStatus}
-            onChange={(e) => setGoalForm({ ...goalForm, goalStatus: e.target.value })}
-          >
-            <option value="en_cours">En cours</option>
-            <option value="atteint">Atteint 🎉</option>
-            <option value="non_atteint">Non atteint</option>
-          </Select>
-
-          {goalForm.goalStatus === 'atteint' && (
-            <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-xl p-3">
-              <Check className="w-4 h-4 text-green-400" />
-              <p className="text-green-400 text-sm">Félicitations ! Des confettis vous attendent 🎊</p>
-            </div>
-          )}
-
-          <div className="flex gap-3 justify-end">
-            <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Annuler</Button>
-            <Button isLoading={saving} onClick={handleSaveGoal}>Enregistrer</Button>
-          </div>
-        </div>
-      </Modal>
+      <MemberModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        initial={editingUser}
+        onSave={handleSave}
+      />
     </div>
   )
 }
