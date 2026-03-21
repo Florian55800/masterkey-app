@@ -290,9 +290,12 @@ export default function LogementsPage() {
         <Card padding="sm" className="text-center">
           <p className="text-gray-400 text-xs mb-1">Comm. moy.</p>
           <p className="text-white font-bold text-2xl">
-            {tabProperties.filter(p => p.status === 'active').length > 0
-              ? formatPercent(tabProperties.filter(p => p.status === 'active').reduce((s, p) => s + p.commissionRate, 0) / tabProperties.filter(p => p.status === 'active').length)
-              : '—'}
+            {(() => {
+              const conc = tabProperties.filter(p => p.status === 'active' && (p.typeGestion || 'conciergerie') === 'conciergerie')
+              return conc.length > 0
+                ? formatPercent(conc.reduce((s, p) => s + p.commissionRate, 0) / conc.length)
+                : '—'
+            })()}
           </p>
         </Card>
         <Card padding="sm" className="text-center">
