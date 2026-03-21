@@ -4,6 +4,9 @@ FROM node:20-slim AS builder
 
 WORKDIR /app
 
+# OpenSSL requis par Prisma pour détecter la bonne version au build
+RUN apt-get update -qq && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+
 # Dépendances
 COPY package*.json ./
 RUN npm ci
@@ -20,6 +23,9 @@ FROM node:20-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+
+# OpenSSL requis par Prisma à l'exécution
+RUN apt-get update -qq && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
 # Uniquement les fichiers nécessaires au runtime
 COPY --from=builder /app/public ./public
