@@ -87,9 +87,12 @@ export default function PropertyDetailPage() {
   const [savedDesc, setSavedDesc] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Print modal
+  // Print modal (rapport propriétaire)
   const [printModalOpen, setPrintModalOpen] = useState(false)
   const [selectedMonthKey, setSelectedMonthKey] = useState('')
+
+  // PDF revenus mensuels
+  const [printRevenuesOpen, setPrintRevenuesOpen] = useState(false)
 
   // ── Load property ──────────────────────────────────────────────────────────
 
@@ -343,7 +346,16 @@ export default function PropertyDetailPage() {
           <TrendingUp className="w-5 h-5 text-[#D4AF37]" />
           <h2 className="text-white font-semibold text-lg">Revenus mensuels</h2>
           {activeMonths.length > 0 && (
-            <span className="ml-auto text-gray-500 text-sm">{activeMonths.length} mois</span>
+            <>
+              <span className="text-gray-500 text-sm">{activeMonths.length} mois</span>
+              <button
+                onClick={() => setPrintRevenuesOpen(true)}
+                className="ml-auto flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-white/[0.08] text-white/40 hover:text-white/70 hover:bg-white/5 transition-all"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                PDF
+              </button>
+            </>
           )}
         </div>
 
@@ -578,6 +590,116 @@ export default function PropertyDetailPage() {
         </Card>
       )}
 
+      {/* ── PDF Revenus mensuels ────────────────────────────────────────────── */}
+      <Modal isOpen={printRevenuesOpen} onClose={() => setPrintRevenuesOpen(false)} title="Revenus mensuels — PDF" size="lg">
+        <div className="space-y-5">
+          {(() => {
+            const moisAvecNuits = activeMonths.filter(m => m.nbNuits > 0)
+            const totGross    = activeMonths.reduce((s, m) => s + m.totalGross, 0)
+            const totCleaning = activeMonths.reduce((s, m) => s + m.totalCleaning, 0)
+            const totNet      = activeMonths.reduce((s, m) => s + m.totalNet, 0)
+            const totMK       = activeMonths.reduce((s, m) => s + m.totalPartMK, 0)
+            const totProprio  = activeMonths.reduce((s, m) => s + m.totalPartProprio, 0)
+            const totSejours  = activeMonths.reduce((s, m) => s + m.nbSejours, 0)
+            const totNuits    = activeMonths.reduce((s, m) => s + m.nbNuits, 0)
+            const totNuitsAvg = moisAvecNuits.reduce((s, m) => s + m.nbNuits, 0)
+            const totDaysAvg  = moisAvecNuits.reduce((s, m) => s + m.daysInMonth, 0)
+            const totNetAvg   = moisAvecNuits.reduce((s, m) => s + m.totalNet, 0)
+            const avgTaux     = totDaysAvg > 0 ? (totNuitsAvg / totDaysAvg) * 100 : null
+            const avgPrix     = totNuitsAvg > 0 ? totNetAvg / totNuitsAvg : null
+            return (
+              <div id="print-revenues-area" className="bg-white text-gray-900 rounded-xl p-6 space-y-4 print:shadow-none text-sm">
+                {/* En-tête */}
+                <div className="border-b border-gray-200 pb-4 flex items-start justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900">{property.name}</h2>
+                    <p className="text-gray-500 text-xs mt-0.5">{property.city} · {property.type} · {property.owner.name}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-gray-700">Revenus mensuels</p>
+                    <p className="text-gray-500 text-xs">{activeMonths[0]?.label} – {activeMonths[activeMonths.length - 1]?.label}</p>
+                  </div>
+                </div>
+
+                {/* Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-gray-300 text-gray-500 text-left">
+                        <th className="pb-2 pr-3 font-semibold">Mois</th>
+                        <th className="pb-2 pr-3 text-right font-semibold">Brut</th>
+                        <th className="pb-2 pr-3 text-right font-semibold">Ménage</th>
+                        <th className="pb-2 pr-3 text-right font-semibold">Net</th>
+                        {isConciergerie && <>
+                          <th className="pb-2 pr-3 text-right font-semibold">Part MK</th>
+                          <th className="pb-2 pr-3 text-right font-semibold">Part Proprio</th>
+                        </>}
+                        <th className="pb-2 pr-3 text-right font-semibold">Séjours</th>
+                        <th className="pb-2 pr-3 text-right font-semibold">Nuits</th>
+                        <th className="pb-2 pr-3 text-right font-semibold">Taux occ.</th>
+                        <th className="pb-2 text-right font-semibold">Prix/nuit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeMonths.map((m) => (
+                        <tr key={`${m.year}-${m.month}`} className="border-b border-gray-100">
+                          <td className="py-1.5 pr-3 font-medium text-gray-800">{m.label}</td>
+                          <td className="py-1.5 pr-3 text-right text-gray-700">{formatCurrency(m.totalGross)}</td>
+                          <td className="py-1.5 pr-3 text-right text-gray-500">{formatCurrency(m.totalCleaning)}</td>
+                          <td className="py-1.5 pr-3 text-right font-medium text-gray-800">{formatCurrency(m.totalNet)}</td>
+                          {isConciergerie && <>
+                            <td className="py-1.5 pr-3 text-right font-semibold text-amber-700">{formatCurrency(m.totalPartMK)}</td>
+                            <td className="py-1.5 pr-3 text-right text-gray-700">{formatCurrency(m.totalPartProprio)}</td>
+                          </>}
+                          <td className="py-1.5 pr-3 text-right text-gray-600">{m.nbSejours}</td>
+                          <td className="py-1.5 pr-3 text-right text-gray-600">{m.nbNuits}</td>
+                          <td className="py-1.5 pr-3 text-right text-gray-600">
+                            {m.tauxOccupation != null && m.nbNuits > 0 ? `${m.tauxOccupation.toFixed(1)}%` : '—'}
+                          </td>
+                          <td className="py-1.5 text-right text-gray-600">
+                            {m.prixMoyenNuit != null ? formatCurrency(m.prixMoyenNuit) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-gray-300 font-semibold">
+                        <td className="pt-2 pr-3 text-xs uppercase tracking-wide text-gray-500">Total / Moy.</td>
+                        <td className="pt-2 pr-3 text-right text-gray-900">{formatCurrency(totGross)}</td>
+                        <td className="pt-2 pr-3 text-right text-gray-600">{formatCurrency(totCleaning)}</td>
+                        <td className="pt-2 pr-3 text-right text-gray-900">{formatCurrency(totNet)}</td>
+                        {isConciergerie && <>
+                          <td className="pt-2 pr-3 text-right text-amber-700">{formatCurrency(totMK)}</td>
+                          <td className="pt-2 pr-3 text-right text-gray-900">{formatCurrency(totProprio)}</td>
+                        </>}
+                        <td className="pt-2 pr-3 text-right text-gray-900">{totSejours}</td>
+                        <td className="pt-2 pr-3 text-right text-gray-900">{totNuits}</td>
+                        <td className="pt-2 pr-3 text-right text-gray-800">{avgTaux != null ? `${avgTaux.toFixed(1)}%` : '—'}</td>
+                        <td className="pt-2 text-right text-gray-800">{avgPrix != null ? formatCurrency(avgPrix) : '—'}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* Footer */}
+                <div className="border-t border-gray-100 pt-3 flex items-center justify-between text-xs text-gray-400">
+                  <span>MasterKey Conciergerie</span>
+                  <span>Généré le {new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                </div>
+              </div>
+            )
+          })()}
+
+          <div className="flex gap-3 justify-end pt-1">
+            <Button variant="ghost" onClick={() => setPrintRevenuesOpen(false)}>Fermer</Button>
+            <Button onClick={() => window.print()}>
+              <Printer className="w-4 h-4" />
+              Imprimer / PDF
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* ── Print Modal ─────────────────────────────────────────────────────── */}
       <Modal
         isOpen={printModalOpen}
@@ -677,14 +799,6 @@ export default function PropertyDetailPage() {
                 <div className="rounded-lg bg-gray-50 border border-gray-200 p-3 flex items-center justify-between">
                   <span className="text-gray-600 text-sm">Prix moyen par nuit</span>
                   <span className="font-bold text-gray-900">{formatCurrency(selectedMonth.prixMoyenNuit)}</span>
-                </div>
-              )}
-
-              {/* Description */}
-              {description.trim() && (
-                <div className="border-t border-gray-100 pt-4">
-                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">Notes</p>
-                  <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{description}</p>
                 </div>
               )}
 
