@@ -2,32 +2,70 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+// Convert a libsql ResultSet to an array of plain objects
+function toRows(rs: { columns: string[]; rows: unknown[][] }): Record<string, unknown>[] {
+  return rs.rows.map((row) => {
+    const obj: Record<string, unknown> = {}
+    rs.columns.forEach((col, i) => { obj[col] = row[i] })
+    return obj
+  })
+}
+
 export async function GET() {
-  try {
-    // $queryRaw uses client.execute() directly (same path as findUnique which works in 270ms)
-    // findMany uses executeMultiple/transaction → falls back to WebSocket → hang
-    type PropRow = {
-      id: number; name: string; address: string; city: string; type: string
-      typeGestion: string; ownerId: number; commissionRate: number
-      dateSigned: string; dateLost: string | null; status: string
-      photo: string | null; createdAt: string
+  // Production: fresh libsql WebSocket connection per request.
+  // WebSocket to Turso (Ireland) from Railway (europe-west4) works — confirmed 270ms.
+  // Shared singleton drops silently between requests and hangs on re-use.
+  if (process.env.TURSO_DATABASE_URL) {
+    const { createClient } = require('@libsql/client')
+    const client = createClient({
+      url: process.env.TURSO_DATABASE_URL,
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    })
+    try {
+      const propsRS = await client.execute(
+        `SELECT id, name, address, city, type, typeGestion, ownerId, commissionRate,
+                dateSigned, dateLost, status, photo, createdAt
+         FROM Property ORDER BY createdAt DESC`
+      )
+      const ownersRS = await client.execute(
+        `SELECT id, name FROM Owner ORDER BY name ASC`
+      )
+
+      const properties = toRows(propsRS)
+      const owners = toRows(ownersRS)
+      const ownerMap = new Map(owners.map((o) => [o.id as number, o]))
+      const result = properties.map((p) => ({
+        ...p,
+        owner: ownerMap.get(p.ownerId as number) ?? { id: p.ownerId, name: '—' },
+      }))
+      return NextResponse.json(result)
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      console.error('Properties GET error:', msg)
+      return NextResponse.json({ error: msg }, { status: 500 })
+    } finally {
+      client.close()
     }
-    type OwnerRow = { id: number; name: string }
+  }
 
-    const properties = await prisma.$queryRaw<PropRow[]>`
-      SELECT id, name, address, city, type, typeGestion, ownerId, commissionRate,
-             dateSigned, dateLost, status, photo, createdAt
-      FROM Property ORDER BY createdAt DESC`
-
-    const owners = await prisma.$queryRaw<OwnerRow[]>`
-      SELECT id, name FROM Owner ORDER BY name ASC`
-
+  // Local dev: Prisma + SQLite
+  try {
+    const [properties, owners] = await Promise.all([
+      prisma.property.findMany({
+        select: {
+          id: true, name: true, address: true, city: true, type: true,
+          typeGestion: true, ownerId: true, commissionRate: true,
+          dateSigned: true, dateLost: true, status: true, photo: true, createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.owner.findMany({ select: { id: true, name: true } }),
+    ])
     const ownerMap = new Map(owners.map((o) => [o.id, o]))
     const result = properties.map((p) => ({
       ...p,
       owner: ownerMap.get(p.ownerId) ?? { id: p.ownerId, name: '—' },
     }))
-
     return NextResponse.json(result)
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
