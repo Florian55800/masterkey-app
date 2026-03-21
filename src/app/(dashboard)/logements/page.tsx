@@ -97,21 +97,22 @@ export default function LogementsPage() {
       setLoadError('')
       const abort = new AbortController()
       const tid = setTimeout(() => abort.abort(), 15_000)
-      const [propsRes, ownersRes] = await Promise.all([
-        fetch('/api/properties', { signal: abort.signal }),
-        fetch('/api/owners', { signal: abort.signal }),
-      ]).finally(() => clearTimeout(tid))
-      const [propsData, ownersData] = await Promise.all([propsRes.json(), ownersRes.json()])
+      // Un seul appel — les owners sont déjà inclus dans chaque property
+      const propsRes = await fetch('/api/properties', { signal: abort.signal })
+        .finally(() => clearTimeout(tid))
+      const propsData = await propsRes.json()
       if (!Array.isArray(propsData)) {
         setLoadError(propsData?.error || 'Erreur de chargement')
-        // Garde les données en cache si l'API plante
       } else {
         setProperties(propsData)
-        setOwners(Array.isArray(ownersData) ? ownersData : [])
-        // Sauvegarde dans le cache pour le prochain chargement
+        // Extraire les owners uniques depuis les properties (évite un 2e appel réseau)
+        const uniqueOwners = Array.from(
+          new Map(propsData.map((p: Property) => [p.owner.id, p.owner])).values()
+        ) as Owner[]
+        setOwners(uniqueOwners)
         localStorage.setItem('mk_properties_cache', JSON.stringify({
           properties: propsData,
-          owners: Array.isArray(ownersData) ? ownersData : [],
+          owners: uniqueOwners,
         }))
       }
     } catch {
