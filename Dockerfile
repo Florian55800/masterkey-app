@@ -12,7 +12,7 @@ COPY . .
 
 # Génère le client Prisma + build Next.js
 # (migrate-turso.js saute s'il n'y a pas de TURSO_DATABASE_URL — c'est voulu)
-RUN npx prisma generate && npx next build
+RUN mkdir -p public && npx prisma generate && npx next build
 
 # ── Stage 2 : runner ─────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
