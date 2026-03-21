@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Edit2, Trash2, ExternalLink, Phone, Mail, Search } from 'lucide-react'
+import { Plus, Edit2, Trash2, ExternalLink, Phone, Mail, Search, Settings, X, GripVertical } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -28,14 +28,32 @@ interface Lead {
   relanceNote: string | null
 }
 
-const STATUTS = ['À contacter', 'Follow up', 'En passe de signer', 'Signé', 'Mort']
+interface Statut {
+  label: string
+  color: string
+}
 
-const STATUT_COLORS: Record<string, string> = {
-  'À contacter': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  'Follow up': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-  'En passe de signer': 'bg-green-500/20 text-green-400 border-green-500/30',
-  'Signé': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-  'Mort': 'bg-red-500/20 text-red-400 border-red-500/30',
+const DEFAULT_STATUTS: Statut[] = [
+  { label: 'À contacter',       color: 'blue' },
+  { label: 'Follow up',         color: 'amber' },
+  { label: 'En passe de signer', color: 'green' },
+  { label: 'Signé',             color: 'emerald' },
+  { label: 'Mort',              color: 'red' },
+]
+
+const COLOR_OPTIONS = [
+  { value: 'blue',    label: 'Bleu',   cls: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+  { value: 'amber',   label: 'Orange', cls: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
+  { value: 'green',   label: 'Vert',   cls: 'bg-green-500/20 text-green-400 border-green-500/30' },
+  { value: 'emerald', label: 'Émeraude', cls: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+  { value: 'red',     label: 'Rouge',  cls: 'bg-red-500/20 text-red-400 border-red-500/30' },
+  { value: 'purple',  label: 'Violet', cls: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
+  { value: 'pink',    label: 'Rose',   cls: 'bg-pink-500/20 text-pink-400 border-pink-500/30' },
+  { value: 'gray',    label: 'Gris',   cls: 'bg-gray-500/20 text-gray-400 border-gray-500/30' },
+]
+
+function getColorCls(color: string) {
+  return COLOR_OPTIONS.find(c => c.value === color)?.cls ?? 'bg-gray-500/20 text-gray-400 border-gray-500/30'
 }
 
 const TYPES_BIEN = ['Appartement', 'Studio', 'Maison', 'Villa', 'Loft', 'Chambre', 'Autre']
@@ -58,11 +76,24 @@ export default function LeadsPage() {
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState<number | null>(null)
 
+  // Gestion des statuts
+  const [statuts, setStatuts] = useState<Statut[]>(DEFAULT_STATUTS)
+  const [isStatutsModalOpen, setIsStatutsModalOpen] = useState(false)
+  const [editingStatuts, setEditingStatuts] = useState<Statut[]>([])
+  const [newLabel, setNewLabel] = useState('')
+  const [newColor, setNewColor] = useState('blue')
+  const [savingStatuts, setSavingStatuts] = useState(false)
+
   useEffect(() => {
     fetch('/api/leads')
       .then(r => r.json())
       .then(d => { setLeads(Array.isArray(d) ? d : []); setLoading(false) })
       .catch(() => { setLeads([]); setLoading(false) })
+
+    fetch('/api/config/lead_statuts')
+      .then(r => r.json())
+      .then(d => { if (d.value) setStatuts(JSON.parse(d.value)) })
+      .catch(() => {})
   }, [])
 
   const openCreate = () => { setEditingLead(null); setForm(emptyForm); setIsModalOpen(true) }
@@ -113,6 +144,40 @@ export default function LeadsPage() {
     }
   }
 
+  // ── Gestion des statuts ────────────────────────────────────────────────────
+  const openStatutsModal = () => {
+    setEditingStatuts([...statuts])
+    setNewLabel('')
+    setNewColor('blue')
+    setIsStatutsModalOpen(true)
+  }
+
+  const addStatut = () => {
+    const label = newLabel.trim()
+    if (!label || editingStatuts.some(s => s.label === label)) return
+    setEditingStatuts(s => [...s, { label, color: newColor }])
+    setNewLabel('')
+    setNewColor('blue')
+  }
+
+  const removeStatut = (label: string) => {
+    setEditingStatuts(s => s.filter(x => x.label !== label))
+  }
+
+  const saveStatuts = async () => {
+    setSavingStatuts(true)
+    const res = await fetch('/api/config/lead_statuts', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: JSON.stringify(editingStatuts) }),
+    })
+    if (res.ok) {
+      setStatuts(editingStatuts)
+      setIsStatutsModalOpen(false)
+    }
+    setSavingStatuts(false)
+  }
+
   const filtered = leads.filter(l => {
     const matchSearch = !search || l.nom.toLowerCase().includes(search.toLowerCase()) ||
       l.ville?.toLowerCase().includes(search.toLowerCase()) ||
@@ -123,7 +188,7 @@ export default function LeadsPage() {
 
   if (loading) return <LoadingPage />
 
-  const counts = STATUTS.reduce((acc, s) => ({ ...acc, [s]: leads.filter(l => l.statut === s).length }), {} as Record<string, number>)
+  const counts = statuts.reduce((acc, s) => ({ ...acc, [s.label]: leads.filter(l => l.statut === s.label).length }), {} as Record<string, number>)
 
   return (
     <div className="space-y-6">
@@ -133,7 +198,12 @@ export default function LeadsPage() {
           <h1 className="text-2xl font-bold text-white">Leads</h1>
           <p className="text-gray-400 mt-1">{leads.length} prospect{leads.length > 1 ? 's' : ''} au total</p>
         </div>
-        <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2" />Nouveau lead</Button>
+        <div className="flex gap-2">
+          <button onClick={openStatutsModal} className="p-2 rounded-xl border border-white/[0.08] text-white/40 hover:text-white/70 hover:bg-white/5 transition-all" title="Gérer les statuts">
+            <Settings className="w-4 h-4" />
+          </button>
+          <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2" />Nouveau lead</Button>
+        </div>
       </div>
 
       {/* Stats par statut */}
@@ -141,10 +211,10 @@ export default function LeadsPage() {
         <button onClick={() => setFilterStatut('tous')} className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${filterStatut === 'tous' ? 'bg-white/10 text-white border-white/20' : 'border-white/[0.06] text-white/40 hover:text-white/60'}`}>
           Tous ({leads.length})
         </button>
-        {STATUTS.map(s => (
-          <button key={s} onClick={() => setFilterStatut(s === filterStatut ? 'tous' : s)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${filterStatut === s ? STATUT_COLORS[s] : 'border-white/[0.06] text-white/40 hover:text-white/60'}`}>
-            {s} ({counts[s] ?? 0})
+        {statuts.map(s => (
+          <button key={s.label} onClick={() => setFilterStatut(s.label === filterStatut ? 'tous' : s.label)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${filterStatut === s.label ? getColorCls(s.color) : 'border-white/[0.06] text-white/40 hover:text-white/60'}`}>
+            {s.label} ({counts[s.label] ?? 0})
           </button>
         ))}
       </div>
@@ -188,8 +258,12 @@ export default function LeadsPage() {
                     <td className="px-4 py-3"><p className="text-white/60 text-xs">{lead.ville || '—'}</p></td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <select value={lead.statut} onChange={e => handleStatutChange(lead, e.target.value)}
-                        className={`text-xs font-semibold px-2 py-1 rounded-lg border cursor-pointer bg-transparent ${STATUT_COLORS[lead.statut] ?? 'text-white/60 border-white/20'}`}>
-                        {STATUTS.map(s => <option key={s} value={s} className="bg-[#1c1c1c] text-white">{s}</option>)}
+                        className={`text-xs font-semibold px-2 py-1 rounded-lg border cursor-pointer bg-transparent ${getColorCls(statuts.find(s => s.label === lead.statut)?.color ?? 'gray')}`}>
+                        {statuts.map(s => <option key={s.label} value={s.label} className="bg-[#1c1c1c] text-white">{s.label}</option>)}
+                        {/* Affiche le statut actuel même s'il a été supprimé */}
+                        {!statuts.some(s => s.label === lead.statut) && (
+                          <option value={lead.statut} className="bg-[#1c1c1c] text-white">{lead.statut}</option>
+                        )}
                       </select>
                     </td>
                     <td className="px-4 py-3"><p className="text-white/50 text-xs whitespace-nowrap">{format(new Date(lead.dateContact), 'd MMM yyyy', { locale: fr })}</p></td>
@@ -231,7 +305,7 @@ export default function LeadsPage() {
         </div>
       </Card>
 
-      {/* Modal */}
+      {/* Modal lead */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingLead ? 'Modifier le lead' : 'Nouveau lead'}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -259,7 +333,7 @@ export default function LeadsPage() {
               <label className="block text-sm font-medium text-white/60 mb-1.5">Statut</label>
               <select value={form.statut} onChange={e => setForm(f => ({ ...f, statut: e.target.value }))}
                 className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40">
-                {STATUTS.map(s => <option key={s} value={s}>{s}</option>)}
+                {statuts.map(s => <option key={s.label} value={s.label}>{s.label}</option>)}
               </select>
             </div>
           </div>
@@ -283,6 +357,66 @@ export default function LeadsPage() {
           <div className="flex gap-3 pt-2">
             <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="flex-1">Annuler</Button>
             <Button onClick={handleSave} disabled={saving} className="flex-1">{saving ? 'Enregistrement...' : 'Enregistrer'}</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal gestion des statuts */}
+      <Modal isOpen={isStatutsModalOpen} onClose={() => setIsStatutsModalOpen(false)} title="Gérer les statuts">
+        <div className="space-y-4">
+          {/* Liste des statuts existants */}
+          <div className="space-y-2">
+            {editingStatuts.map(s => (
+              <div key={s.label} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                <GripVertical className="w-4 h-4 text-white/20 flex-shrink-0" />
+                <span className={`px-2 py-0.5 rounded-md text-xs font-semibold border flex-1 ${getColorCls(s.color)}`}>
+                  {s.label}
+                </span>
+                <button onClick={() => removeStatut(s.label)} className="p-1 rounded-lg hover:bg-red-500/10 text-white/30 hover:text-red-400 transition-colors flex-shrink-0">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+            {editingStatuts.length === 0 && (
+              <p className="text-white/30 text-sm text-center py-4">Aucun statut</p>
+            )}
+          </div>
+
+          {/* Ajout d'un nouveau statut */}
+          <div className="pt-2 border-t border-white/[0.06]">
+            <p className="text-white/40 text-xs uppercase tracking-wider mb-3">Ajouter un statut</p>
+            <div className="flex gap-2">
+              <input
+                value={newLabel}
+                onChange={e => setNewLabel(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addStatut()}
+                placeholder="Nom du statut..."
+                className="flex-1 bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40 placeholder-white/20"
+              />
+              <select
+                value={newColor}
+                onChange={e => setNewColor(e.target.value)}
+                className="bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40"
+              >
+                {COLOR_OPTIONS.map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+              <button
+                onClick={addStatut}
+                disabled={!newLabel.trim()}
+                className="px-3 py-2 rounded-xl bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20 hover:bg-[#D4AF37]/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button variant="ghost" onClick={() => setIsStatutsModalOpen(false)} className="flex-1">Annuler</Button>
+            <Button onClick={saveStatuts} disabled={savingStatuts} className="flex-1">
+              {savingStatuts ? 'Enregistrement...' : 'Enregistrer'}
+            </Button>
           </div>
         </div>
       </Modal>

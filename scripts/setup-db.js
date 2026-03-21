@@ -187,6 +187,12 @@ async function setup() {
       "isActive" INTEGER NOT NULL DEFAULT 0
     )`,
 
+    `CREATE TABLE IF NOT EXISTS "Config" (
+      "key"       TEXT     NOT NULL PRIMARY KEY,
+      "value"     TEXT     NOT NULL,
+      "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+
     `CREATE TABLE IF NOT EXISTS "Lead" (
       "id"           INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
       "nom"          TEXT     NOT NULL,
@@ -234,6 +240,24 @@ async function setup() {
     } catch (err) {
       console.warn(`[setup-db] User skip: ${err.message}`)
     }
+  }
+
+  // Seed des statuts leads par défaut
+  const defaultStatuts = JSON.stringify([
+    { label: 'À contacter', color: 'blue' },
+    { label: 'Follow up',   color: 'amber' },
+    { label: 'En passe de signer', color: 'green' },
+    { label: 'Signé',  color: 'emerald' },
+    { label: 'Mort',   color: 'red' },
+  ])
+  try {
+    await client.execute({
+      sql: `INSERT OR IGNORE INTO "Config" (key, value, updatedAt) VALUES ('lead_statuts', ?, CURRENT_TIMESTAMP)`,
+      args: [defaultStatuts],
+    })
+    console.log('[setup-db] ✓ Config: lead_statuts')
+  } catch (err) {
+    console.warn('[setup-db] Config skip:', err.message)
   }
 
   console.log('[setup-db] Schéma prêt ✅')
