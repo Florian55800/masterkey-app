@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { propertyId, month, year, loyer, electricite, wifi, autresCharges, notes } = body
+    const { propertyId, month, year, loyer, electricite, wifi, autresCharges, nbSejours, nbNuits, notes } = body
 
     const expense = await prisma.subletExpense.upsert({
       where: {
@@ -47,6 +47,8 @@ export async function POST(req: NextRequest) {
         electricite: Number(electricite) || 0,
         wifi: Number(wifi) || 0,
         autresCharges: Number(autresCharges) || 0,
+        nbSejours: Number(nbSejours) || 0,
+        nbNuits: Number(nbNuits) || 0,
         notes: notes ?? null,
       },
       create: {
@@ -57,6 +59,8 @@ export async function POST(req: NextRequest) {
         electricite: Number(electricite) || 0,
         wifi: Number(wifi) || 0,
         autresCharges: Number(autresCharges) || 0,
+        nbSejours: Number(nbSejours) || 0,
+        nbNuits: Number(nbNuits) || 0,
         notes: notes ?? null,
       },
     })

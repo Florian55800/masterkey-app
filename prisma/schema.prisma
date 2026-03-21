@@ -86,6 +86,8 @@ model SubletExpense {
   electricite   Float    @default(0)
   wifi          Float    @default(0)
   autresCharges Float    @default(0)
+  nbSejours     Int      @default(0)
+  nbNuits       Int      @default(0)
   notes         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

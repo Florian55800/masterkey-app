@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const body = await req.json()
-    const { loyer, electricite, wifi, autresCharges, notes } = body
+    const { loyer, electricite, wifi, autresCharges, nbSejours, nbNuits, notes } = body
 
     const expense = await prisma.subletExpense.update({
       where: { id: Number(params.id) },
@@ -14,6 +14,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         electricite: Number(electricite) || 0,
         wifi: Number(wifi) || 0,
         autresCharges: Number(autresCharges) || 0,
+        nbSejours: Number(nbSejours) || 0,
+        nbNuits: Number(nbNuits) || 0,
         notes: notes ?? null,
       },
     })

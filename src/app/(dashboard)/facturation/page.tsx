@@ -39,6 +39,8 @@ interface SubletExpense {
   electricite: number
   wifi: number
   autresCharges: number
+  nbSejours: number
+  nbNuits: number
   notes: string | null
 }
 
@@ -540,6 +542,8 @@ function SubletModal({
     electricite: String(initial?.electricite ?? ''),
     wifi: String(initial?.wifi ?? ''),
     autresCharges: String(initial?.autresCharges ?? ''),
+    nbSejours: String(initial?.nbSejours ?? ''),
+    nbNuits: String(initial?.nbNuits ?? ''),
     notes: initial?.notes ?? '',
   })
   const [saving, setSaving] = useState(false)
@@ -550,6 +554,8 @@ function SubletModal({
       electricite: String(initial?.electricite ?? ''),
       wifi: String(initial?.wifi ?? ''),
       autresCharges: String(initial?.autresCharges ?? ''),
+      nbSejours: String(initial?.nbSejours ?? ''),
+      nbNuits: String(initial?.nbNuits ?? ''),
       notes: initial?.notes ?? '',
     })
   }, [isOpen, initial])
@@ -564,6 +570,8 @@ function SubletModal({
       propertyId: property.id, month, year,
       loyer: f(form.loyer), electricite: f(form.electricite),
       wifi: f(form.wifi), autresCharges: f(form.autresCharges),
+      nbSejours: parseInt(form.nbSejours) || 0,
+      nbNuits: parseInt(form.nbNuits) || 0,
       notes: form.notes || null,
     })
     setSaving(false)
@@ -590,6 +598,26 @@ function SubletModal({
               />
             </div>
           ))}
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-white/40 block mb-1.5">Séjours</label>
+            <input
+              type="number" min="0" step="1"
+              value={form.nbSejours}
+              onChange={e => setForm(f => ({ ...f, nbSejours: e.target.value }))}
+              className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-white/40 block mb-1.5">Nuits</label>
+            <input
+              type="number" min="0" step="1"
+              value={form.nbNuits}
+              onChange={e => setForm(f => ({ ...f, nbNuits: e.target.value }))}
+              className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40"
+            />
+          </div>
         </div>
         <div>
           <label className="text-xs text-white/40 block mb-1.5">Notes</label>
