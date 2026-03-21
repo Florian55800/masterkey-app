@@ -76,7 +76,19 @@ export default function LogementsPage() {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (ev) => setForm(f => ({ ...f, photo: ev.target?.result as string }))
+    reader.onload = (ev) => {
+      const img = new Image()
+      img.onload = () => {
+        const MAX = 1200
+        const ratio = Math.min(MAX / img.width, MAX / img.height, 1)
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.round(img.width * ratio)
+        canvas.height = Math.round(img.height * ratio)
+        canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+        setForm(f => ({ ...f, photo: canvas.toDataURL('image/jpeg', 0.82) }))
+      }
+      img.src = ev.target?.result as string
+    }
     reader.readAsDataURL(file)
   }
 
@@ -97,22 +109,24 @@ export default function LogementsPage() {
       setLoadError('')
       const abort = new AbortController()
       const tid = setTimeout(() => abort.abort(), 15_000)
-      // Un seul appel — les owners sont déjà inclus dans chaque property
-      const propsRes = await fetch('/api/properties', { signal: abort.signal })
-        .finally(() => clearTimeout(tid))
+      const [propsRes, ownersRes] = await Promise.all([
+        fetch('/api/properties', { signal: abort.signal }),
+        fetch('/api/owners', { signal: abort.signal }),
+      ])
+      clearTimeout(tid)
       const propsData = await propsRes.json()
+      const ownersData = await ownersRes.json()
       if (!Array.isArray(propsData)) {
         setLoadError(propsData?.error || 'Erreur de chargement')
       } else {
         setProperties(propsData)
-        // Extraire les owners uniques depuis les properties (évite un 2e appel réseau)
-        const uniqueOwners = Array.from(
-          new Map(propsData.map((p: Property) => [p.owner.id, p.owner])).values()
-        ) as Owner[]
-        setOwners(uniqueOwners)
+        const ownersList: Owner[] = Array.isArray(ownersData)
+          ? ownersData.map((o: Owner) => ({ id: o.id, name: o.name }))
+          : []
+        setOwners(ownersList)
         localStorage.setItem('mk_properties_cache', JSON.stringify({
           properties: propsData,
-          owners: uniqueOwners,
+          owners: ownersList,
         }))
       }
     } catch {
