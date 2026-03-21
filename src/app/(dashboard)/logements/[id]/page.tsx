@@ -416,15 +416,22 @@ export default function PropertyDetailPage() {
                     </tr>
                   ))}
                 </tbody>
-                {/* Totals row */}
+                {/* Totals / averages row */}
                 {activeMonths.length > 1 && (() => {
-                  const totGross   = activeMonths.reduce((s, m) => s + m.totalGross, 0)
+                  const totGross    = activeMonths.reduce((s, m) => s + m.totalGross, 0)
                   const totCleaning = activeMonths.reduce((s, m) => s + m.totalCleaning, 0)
-                  const totNet     = activeMonths.reduce((s, m) => s + m.totalNet, 0)
-                  const totMK      = activeMonths.reduce((s, m) => s + m.totalPartMK, 0)
-                  const totProprio = activeMonths.reduce((s, m) => s + m.totalPartProprio, 0)
-                  const totSejours = activeMonths.reduce((s, m) => s + m.nbSejours, 0)
-                  const totNuits   = activeMonths.reduce((s, m) => s + m.nbNuits, 0)
+                  const totNet      = activeMonths.reduce((s, m) => s + m.totalNet, 0)
+                  const totMK       = activeMonths.reduce((s, m) => s + m.totalPartMK, 0)
+                  const totProprio  = activeMonths.reduce((s, m) => s + m.totalPartProprio, 0)
+                  const totSejours  = activeMonths.reduce((s, m) => s + m.nbSejours, 0)
+                  const totNuits    = activeMonths.reduce((s, m) => s + m.nbNuits, 0)
+                  // Moyennes pondérées sur les mois avec des nuits renseignées
+                  const moisAvecNuits = activeMonths.filter(m => m.nbNuits > 0)
+                  const totNuitsAvg  = moisAvecNuits.reduce((s, m) => s + m.nbNuits, 0)
+                  const totDaysAvg   = moisAvecNuits.reduce((s, m) => s + m.daysInMonth, 0)
+                  const totNetAvg    = moisAvecNuits.reduce((s, m) => s + m.totalNet, 0)
+                  const avgTaux      = totDaysAvg > 0 ? (totNuitsAvg / totDaysAvg) * 100 : null
+                  const avgPrix      = totNuitsAvg > 0 ? totNetAvg / totNuitsAvg : null
                   return (
                     <tfoot>
                       <tr className="border-t border-[#D4AF37]/20">
@@ -440,8 +447,23 @@ export default function PropertyDetailPage() {
                         )}
                         <td className="pt-3 pr-4 text-right text-gray-300 font-medium">{totSejours}</td>
                         <td className="pt-3 pr-4 text-right text-gray-300 font-medium">{totNuits}</td>
-                        <td className="pt-3 pr-4 text-right text-gray-600">—</td>
-                        <td className="pt-3 text-right text-gray-600">—</td>
+                        <td className="pt-3 pr-4 text-right">
+                          {avgTaux != null ? (
+                            <span className={`font-semibold ${avgTaux >= 70 ? 'text-green-400' : avgTaux >= 40 ? 'text-amber-400' : 'text-gray-400'}`}>
+                              {avgTaux.toFixed(1)}%
+                            </span>
+                          ) : <span className="text-gray-600">—</span>}
+                        </td>
+                        <td className="pt-3 text-right">
+                          {avgPrix != null ? (
+                            <span className="text-gray-200 font-semibold">{formatCurrency(avgPrix)}</span>
+                          ) : <span className="text-gray-600">—</span>}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td colSpan={isConciergerie ? 10 : 8} className="pt-1 pb-0">
+                          <p className="text-gray-600 text-xs text-right">Taux occup. et prix/nuit = moyennes sur {moisAvecNuits.length} mois avec données</p>
+                        </td>
                       </tr>
                     </tfoot>
                   )
