@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Edit2, Trash2, ExternalLink, Phone, Mail, Search, Settings, X, GripVertical } from 'lucide-react'
+import { Plus, Edit2, Trash2, ExternalLink, Phone, Mail, Search, Settings, X, GripVertical, Calendar, MapPin, CalendarDays } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -9,6 +9,26 @@ import { Input } from '@/components/ui/Input'
 import { LoadingPage } from '@/components/ui/LoadingSpinner'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
+
+interface Visit {
+  id: number
+  leadId: number | null
+  lead: { nom: string } | null
+  date: string
+  address: string
+  notes: string | null
+  createdAt: string
+}
+
+const TASK_TYPES = [
+  { value: 'visite',   label: 'Visite',    icon: '🏠' },
+  { value: 'appel',    label: 'Appel',     icon: '📞' },
+  { value: 'email',    label: 'Email',     icon: '📧' },
+  { value: 'reunion',  label: 'Réunion',   icon: '🤝' },
+  { value: 'autre',    label: 'Autre',     icon: '📌' },
+]
+
+const emptyVisitForm = { leadId: '', date: '', time: '', address: '', notes: '' }
 
 interface Lead {
   id: number
@@ -66,6 +86,9 @@ const emptyForm = {
 }
 
 export default function LeadsPage() {
+  const [mainTab, setMainTab] = useState<'leads' | 'visites'>('leads')
+
+  // ── Leads state ────────────────────────────────────────────────────────────
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -84,6 +107,12 @@ export default function LeadsPage() {
   const [newColor, setNewColor] = useState('blue')
   const [savingStatuts, setSavingStatuts] = useState(false)
 
+  // ── Visites state ──────────────────────────────────────────────────────────
+  const [visits, setVisits] = useState<Visit[]>([])
+  const [isVisitModalOpen, setIsVisitModalOpen] = useState(false)
+  const [visitForm, setVisitForm] = useState(emptyVisitForm)
+  const [savingVisit, setSavingVisit] = useState(false)
+
   useEffect(() => {
     fetch('/api/leads')
       .then(r => r.json())
@@ -94,7 +123,43 @@ export default function LeadsPage() {
       .then(r => r.json())
       .then(d => { if (d.value) setStatuts(JSON.parse(d.value)) })
       .catch(() => {})
+
+    fetch('/api/visits')
+      .then(r => r.json())
+      .then(d => setVisits(Array.isArray(d) ? d : []))
+      .catch(() => {})
   }, [])
+
+  const handleSaveVisit = async () => {
+    if (!visitForm.date || !visitForm.address) return
+    setSavingVisit(true)
+    const dateTime = visitForm.time ? `${visitForm.date}T${visitForm.time}:00` : `${visitForm.date}T00:00:00`
+    const res = await fetch('/api/visits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        leadId: visitForm.leadId ? parseInt(visitForm.leadId) : null,
+        date: dateTime,
+        address: visitForm.address,
+        notes: visitForm.notes || null,
+      }),
+    })
+    if (res.ok) {
+      const saved = await res.json()
+      // Reload to get lead relation
+      const all = await fetch('/api/visits').then(r => r.json())
+      setVisits(Array.isArray(all) ? all : [])
+      setIsVisitModalOpen(false)
+      setVisitForm(emptyVisitForm)
+    }
+    setSavingVisit(false)
+  }
+
+  const handleDeleteVisit = async (id: number) => {
+    if (!confirm('Supprimer cette visite ?')) return
+    await fetch(`/api/visits/${id}`, { method: 'DELETE' })
+    setVisits(v => v.filter(x => x.id !== id))
+  }
 
   const openCreate = () => { setEditingLead(null); setForm(emptyForm); setIsModalOpen(true) }
   const openEdit = (lead: Lead) => {
@@ -196,15 +261,133 @@ export default function LeadsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Leads</h1>
-          <p className="text-gray-400 mt-1">{leads.length} prospect{leads.length > 1 ? 's' : ''} au total</p>
+          <p className="text-gray-400 mt-1">{leads.length} prospect{leads.length > 1 ? 's' : ''} · {visits.length} visite{visits.length > 1 ? 's' : ''}</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={openStatutsModal} className="p-2 rounded-xl border border-white/[0.08] text-white/40 hover:text-white/70 hover:bg-white/5 transition-all" title="Gérer les statuts">
-            <Settings className="w-4 h-4" />
-          </button>
-          <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2" />Nouveau lead</Button>
+          {mainTab === 'leads' ? (
+            <>
+              <button onClick={openStatutsModal} className="p-2 rounded-xl border border-white/[0.08] text-white/40 hover:text-white/70 hover:bg-white/5 transition-all" title="Gérer les statuts">
+                <Settings className="w-4 h-4" />
+              </button>
+              <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2" />Nouveau lead</Button>
+            </>
+          ) : (
+            <Button onClick={() => { setVisitForm(emptyVisitForm); setIsVisitModalOpen(true) }}>
+              <Plus className="w-4 h-4 mr-2" />Planifier une visite
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Onglets principaux */}
+      <div className="flex items-center bg-[#1a1a1a] border border-[#2e2e2e] rounded-2xl p-1 w-fit">
+        {([['leads', 'Leads', leads.length], ['visites', 'Visites', visits.length]] as const).map(([tab, label, count]) => (
+          <button key={tab} onClick={() => setMainTab(tab)}
+            className={`px-5 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${mainTab === tab ? 'bg-[#D4AF37] text-black' : 'text-gray-400 hover:text-white'}`}>
+            {label}
+            <span className={`text-xs px-1.5 py-0.5 rounded-md font-semibold ${mainTab === tab ? 'bg-black/20 text-black/70' : 'bg-[#2e2e2e] text-gray-500'}`}>{count}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ═══════════════════════ ONGLET VISITES ═══════════════════════ */}
+      {mainTab === 'visites' && (
+        <div className="space-y-3">
+          {visits.length === 0 ? (
+            <Card className="text-center py-16">
+              <CalendarDays className="w-10 h-10 text-white/10 mx-auto mb-3" />
+              <p className="text-white/30 font-medium">Aucune visite planifiée</p>
+              <p className="text-white/20 text-sm mt-1">Ajoutez votre première visite</p>
+            </Card>
+          ) : (
+            visits.map(visit => {
+              const d = new Date(visit.date)
+              const isPast = d < new Date()
+              return (
+                <Card key={visit.id} padding="none" className={`flex items-center gap-4 p-4 ${isPast ? 'opacity-50' : ''}`}>
+                  {/* Date block */}
+                  <div className="flex-shrink-0 w-14 text-center bg-[#D4AF37]/10 border border-[#D4AF37]/20 rounded-xl py-2 px-1">
+                    <p className="text-[#D4AF37] font-bold text-lg leading-none">{d.getDate()}</p>
+                    <p className="text-[#D4AF37]/70 text-xs capitalize">{format(d, 'MMM', { locale: fr })}</p>
+                    {visit.date.includes('T') && d.getHours() > 0 && (
+                      <p className="text-white/40 text-xs mt-1">{format(d, 'HH:mm')}</p>
+                    )}
+                  </div>
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <MapPin className="w-3.5 h-3.5 text-white/30 flex-shrink-0" />
+                      <p className="text-white font-medium text-sm truncate">{visit.address}</p>
+                    </div>
+                    {visit.lead && (
+                      <p className="text-[#D4AF37]/80 text-xs ml-5">Lead : {visit.lead.nom}</p>
+                    )}
+                    {visit.notes && (
+                      <p className="text-white/30 text-xs ml-5 mt-0.5 truncate">{visit.notes}</p>
+                    )}
+                  </div>
+                  {/* Delete */}
+                  <button onClick={() => handleDeleteVisit(visit.id)}
+                    className="flex-shrink-0 p-2 rounded-xl hover:bg-red-500/10 text-white/20 hover:text-red-400 transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </Card>
+              )
+            })
+          )}
+        </div>
+      )}
+
+      {/* Modal nouvelle visite */}
+      <Modal isOpen={isVisitModalOpen} onClose={() => setIsVisitModalOpen(false)} title="Planifier une visite">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-white/60 mb-1.5">Date *</label>
+              <input type="date" value={visitForm.date} onChange={e => setVisitForm(f => ({ ...f, date: e.target.value }))}
+                className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-white/60 mb-1.5">Heure</label>
+              <input type="time" value={visitForm.time} onChange={e => setVisitForm(f => ({ ...f, time: e.target.value }))}
+                className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-white/60 mb-1.5">Adresse *</label>
+            <input value={visitForm.address} onChange={e => setVisitForm(f => ({ ...f, address: e.target.value }))}
+              placeholder="Ex: 15 rue du Général Leclerc, Nancy"
+              className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40 placeholder-white/20" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-white/60 mb-1.5">Lead associé</label>
+            <select value={visitForm.leadId} onChange={e => setVisitForm(f => ({ ...f, leadId: e.target.value }))}
+              className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40">
+              <option value="">— Aucun —</option>
+              {leads.map(l => <option key={l.id} value={l.id}>{l.nom}{l.ville ? ` (${l.ville})` : ''}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-white/60 mb-1.5">Notes</label>
+            <textarea value={visitForm.notes} onChange={e => setVisitForm(f => ({ ...f, notes: e.target.value }))}
+              rows={2} placeholder="Informations complémentaires..."
+              className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40 resize-none placeholder-white/20" />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button variant="ghost" onClick={() => setIsVisitModalOpen(false)} className="flex-1">Annuler</Button>
+            <Button onClick={handleSaveVisit} disabled={savingVisit || !visitForm.date || !visitForm.address} className="flex-1">
+              {savingVisit ? 'Enregistrement...' : 'Planifier'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ═══════════════════════ ONGLET LEADS ═══════════════════════ */}
+      {mainTab === 'leads' && <>
 
       {/* Stats par statut */}
       <div className="flex flex-wrap gap-2">
@@ -360,6 +543,8 @@ export default function LeadsPage() {
           </div>
         </div>
       </Modal>
+
+      </> /* fin onglet leads */}
 
       {/* Modal gestion des statuts */}
       <Modal isOpen={isStatutsModalOpen} onClose={() => setIsStatutsModalOpen(false)} title="Gérer les statuts">

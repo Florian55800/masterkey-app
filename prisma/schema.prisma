@@ -200,4 +200,24 @@ model Lead {
   relanceNote  String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  visits       Visit[]
+}
+
+model Visit {
+  id        Int      @id @default(autoincrement())
+  leadId    Int?
+  lead      Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  date      DateTime
+  address   String
+  notes     String?
+  createdAt DateTime @default(now())
+}
+
+model Task {
+  id        Int      @id @default(autoincrement())
+  title     String
+  type      String   @default("autre")
+  month     Int
+  year      Int
+  createdAt DateTime @default(now())
 }

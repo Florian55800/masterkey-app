@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Building2, TrendingUp, Euro, Star, Bell, Phone, Calculator, ChevronDown } from 'lucide-react'
+import { Building2, TrendingUp, Euro, Star, Bell, Phone, Calculator, ChevronDown, Plus, Trash2, ClipboardList, MapPin } from 'lucide-react'
 import { KPICard } from '@/components/dashboard/KPICard'
 import { MilestoneWidget } from '@/components/dashboard/MilestoneWidget'
 import { TeamChallengeWidget } from '@/components/dashboard/TeamChallengeWidget'
@@ -84,6 +84,31 @@ interface DashboardData {
   } | null
 }
 
+interface Task {
+  id: number
+  title: string
+  type: string
+  month: number
+  year: number
+}
+
+interface Visit {
+  id: number
+  leadId: number | null
+  lead: { nom: string } | null
+  date: string
+  address: string
+  notes: string | null
+}
+
+const TASK_TYPES = [
+  { value: 'visite',  label: 'Visite',   icon: '🏠' },
+  { value: 'appel',   label: 'Appel',    icon: '📞' },
+  { value: 'email',   label: 'Email',    icon: '📧' },
+  { value: 'reunion', label: 'Réunion',  icon: '🤝' },
+  { value: 'autre',   label: 'Autre',    icon: '📌' },
+]
+
 const PROPERTY_MILESTONES = [
   { value: 5, label: 'Premier pas' },
   { value: 10, label: 'En route' },
@@ -107,6 +132,14 @@ export default function DashboardPage() {
   const [simulatorResult, setSimulatorResult] = useState<number | null>(null)
   const [showMonthPicker, setShowMonthPicker] = useState(false)
   const pickerRef = useRef<HTMLDivElement>(null)
+  const [dashTab, setDashTab] = useState<'apercu' | 'taches'>('apercu')
+
+  // Tasks state
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [monthVisits, setMonthVisits] = useState<Visit[]>([])
+  const [taskInput, setTaskInput] = useState('')
+  const [taskType, setTaskType] = useState('autre')
+  const [savingTask, setSavingTask] = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -115,6 +148,42 @@ export default function DashboardPage() {
       .then((d) => { if (d?.currentMonth) { setData(d) } setLoading(false) })
       .catch(() => setLoading(false))
   }, [selectedMonth, selectedYear])
+
+  useEffect(() => {
+    fetch(`/api/tasks?month=${selectedMonth}&year=${selectedYear}`)
+      .then(r => r.json()).then(d => setTasks(Array.isArray(d) ? d : [])).catch(() => {})
+    fetch('/api/visits')
+      .then(r => r.json())
+      .then(d => {
+        if (!Array.isArray(d)) return
+        const filtered = d.filter((v: Visit) => {
+          const dt = new Date(v.date)
+          return dt.getMonth() + 1 === selectedMonth && dt.getFullYear() === selectedYear
+        })
+        setMonthVisits(filtered)
+      }).catch(() => {})
+  }, [selectedMonth, selectedYear])
+
+  const handleAddTask = async () => {
+    if (!taskInput.trim()) return
+    setSavingTask(true)
+    const res = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: taskInput.trim(), type: taskType, month: selectedMonth, year: selectedYear }),
+    })
+    if (res.ok) {
+      const t = await res.json()
+      setTasks(prev => [...prev, { id: t.id, title: taskInput.trim(), type: taskType, month: selectedMonth, year: selectedYear }])
+      setTaskInput('')
+    }
+    setSavingTask(false)
+  }
+
+  const handleDeleteTask = async (id: number) => {
+    await fetch(`/api/tasks/${id}`, { method: 'DELETE' })
+    setTasks(prev => prev.filter(t => t.id !== id))
+  }
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -206,6 +275,113 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Tabs */}
+      <div className="flex items-center bg-[#1a1a1a] border border-[#2e2e2e] rounded-2xl p-1 w-fit">
+        {([['apercu', 'Aperçu'], ['taches', 'Tâches']] as const).map(([tab, label]) => (
+          <button key={tab} onClick={() => setDashTab(tab)}
+            className={`px-5 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${dashTab === tab ? 'bg-[#D4AF37] text-black' : 'text-gray-400 hover:text-white'}`}>
+            {tab === 'taches' && <ClipboardList className="w-3.5 h-3.5" />}
+            {label}
+            {tab === 'taches' && tasks.length > 0 && (
+              <span className={`text-xs px-1.5 py-0.5 rounded-md font-semibold ${dashTab === tab ? 'bg-black/20 text-black/70' : 'bg-[#2e2e2e] text-gray-500'}`}>{tasks.length}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ═══════════════════════ ONGLET TÂCHES ═══════════════════════ */}
+      {dashTab === 'taches' && (
+        <div className="space-y-6">
+          {/* Visites du mois */}
+          {monthVisits.length > 0 && (
+            <Card>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-7 h-7 rounded-lg bg-[#D4AF37]/20 flex items-center justify-center text-sm">🏠</div>
+                <h3 className="text-white font-semibold">Visites ce mois</h3>
+                <span className="ml-auto bg-[#D4AF37]/20 text-[#D4AF37] text-xs font-medium px-2 py-0.5 rounded-full">{monthVisits.length}</span>
+              </div>
+              <div className="space-y-2">
+                {monthVisits.map(v => {
+                  const d = new Date(v.date)
+                  return (
+                    <div key={v.id} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+                      <div className="w-10 text-center flex-shrink-0">
+                        <p className="text-[#D4AF37] font-bold text-base leading-none">{d.getDate()}</p>
+                        <p className="text-white/30 text-xs capitalize">{format(d, 'MMM', { locale: fr })}</p>
+                      </div>
+                      <MapPin className="w-3.5 h-3.5 text-white/20 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm truncate">{v.address}</p>
+                        {v.lead && <p className="text-[#D4AF37]/60 text-xs">{v.lead.nom}</p>}
+                      </div>
+                      {d.getHours() > 0 && (
+                        <span className="text-white/30 text-xs flex-shrink-0">{format(d, 'HH:mm')}</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </Card>
+          )}
+
+          {/* Tâches */}
+          <Card>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-7 h-7 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                <ClipboardList className="w-4 h-4 text-purple-400" />
+              </div>
+              <h3 className="text-white font-semibold">Tâches — {currentMonthLabel}</h3>
+            </div>
+
+            {/* Add task */}
+            <div className="flex gap-2 mb-4">
+              <select value={taskType} onChange={e => setTaskType(e.target.value)}
+                className="bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40 flex-shrink-0">
+                {TASK_TYPES.map(t => <option key={t.value} value={t.value}>{t.icon} {t.label}</option>)}
+              </select>
+              <input
+                value={taskInput}
+                onChange={e => setTaskInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAddTask()}
+                placeholder="Ajouter une tâche..."
+                className="flex-1 bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40 placeholder-white/20"
+              />
+              <button onClick={handleAddTask} disabled={savingTask || !taskInput.trim()}
+                className="px-4 py-2.5 rounded-xl bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20 hover:bg-[#D4AF37]/20 transition-all disabled:opacity-30">
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Task list */}
+            {tasks.length === 0 ? (
+              <p className="text-white/20 text-sm text-center py-8">Aucune tâche pour ce mois</p>
+            ) : (
+              <div className="space-y-2">
+                {tasks.map(task => {
+                  const t = TASK_TYPES.find(x => x.value === task.type)
+                  return (
+                    <div key={task.id} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.05] group">
+                      <span className="text-base flex-shrink-0">{t?.icon ?? '📌'}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm">{task.title}</p>
+                        <p className="text-white/30 text-xs">{t?.label ?? task.type}</p>
+                      </div>
+                      <button onClick={() => handleDeleteTask(task.id)}
+                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-500/10 text-white/30 hover:text-red-400 transition-all">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {/* ═══════════════════════ ONGLET APERÇU ═══════════════════════ */}
+      {dashTab === 'apercu' && <>
 
       {/* KPI Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -386,6 +562,8 @@ export default function DashboardPage() {
           </Card>
         </div>
       )}
+
+      </> /* fin onglet apercu */}
     </div>
   )
 }

@@ -212,6 +212,25 @@ async function setup() {
       "createdAt"    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt"    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+
+    `CREATE TABLE IF NOT EXISTS "Visit" (
+      "id"        INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
+      "leadId"    INTEGER,
+      "date"      DATETIME NOT NULL,
+      "address"   TEXT     NOT NULL,
+      "notes"     TEXT,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY ("leadId") REFERENCES "Lead"("id") ON DELETE SET NULL
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS "Task" (
+      "id"        INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
+      "title"     TEXT     NOT NULL,
+      "type"      TEXT     NOT NULL DEFAULT 'autre',
+      "month"     INTEGER  NOT NULL,
+      "year"      INTEGER  NOT NULL,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
   ]
 
   for (const sql of tables) {
