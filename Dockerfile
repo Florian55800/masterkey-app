@@ -1,5 +1,6 @@
 # ── Stage 1 : build ──────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+# node:20-slim = Debian slim (glibc) — requis par @libsql/client (binaire gnu)
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
@@ -11,11 +12,10 @@ RUN npm ci
 COPY . .
 
 # Génère le client Prisma + build Next.js
-# (migrate-turso.js saute s'il n'y a pas de TURSO_DATABASE_URL — c'est voulu)
 RUN mkdir -p public && npx prisma generate && npx next build
 
 # ── Stage 2 : runner ─────────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 
 WORKDIR /app
 
@@ -28,6 +28,7 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/@libsql ./node_modules/@libsql
+COPY --from=builder /app/node_modules/libsql ./node_modules/libsql
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/package.json ./package.json
 
