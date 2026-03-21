@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+*.log
+prisma/*.db
+prisma/*.db-journal
+.env
+.env.local
+.env.production.local
+README.md
+docker-compose.yml

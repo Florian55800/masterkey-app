@@ -1,0 +1,42 @@
+services:
+
+  # ── Base de données libSQL (compatible Turso) ──────────────────────────────
+  sqld:
+    image: ghcr.io/tursodatabase/libsql-server:latest
+    container_name: masterkey-sqld
+    restart: unless-stopped
+    environment:
+      # Port d'écoute HTTP (API /v2/pipeline identique à Turso cloud)
+      SQLD_HTTP_LISTEN_ADDR: "0.0.0.0:8080"
+      # Chemin du fichier SQLite dans le container
+      SQLD_DB_PATH: /var/lib/sqld/data.sqld
+    volumes:
+      - sqld_data:/var/lib/sqld
+    # NE PAS exposer le port 8080 en dehors du réseau Docker
+    # (l'app y accède via le nom d'hôte "sqld" sur le réseau interne)
+    expose:
+      - "8080"
+
+  # ── Application Next.js ────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: masterkey-app
+    restart: unless-stopped
+    depends_on:
+      - sqld
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Pointe vers le container sqld sur le réseau Docker interne
+      TURSO_DATABASE_URL: "http://sqld:8080"
+      # sqld sans auth JWT : token vide (le header Bearer est ignoré par sqld)
+      TURSO_AUTH_TOKEN: ""
+      # Remplace par un secret fort en production
+      JWT_SECRET: "${JWT_SECRET}"
+    ports:
+      - "3000:3000"
+
+volumes:
+  sqld_data:
