@@ -6,7 +6,9 @@ import { tursoQueryBatch } from '@/lib/turso'
 export async function GET() {
   try {
     // Production: direct Turso HTTP API — no WebSocket, no libsql, one round-trip
+    console.log('[properties] TURSO_DATABASE_URL present:', !!process.env.TURSO_DATABASE_URL)
     if (process.env.TURSO_DATABASE_URL) {
+      console.log('[properties] Using direct Turso HTTP API')
       const [properties, owners] = await tursoQueryBatch([
         {
           sql: `SELECT id, name, address, city, type, typeGestion, ownerId, commissionRate,

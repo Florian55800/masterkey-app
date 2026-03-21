@@ -61,6 +61,8 @@ export async function tursoQuery(
         }
       : { sql }
 
+  const abort = AbortSignal.timeout(10_000) // 10s server-side timeout
+
   const res = await fetch(`${baseUrl}/v2/pipeline`, {
     method: 'POST',
     headers: {
@@ -70,6 +72,7 @@ export async function tursoQuery(
     body: JSON.stringify({
       requests: [{ type: 'execute', stmt }, { type: 'close' }],
     }),
+    signal: abort,
   })
 
   if (!res.ok) {
@@ -121,6 +124,8 @@ export async function tursoQueryBatch(
     { type: 'close' },
   ]
 
+  const abort = AbortSignal.timeout(10_000) // 10s server-side timeout
+
   const res = await fetch(`${baseUrl}/v2/pipeline`, {
     method: 'POST',
     headers: {
@@ -128,6 +133,7 @@ export async function tursoQueryBatch(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ requests }),
+    signal: abort,
   })
 
   if (!res.ok) {
