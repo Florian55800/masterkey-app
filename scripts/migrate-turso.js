@@ -15,8 +15,10 @@ async function migrate() {
     return
   }
 
-  console.log('[migrate-turso] Connecting to Turso...')
-  const client = createClient({ url, authToken })
+  // Force HTTP mode — stateless POST per query, no WebSocket cold-start hang
+  const httpUrl = url.replace(/^libsql:\/\//, 'https://')
+  console.log('[migrate-turso] Connecting to Turso via HTTP...')
+  const client = createClient({ url: httpUrl, authToken })
 
   const migrations = [
     // ── PropertyRevenue ──────────────────────────────────────────────────────

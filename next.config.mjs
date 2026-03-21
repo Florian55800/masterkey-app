@@ -12,6 +12,7 @@ const nextConfig = {
       config.externals = [
         ...(Array.isArray(config.externals) ? config.externals : []),
         '@libsql/client',
+        '@libsql/client/http',
         '@prisma/adapter-libsql',
       ]
     }
