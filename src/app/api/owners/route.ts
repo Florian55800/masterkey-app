@@ -1,61 +1,33 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { tursoQueryBatch } from '@/lib/turso'
 
 export async function GET() {
   try {
-    // Production: direct Turso HTTP API — no WebSocket, no libsql, one round-trip
-    if (process.env.TURSO_DATABASE_URL) {
-      const [owners, properties, satisfactions] = await tursoQueryBatch([
-        {
-          sql: `SELECT id, name, phone, email, notes, photo, lastContact,
-                       relanceDate, relanceNote, source, createdAt, updatedAt
-                FROM Owner ORDER BY name ASC`,
-        },
-        {
-          sql: `SELECT id, name, address, city, type, typeGestion, ownerId,
-                       commissionRate, dateSigned, dateLost, status, photo, createdAt
-                FROM Property ORDER BY createdAt DESC`,
-        },
-        {
-          sql: `SELECT id, ownerId, score, quarter, year, createdAt
-                FROM SatisfactionScore ORDER BY createdAt DESC`,
-        },
-      ])
+    // Sequential queries — parallel Promise.all causes libsql to batch over WebSocket → hang
+    const owners = await prisma.owner.findMany({ orderBy: { name: 'asc' } })
+    const properties = await prisma.property.findMany({ orderBy: { createdAt: 'desc' } })
+    const satisfactions = await prisma.satisfactionScore.findMany({ orderBy: { createdAt: 'desc' } })
 
-      const propsMap = new Map<number, typeof properties>()
-      for (const p of properties) {
-        const oid = p.ownerId as number
-        if (!propsMap.has(oid)) propsMap.set(oid, [])
-        propsMap.get(oid)!.push(p)
-      }
-
-      const satMap = new Map<number, typeof satisfactions>()
-      for (const s of satisfactions) {
-        const oid = s.ownerId as number
-        if (!satMap.has(oid)) satMap.set(oid, [])
-        satMap.get(oid)!.push(s)
-      }
-
-      const result = owners.map((o) => ({
-        ...o,
-        properties: propsMap.get(o.id as number) ?? [],
-        satisfactions: satMap.get(o.id as number) ?? [],
-      }))
-
-      return NextResponse.json(result)
+    const propsMap = new Map<number, typeof properties>()
+    for (const p of properties) {
+      if (!propsMap.has(p.ownerId)) propsMap.set(p.ownerId, [])
+      propsMap.get(p.ownerId)!.push(p)
     }
 
-    // Local dev: Prisma + SQLite
-    const owners = await prisma.owner.findMany({
-      include: {
-        properties: true,
-        satisfactions: { orderBy: { createdAt: 'desc' } },
-      },
-      orderBy: { name: 'asc' },
-    })
-    return NextResponse.json(owners)
+    const satMap = new Map<number, typeof satisfactions>()
+    for (const s of satisfactions) {
+      if (!satMap.has(s.ownerId)) satMap.set(s.ownerId, [])
+      satMap.get(s.ownerId)!.push(s)
+    }
+
+    const result = owners.map((o) => ({
+      ...o,
+      properties: propsMap.get(o.id) ?? [],
+      satisfactions: satMap.get(o.id) ?? [],
+    }))
+
+    return NextResponse.json(result)
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
     console.error('Owners GET error:', msg)

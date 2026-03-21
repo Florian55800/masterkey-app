@@ -1,44 +1,19 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { tursoQueryBatch } from '@/lib/turso'
 
 export async function GET() {
   try {
-    // Production: direct Turso HTTP API — no WebSocket, no libsql, one round-trip
-    console.log('[properties] TURSO_DATABASE_URL present:', !!process.env.TURSO_DATABASE_URL)
-    if (process.env.TURSO_DATABASE_URL) {
-      console.log('[properties] Using direct Turso HTTP API')
-      const [properties, owners] = await tursoQueryBatch([
-        {
-          sql: `SELECT id, name, address, city, type, typeGestion, ownerId, commissionRate,
-                       dateSigned, dateLost, status, photo, createdAt
-                FROM Property ORDER BY createdAt DESC`,
-        },
-        { sql: `SELECT id, name FROM Owner ORDER BY name ASC` },
-      ])
-
-      const ownerMap = new Map(owners.map((o) => [o.id as number, o]))
-      const result = properties.map((p) => ({
-        ...p,
-        owner: ownerMap.get(p.ownerId as number) ?? { id: p.ownerId, name: '—' },
-      }))
-
-      return NextResponse.json(result)
-    }
-
-    // Local dev: Prisma + SQLite
-    const [properties, owners] = await Promise.all([
-      prisma.property.findMany({
-        select: {
-          id: true, name: true, address: true, city: true, type: true,
-          typeGestion: true, ownerId: true, commissionRate: true,
-          dateSigned: true, dateLost: true, status: true, photo: true, createdAt: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.owner.findMany({ select: { id: true, name: true } }),
-    ])
+    // Sequential queries — parallel Promise.all causes libsql to batch over WebSocket → hang
+    const properties = await prisma.property.findMany({
+      select: {
+        id: true, name: true, address: true, city: true, type: true,
+        typeGestion: true, ownerId: true, commissionRate: true,
+        dateSigned: true, dateLost: true, status: true, photo: true, createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+    const owners = await prisma.owner.findMany({ select: { id: true, name: true } })
 
     const ownerMap = new Map(owners.map((o) => [o.id, o]))
     const result = properties.map((p) => ({
