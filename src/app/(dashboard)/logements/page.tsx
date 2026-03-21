@@ -52,7 +52,7 @@ export default function LogementsPage() {
   const [properties, setProperties] = useState<Property[]>([])
   const [owners, setOwners] = useState<Owner[]>([])
   const [loading, setLoading] = useState(true)
-  const [typeGestionTab, setTypeGestionTab] = useState<'conciergerie' | 'sous-location'>('conciergerie')
+  const [typeGestionTab, setTypeGestionTab] = useState<'tous' | 'conciergerie' | 'sous-location'>('tous')
   const [filter, setFilter] = useState<'tous' | 'actifs' | 'inactifs'>('actifs')
   const [cityFilter, setCityFilter] = useState('tous')
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -138,7 +138,9 @@ export default function LogementsPage() {
   }
 
   const activeProperties = properties.filter((p) => p.status === 'active')
-  const tabProperties = properties.filter((p) => (p.typeGestion || 'conciergerie') === typeGestionTab)
+  const tabProperties = typeGestionTab === 'tous'
+    ? properties
+    : properties.filter((p) => (p.typeGestion || 'conciergerie') === typeGestionTab)
   const cities = Array.from(new Set(tabProperties.map((p) => p.city))).sort()
 
   const filteredProperties = tabProperties.filter((p) => {
@@ -155,7 +157,7 @@ export default function LogementsPage() {
       address: '',
       city: '',
       type: 'Appartement',
-      typeGestion: typeGestionTab,
+      typeGestion: typeGestionTab === 'tous' ? 'conciergerie' : typeGestionTab,
       ownerId: owners[0]?.id ? String(owners[0].id) : '',
       commissionRate: '20',
       dateSigned: format(new Date(), 'yyyy-MM-dd'),
@@ -255,25 +257,24 @@ export default function LogementsPage() {
 
       {/* TypeGestion Tabs */}
       <div className="flex items-center bg-[#1a1a1a] border border-[#2e2e2e] rounded-2xl p-1 w-fit">
-        {(['conciergerie', 'sous-location'] as const).map((tab) => {
-          const count = properties.filter((p) => (p.typeGestion || 'conciergerie') === tab).length
-          return (
-            <button
-              key={tab}
-              onClick={() => { setTypeGestionTab(tab); setCityFilter('tous') }}
-              className={`px-5 py-2 rounded-xl text-sm font-medium transition-all capitalize flex items-center gap-2 ${
-                typeGestionTab === tab
-                  ? 'bg-[#D4AF37] text-black'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              {tab === 'conciergerie' ? 'Conciergerie' : 'Sous-location'}
-              <span className={`text-xs px-1.5 py-0.5 rounded-md font-semibold ${typeGestionTab === tab ? 'bg-black/20 text-black/70' : 'bg-[#2e2e2e] text-gray-500'}`}>
-                {count}
-              </span>
-            </button>
-          )
-        })}
+        {([
+          ['tous', 'Tous', properties.length],
+          ['conciergerie', 'Conciergerie', properties.filter(p => (p.typeGestion || 'conciergerie') === 'conciergerie').length],
+          ['sous-location', 'Sous-location', properties.filter(p => p.typeGestion === 'sous-location').length],
+        ] as const).map(([tab, label, count]) => (
+          <button
+            key={tab}
+            onClick={() => { setTypeGestionTab(tab); setCityFilter('tous') }}
+            className={`px-5 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
+              typeGestionTab === tab ? 'bg-[#D4AF37] text-black' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            {label}
+            <span className={`text-xs px-1.5 py-0.5 rounded-md font-semibold ${typeGestionTab === tab ? 'bg-black/20 text-black/70' : 'bg-[#2e2e2e] text-gray-500'}`}>
+              {count}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* Stats Row */}
