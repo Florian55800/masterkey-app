@@ -6,7 +6,11 @@ import { prisma } from '@/lib/prisma'
 function toRows(rs: { columns: string[]; rows: unknown[][] }): Record<string, unknown>[] {
   return rs.rows.map((row) => {
     const obj: Record<string, unknown> = {}
-    rs.columns.forEach((col, i) => { obj[col] = row[i] })
+    rs.columns.forEach((col, i) => {
+      const v = (row as unknown[])[i]
+      // BigInt → number (JSON.stringify can't handle BigInt)
+      obj[col] = typeof v === 'bigint' ? Number(v) : v
+    })
     return obj
   })
 }
