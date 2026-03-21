@@ -1,11 +1,31 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { tursoQueryBatch } from '@/lib/turso'
 
 export async function GET() {
   try {
-    // Deux requêtes simples séparées (pas de JOIN/batch) pour éviter le timeout
-    // Turso sur les requêtes avec relations imbriquées via WebSocket.
+    // Production: direct Turso HTTP API — no WebSocket, no libsql, one round-trip
+    if (process.env.TURSO_DATABASE_URL) {
+      const [properties, owners] = await tursoQueryBatch([
+        {
+          sql: `SELECT id, name, address, city, type, typeGestion, ownerId, commissionRate,
+                       dateSigned, dateLost, status, photo, createdAt
+                FROM Property ORDER BY createdAt DESC`,
+        },
+        { sql: `SELECT id, name FROM Owner ORDER BY name ASC` },
+      ])
+
+      const ownerMap = new Map(owners.map((o) => [o.id as number, o]))
+      const result = properties.map((p) => ({
+        ...p,
+        owner: ownerMap.get(p.ownerId as number) ?? { id: p.ownerId, name: '—' },
+      }))
+
+      return NextResponse.json(result)
+    }
+
+    // Local dev: Prisma + SQLite
     const [properties, owners] = await Promise.all([
       prisma.property.findMany({
         select: {
