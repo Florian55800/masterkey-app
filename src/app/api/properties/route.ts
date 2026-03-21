@@ -4,16 +4,23 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   try {
-    // Sequential queries — parallel Promise.all causes libsql to batch over WebSocket → hang
-    const properties = await prisma.property.findMany({
-      select: {
-        id: true, name: true, address: true, city: true, type: true,
-        typeGestion: true, ownerId: true, commissionRate: true,
-        dateSigned: true, dateLost: true, status: true, photo: true, createdAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    })
-    const owners = await prisma.owner.findMany({ select: { id: true, name: true } })
+    // $queryRaw uses client.execute() directly (same path as findUnique which works in 270ms)
+    // findMany uses executeMultiple/transaction → falls back to WebSocket → hang
+    type PropRow = {
+      id: number; name: string; address: string; city: string; type: string
+      typeGestion: string; ownerId: number; commissionRate: number
+      dateSigned: string; dateLost: string | null; status: string
+      photo: string | null; createdAt: string
+    }
+    type OwnerRow = { id: number; name: string }
+
+    const properties = await prisma.$queryRaw<PropRow[]>`
+      SELECT id, name, address, city, type, typeGestion, ownerId, commissionRate,
+             dateSigned, dateLost, status, photo, createdAt
+      FROM Property ORDER BY createdAt DESC`
+
+    const owners = await prisma.$queryRaw<OwnerRow[]>`
+      SELECT id, name FROM Owner ORDER BY name ASC`
 
     const ownerMap = new Map(owners.map((o) => [o.id, o]))
     const result = properties.map((p) => ({
