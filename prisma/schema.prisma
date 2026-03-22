@@ -37,6 +37,19 @@ model Owner {
   updatedAt      DateTime            @updatedAt
 }
 
+model Staff {
+  id         Int        @id @default(autoincrement())
+  name       String
+  phone      String?
+  email      String?
+  role       String     @default("ménage")
+  notes      String?
+  photo      String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  properties Property[]
+}
+
 model Property {
   id             Int               @id @default(autoincrement())
   name           String
@@ -47,6 +60,9 @@ model Property {
   ownerId        Int
   owner          Owner             @relation(fields: [ownerId], references: [id])
   commissionRate Float
+  cleaningFee    Float             @default(0)
+  staffId        Int?
+  staff          Staff?            @relation(fields: [staffId], references: [id], onDelete: SetNull)
   photo          String?
   description    String?
   dateSigned     DateTime

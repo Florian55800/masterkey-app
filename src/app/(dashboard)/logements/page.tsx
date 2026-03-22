@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Building2, Edit2, Trash2, Home, Star, Eye } from 'lucide-react'
+import { Plus, Building2, Edit2, Trash2, Home, Star, Eye, Sparkles, User } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -21,6 +21,12 @@ interface Owner {
   name: string
 }
 
+interface StaffMember {
+  id: number
+  name: string
+  phone?: string | null
+}
+
 interface Property {
   id: number
   name: string
@@ -31,6 +37,9 @@ interface Property {
   ownerId: number
   owner: Owner
   commissionRate: number
+  cleaningFee: number
+  staffId?: number | null
+  staff?: StaffMember | null
   dateSigned: string
   dateLost: string | null
   status: string
@@ -51,6 +60,7 @@ export default function LogementsPage() {
   const router = useRouter()
   const [properties, setProperties] = useState<Property[]>([])
   const [owners, setOwners] = useState<Owner[]>([])
+  const [staffList, setStaffList] = useState<StaffMember[]>([])
   const [loading, setLoading] = useState(true)
   const [typeGestionTab, setTypeGestionTab] = useState<'tous' | 'conciergerie' | 'sous-location'>('tous')
   const [filter, setFilter] = useState<'tous' | 'actifs' | 'inactifs'>('actifs')
@@ -65,6 +75,8 @@ export default function LogementsPage() {
     typeGestion: 'conciergerie',
     ownerId: '',
     commissionRate: '20',
+    cleaningFee: '0',
+    staffId: '',
     dateSigned: format(new Date(), 'yyyy-MM-dd'),
     status: 'active',
     photo: '',
@@ -110,13 +122,16 @@ export default function LogementsPage() {
       setLoadError('')
       const abort = new AbortController()
       const tid = setTimeout(() => abort.abort(), 15_000)
-      const [propsRes, ownersRes] = await Promise.all([
+      const [propsRes, ownersRes, staffRes] = await Promise.all([
         fetch('/api/properties', { signal: abort.signal }),
         fetch('/api/owners', { signal: abort.signal }),
+        fetch('/api/staff', { signal: abort.signal }),
       ])
       clearTimeout(tid)
       const propsData = await propsRes.json()
       const ownersData = await ownersRes.json()
+      const staffData = await staffRes.json()
+      if (Array.isArray(staffData)) setStaffList(staffData)
       if (!Array.isArray(propsData)) {
         setLoadError(propsData?.error || 'Erreur de chargement')
       } else {
@@ -160,6 +175,8 @@ export default function LogementsPage() {
       typeGestion: typeGestionTab === 'tous' ? 'conciergerie' : typeGestionTab,
       ownerId: owners[0]?.id ? String(owners[0].id) : '',
       commissionRate: '20',
+      cleaningFee: '0',
+      staffId: '',
       dateSigned: format(new Date(), 'yyyy-MM-dd'),
       status: 'active',
       photo: '',
@@ -178,9 +195,11 @@ export default function LogementsPage() {
       typeGestion: property.typeGestion || 'conciergerie',
       ownerId: String(property.ownerId),
       commissionRate: String(property.commissionRate),
+      cleaningFee: String(property.cleaningFee ?? 0),
+      staffId: property.staffId ? String(property.staffId) : '',
       dateSigned: format(new Date(property.dateSigned), 'yyyy-MM-dd'),
       status: property.status,
-      photo: (property as Property & { photo?: string }).photo ?? '',
+      photo: property.photo ?? '',
     })
     setError('')
     setIsModalOpen(true)
@@ -197,7 +216,11 @@ export default function LogementsPage() {
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          cleaningFee: Number(form.cleaningFee) || 0,
+          staffId: form.staffId ? Number(form.staffId) : null,
+        }),
       })
 
       if (!res.ok) {
@@ -405,16 +428,29 @@ export default function LogementsPage() {
               <div className="px-4 pt-3 pb-2 flex-1 space-y-2">
                 <div className="flex items-center justify-between">
                   <Badge variant={getTypeBadgeVariant(property.type)}>{property.type}</Badge>
-                  {(property.typeGestion || 'conciergerie') === 'conciergerie' ? (
-                    <span className="text-[#D4AF37] font-bold text-sm">{formatPercent(property.commissionRate)}</span>
-                  ) : (
-                    <span className="text-amber-500/80 text-xs font-medium">Sous-location</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {property.cleaningFee > 0 && (
+                      <span className="text-xs text-gray-400 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-gray-600" />{formatCurrency(property.cleaningFee)}
+                      </span>
+                    )}
+                    {(property.typeGestion || 'conciergerie') === 'conciergerie' ? (
+                      <span className="text-[#D4AF37] font-bold text-sm">{formatPercent(property.commissionRate)}</span>
+                    ) : (
+                      <span className="text-amber-500/80 text-xs font-medium">Sous-location</span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-1.5 text-gray-400 text-xs">
                   <Star className="w-3 h-3 text-gray-600 flex-shrink-0" />
                   <span className="truncate">{property.owner.name}</span>
                 </div>
+                {property.staff && (
+                  <div className="flex items-center gap-1.5 text-gray-400 text-xs">
+                    <User className="w-3 h-3 text-gray-600 flex-shrink-0" />
+                    <span className="truncate">{property.staff.name}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-1.5 text-gray-500 text-xs">
                   <Home className="w-3 h-3 text-gray-700 flex-shrink-0" />
                   <span className="truncate">{property.address}</span>
@@ -542,6 +578,28 @@ export default function LogementsPage() {
               onChange={(e) => setForm({ ...form, commissionRate: e.target.value })}
               placeholder="20"
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Frais de ménage (€)"
+              type="number"
+              min="0"
+              step="1"
+              value={form.cleaningFee}
+              onChange={(e) => setForm({ ...form, cleaningFee: e.target.value })}
+              placeholder="50"
+            />
+            <Select
+              label="Personnel assigné"
+              value={form.staffId}
+              onChange={(e) => setForm({ ...form, staffId: e.target.value })}
+            >
+              <option value="">Aucun</option>
+              {staffList.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </Select>
           </div>
 
           <Input

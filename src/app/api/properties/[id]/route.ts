@@ -209,7 +209,7 @@ export async function PUT(
 ) {
   try {
     const body = await request.json()
-    const { name, address, city, type, typeGestion, ownerId, commissionRate, dateSigned, status, photo, description } = body
+    const { name, address, city, type, typeGestion, ownerId, commissionRate, dateSigned, status, photo, description, cleaningFee, staffId } = body
 
     const property = await prisma.property.update({
       where: { id: Number(params.id) },
@@ -221,12 +221,14 @@ export async function PUT(
         typeGestion: typeGestion !== undefined ? typeGestion : undefined,
         ownerId: ownerId !== undefined ? Number(ownerId) : undefined,
         commissionRate: commissionRate !== undefined ? Number(commissionRate) : undefined,
+        cleaningFee: cleaningFee !== undefined ? Number(cleaningFee) : undefined,
+        staffId: staffId !== undefined ? (staffId ? Number(staffId) : null) : undefined,
         dateSigned: dateSigned !== undefined ? new Date(dateSigned) : undefined,
         status: status !== undefined ? status : undefined,
         photo: photo !== undefined ? photo || null : undefined,
         description: description !== undefined ? description || null : undefined,
       },
-      include: { owner: true },
+      include: { owner: true, staff: { select: { id: true, name: true, phone: true } } },
     })
 
     return NextResponse.json(property)

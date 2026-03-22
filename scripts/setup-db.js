@@ -231,6 +231,18 @@ async function setup() {
       "year"      INTEGER  NOT NULL,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+
+    `CREATE TABLE IF NOT EXISTS "Staff" (
+      "id"        INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
+      "name"      TEXT     NOT NULL,
+      "phone"     TEXT,
+      "email"     TEXT,
+      "role"      TEXT     NOT NULL DEFAULT 'ménage',
+      "notes"     TEXT,
+      "photo"     TEXT,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
   ]
 
   for (const sql of tables) {
@@ -240,6 +252,21 @@ async function setup() {
       console.log('[setup-db] ✓', label)
     } catch (err) {
       console.warn('[setup-db] ⚠', err.message)
+    }
+  }
+
+  // Migrations (colonnes ajoutées après le déploiement initial)
+  const migrations = [
+    `ALTER TABLE "Property" ADD COLUMN "cleaningFee" REAL NOT NULL DEFAULT 0`,
+    `ALTER TABLE "Property" ADD COLUMN "staffId"     INTEGER`,
+  ]
+  for (const sql of migrations) {
+    try {
+      await client.execute(sql)
+      console.log('[setup-db] ✓ migration:', sql.substring(0, 60))
+    } catch (err) {
+      // Ignore "duplicate column" — colonne déjà présente
+      if (!err.message.includes('duplicate column')) console.warn('[setup-db] ⚠ migration:', err.message)
     }
   }
 

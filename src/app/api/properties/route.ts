@@ -54,22 +54,18 @@ export async function GET() {
 
   // Local dev: Prisma + SQLite
   try {
-    const [properties, owners] = await Promise.all([
-      prisma.property.findMany({
-        select: {
-          id: true, name: true, address: true, city: true, type: true,
-          typeGestion: true, ownerId: true, commissionRate: true,
-          dateSigned: true, dateLost: true, status: true, photo: true, createdAt: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.owner.findMany({ select: { id: true, name: true } }),
-    ])
-    const ownerMap = new Map(owners.map((o) => [o.id, o]))
-    const result = properties.map((p) => ({
-      ...p,
-      owner: ownerMap.get(p.ownerId) ?? { id: p.ownerId, name: '—' },
-    }))
+    const properties = await prisma.property.findMany({
+      select: {
+        id: true, name: true, address: true, city: true, type: true,
+        typeGestion: true, ownerId: true, commissionRate: true, cleaningFee: true,
+        dateSigned: true, dateLost: true, status: true, photo: true, createdAt: true,
+        staffId: true,
+        owner: { select: { id: true, name: true } },
+        staff: { select: { id: true, name: true, phone: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+    const result = properties
     return NextResponse.json(result)
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
@@ -81,7 +77,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, address, city, type, typeGestion, ownerId, commissionRate, dateSigned, photo } = body
+    const { name, address, city, type, typeGestion, ownerId, commissionRate, dateSigned, photo, cleaningFee, staffId } = body
 
     const property = await prisma.property.create({
       data: {
@@ -92,11 +88,13 @@ export async function POST(request: NextRequest) {
         typeGestion: typeGestion || 'conciergerie',
         ownerId: Number(ownerId),
         commissionRate: Number(commissionRate),
+        cleaningFee: Number(cleaningFee) || 0,
+        staffId: staffId ? Number(staffId) : null,
         dateSigned: new Date(dateSigned),
         status: 'active',
         photo: photo || null,
       },
-      include: { owner: true },
+      include: { owner: true, staff: { select: { id: true, name: true, phone: true } } },
     })
 
     return NextResponse.json(property, { status: 201 })

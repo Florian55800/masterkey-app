@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   Receipt,
+  Briefcase,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -37,6 +38,7 @@ const navItems = [
   { href: '/objectifs', label: 'Objectifs', icon: Target },
   { href: '/depenses', label: 'Dépenses', icon: CreditCard },
   { href: '/leads', label: 'Leads', icon: UserSearch },
+  { href: '/personnel', label: 'Personnel', icon: Briefcase },
   { href: '/parametres', label: 'Paramètres', icon: Settings },
 ]
 
