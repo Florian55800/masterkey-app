@@ -27,20 +27,22 @@ export async function GET() {
     })
     try {
       const propsRS = await client.execute(
-        `SELECT id, name, address, city, type, typeGestion, ownerId, commissionRate,
-                dateSigned, dateLost, status, photo, createdAt
-         FROM Property ORDER BY createdAt DESC`
-      )
-      const ownersRS = await client.execute(
-        `SELECT id, name FROM Owner ORDER BY name ASC`
+        `SELECT p.id, p.name, p.address, p.city, p.type, p.typeGestion, p.ownerId,
+                p.commissionRate, p.cleaningFee, p.staffId,
+                p.dateSigned, p.dateLost, p.status, p.photo, p.createdAt,
+                o.id as _ownerId, o.name as _ownerName,
+                s.id as _staffId, s.name as _staffName, s.phone as _staffPhone
+         FROM Property p
+         LEFT JOIN Owner o ON o.id = p.ownerId
+         LEFT JOIN Staff s ON s.id = p.staffId
+         ORDER BY p.createdAt DESC`
       )
 
       const properties = toRows(propsRS)
-      const owners = toRows(ownersRS)
-      const ownerMap = new Map(owners.map((o) => [o.id as number, o]))
       const result = properties.map((p) => ({
         ...p,
-        owner: ownerMap.get(p.ownerId as number) ?? { id: p.ownerId, name: '—' },
+        owner: { id: p._ownerId, name: p._ownerName ?? '—' },
+        staff: p._staffId ? { id: p._staffId, name: p._staffName, phone: p._staffPhone } : null,
       }))
       return NextResponse.json(result)
     } catch (error) {

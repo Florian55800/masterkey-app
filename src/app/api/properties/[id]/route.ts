@@ -36,11 +36,14 @@ export async function GET(
     try {
       const propRS = await client.execute({
         sql: `SELECT p.id, p.name, p.address, p.city, p.type, p.typeGestion,
-                     p.commissionRate, p.description, p.photo, p.dateSigned,
+                     p.commissionRate, p.cleaningFee, p.staffId,
+                     p.description, p.photo, p.dateSigned,
                      p.status, p.ownerId,
-                     o.id as ownerId_val, o.name as ownerName
+                     o.id as ownerId_val, o.name as ownerName,
+                     s.id as _staffId, s.name as _staffName, s.phone as _staffPhone
               FROM Property p
               LEFT JOIN Owner o ON o.id = p.ownerId
+              LEFT JOIN Staff s ON s.id = p.staffId
               WHERE p.id = ?`,
         args: [propertyId],
       })
@@ -113,6 +116,9 @@ export async function GET(
         type: row.type,
         typeGestion: row.typeGestion,
         commissionRate: row.commissionRate,
+        cleaningFee: row.cleaningFee ?? 0,
+        staffId: row.staffId ?? null,
+        staff: row._staffId ? { id: row._staffId, name: row._staffName, phone: row._staffPhone } : null,
         description: row.description ?? '',
         photo: row.photo,
         dateSigned: row.dateSigned,
