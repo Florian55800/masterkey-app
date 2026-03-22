@@ -428,19 +428,20 @@ export default function LogementsPage() {
               <div className="px-4 pt-3 pb-2 flex-1 space-y-2">
                 <div className="flex items-center justify-between">
                   <Badge variant={getTypeBadgeVariant(property.type)}>{property.type}</Badge>
-                  <div className="flex items-center gap-2">
-                    {property.cleaningFee > 0 && (
-                      <span className="text-xs text-gray-400 flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-gray-600" />{formatCurrency(property.cleaningFee)}
-                      </span>
-                    )}
-                    {(property.typeGestion || 'conciergerie') === 'conciergerie' ? (
-                      <span className="text-[#D4AF37] font-bold text-sm">{formatPercent(property.commissionRate)}</span>
-                    ) : (
-                      <span className="text-amber-500/80 text-xs font-medium">Sous-location</span>
-                    )}
-                  </div>
+                  {(property.typeGestion || 'conciergerie') === 'conciergerie' ? (
+                    <span className="text-[#D4AF37] font-bold text-sm">{formatPercent(property.commissionRate)}</span>
+                  ) : (
+                    <span className="text-amber-500/80 text-xs font-medium">Sous-location</span>
+                  )}
                 </div>
+                {property.cleaningFee > 0 && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-500 flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3 text-gray-600" />Ménage / séjour
+                    </span>
+                    <span className="text-gray-300 font-medium">{formatCurrency(property.cleaningFee)}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-1.5 text-gray-400 text-xs">
                   <Star className="w-3 h-3 text-gray-600 flex-shrink-0" />
                   <span className="truncate">{property.owner.name}</span>
