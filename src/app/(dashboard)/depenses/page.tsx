@@ -68,6 +68,14 @@ export default function DepensesPage() {
   const [sousLocProps, setSousLocProps] = useState<SousLocProperty[]>([])
   const [selectedPropId, setSelectedPropId] = useState<number | null>(null)
   const [loadingSousLoc, setLoadingSousLoc] = useState(false)
+  const [isSubletModalOpen, setIsSubletModalOpen] = useState(false)
+  const [subletForm, setSubletForm] = useState({
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear(),
+    loyer: '', electricite: '', wifi: '', autresCharges: '', nbSejours: '', nbNuits: '', notes: '',
+  })
+  const [subletSaving, setSubletSaving] = useState(false)
+  const [subletError, setSubletError] = useState('')
 
   useEffect(() => {
     loadReports()
@@ -136,6 +144,41 @@ export default function DepensesPage() {
     finally { setSaving(false) }
   }
 
+  const handleAddSubletExpense = async () => {
+    if (!selectedPropId) return
+    setSubletSaving(true)
+    setSubletError('')
+    try {
+      const res = await fetch('/api/facturation/sous-location', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          propertyId: selectedPropId,
+          month: Number(subletForm.month),
+          year: Number(subletForm.year),
+          loyer: Number(subletForm.loyer) || 0,
+          electricite: Number(subletForm.electricite) || 0,
+          wifi: Number(subletForm.wifi) || 0,
+          autresCharges: Number(subletForm.autresCharges) || 0,
+          nbSejours: Number(subletForm.nbSejours) || 0,
+          nbNuits: Number(subletForm.nbNuits) || 0,
+          notes: subletForm.notes || null,
+        }),
+      })
+      if (!res.ok) { const d = await res.json(); setSubletError(d.error || 'Erreur'); return }
+      await loadSousLoc()
+      setIsSubletModalOpen(false)
+      setSubletForm({ month: new Date().getMonth() + 1, year: new Date().getFullYear(), loyer: '', electricite: '', wifi: '', autresCharges: '', nbSejours: '', nbNuits: '', notes: '' })
+    } catch { setSubletError('Erreur de connexion') }
+    finally { setSubletSaving(false) }
+  }
+
+  const handleDeleteSubletExpense = async (id: number) => {
+    if (!confirm('Supprimer cette entrée ?')) return
+    await fetch(`/api/facturation/sous-location/${id}`, { method: 'DELETE' })
+    await loadSousLoc()
+  }
+
   const handleDeleteExpense = async (id: number) => {
     if (!confirm('Supprimer cette dépense ?')) return
     await fetch(`/api/expenses/${id}`, { method: 'DELETE' })
@@ -173,6 +216,11 @@ export default function DepensesPage() {
         </div>
         {mainTab === 'conciergerie' && (
           <Button onClick={() => setIsModalOpen(true)} disabled={!selectedReportId}>
+            <Plus className="w-4 h-4" />Ajouter dépense
+          </Button>
+        )}
+        {mainTab === 'sous-location' && (
+          <Button onClick={() => setIsSubletModalOpen(true)} disabled={!selectedPropId}>
             <Plus className="w-4 h-4" />Ajouter dépense
           </Button>
         )}
@@ -430,14 +478,15 @@ export default function DepensesPage() {
                               <th className="text-right pb-3 pr-4">Autres</th>
                               <th className="text-right pb-3 pr-4">Total</th>
                               <th className="text-right pb-3 pr-4">Séjours</th>
-                              <th className="text-right pb-3">Nuits</th>
+                              <th className="text-right pb-3 pr-4">Nuits</th>
+                              <th className="pb-3 w-8"></th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-[#2e2e2e]">
                             {sortedExpenses.map((e) => {
                               const total = e.loyer + e.electricite + e.wifi + e.autresCharges
                               return (
-                                <tr key={e.id} className="hover:bg-white/[0.02] transition-colors">
+                                <tr key={e.id} className="group hover:bg-white/[0.02] transition-colors">
                                   <td className="py-3 pr-4 text-white font-medium capitalize">
                                     {getMonthName(e.month)} {e.year}
                                   </td>
@@ -447,7 +496,13 @@ export default function DepensesPage() {
                                   <td className="py-3 pr-4 text-right text-gray-300">{formatCurrency(e.autresCharges)}</td>
                                   <td className="py-3 pr-4 text-right text-[#D4AF37] font-semibold">{formatCurrency(total)}</td>
                                   <td className="py-3 pr-4 text-right text-gray-400">{e.nbSejours || '—'}</td>
-                                  <td className="py-3 text-right text-gray-400">{e.nbNuits || '—'}</td>
+                                  <td className="py-3 pr-4 text-right text-gray-400">{e.nbNuits || '—'}</td>
+                                  <td className="py-3">
+                                    <button onClick={() => handleDeleteSubletExpense(e.id)}
+                                      className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all p-1">
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </td>
                                 </tr>
                               )
                             })}
@@ -481,6 +536,45 @@ export default function DepensesPage() {
           )}
         </>
       )}
+
+      {/* Add SubletExpense Modal */}
+      <Modal isOpen={isSubletModalOpen} onClose={() => setIsSubletModalOpen(false)} title="Ajouter une dépense — Sous-location">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Select label="Mois" value={String(subletForm.month)} onChange={(e) => setSubletForm({ ...subletForm, month: Number(e.target.value) })}>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m}>{getMonthName(m)}</option>
+              ))}
+            </Select>
+            <Input label="Année" type="number" value={subletForm.year} onChange={(e) => setSubletForm({ ...subletForm, year: Number(e.target.value) })} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Loyer (€)" type="number" min="0" step="0.01" value={subletForm.loyer}
+              onChange={(e) => setSubletForm({ ...subletForm, loyer: e.target.value })} placeholder="0" />
+            <Input label="Électricité (€)" type="number" min="0" step="0.01" value={subletForm.electricite}
+              onChange={(e) => setSubletForm({ ...subletForm, electricite: e.target.value })} placeholder="0" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Wifi (€)" type="number" min="0" step="0.01" value={subletForm.wifi}
+              onChange={(e) => setSubletForm({ ...subletForm, wifi: e.target.value })} placeholder="0" />
+            <Input label="Autres charges (€)" type="number" min="0" step="0.01" value={subletForm.autresCharges}
+              onChange={(e) => setSubletForm({ ...subletForm, autresCharges: e.target.value })} placeholder="0" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Séjours" type="number" min="0" value={subletForm.nbSejours}
+              onChange={(e) => setSubletForm({ ...subletForm, nbSejours: e.target.value })} placeholder="0" />
+            <Input label="Nuits" type="number" min="0" value={subletForm.nbNuits}
+              onChange={(e) => setSubletForm({ ...subletForm, nbNuits: e.target.value })} placeholder="0" />
+          </div>
+          <Input label="Notes (optionnel)" value={subletForm.notes}
+            onChange={(e) => setSubletForm({ ...subletForm, notes: e.target.value })} placeholder="Remarques..." />
+          {subletError && <p className="text-red-400 text-sm bg-red-400/10 px-3 py-2 rounded-lg">{subletError}</p>}
+          <div className="flex gap-3 justify-end">
+            <Button variant="ghost" onClick={() => setIsSubletModalOpen(false)}>Annuler</Button>
+            <Button isLoading={subletSaving} onClick={handleAddSubletExpense}>Ajouter</Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Add Expense Modal (conciergerie) */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Ajouter une dépense">
