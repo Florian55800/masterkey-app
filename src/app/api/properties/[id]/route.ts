@@ -36,7 +36,7 @@ export async function GET(
     try {
       const propRS = await client.execute({
         sql: `SELECT p.id, p.name, p.address, p.city, p.type, p.typeGestion,
-                     p.commissionRate, p.cleaningFee, p.staffId,
+                     p.commissionRate, p.cleaningFee, p.staffId, p.lodgifyId,
                      p.description, p.photo, p.dateSigned,
                      p.status, p.ownerId,
                      o.id as ownerId_val, o.name as ownerName,
@@ -118,6 +118,7 @@ export async function GET(
         commissionRate: row.commissionRate,
         cleaningFee: row.cleaningFee ?? 0,
         staffId: row.staffId ?? null,
+        lodgifyId: row.lodgifyId ?? null,
         staff: row._staffId ? { id: row._staffId, name: row._staffName, phone: row._staffPhone } : null,
         description: row.description ?? '',
         photo: row.photo,
@@ -215,7 +216,7 @@ export async function PUT(
 ) {
   try {
     const body = await request.json()
-    const { name, address, city, type, typeGestion, ownerId, commissionRate, dateSigned, status, photo, description, cleaningFee, staffId } = body
+    const { name, address, city, type, typeGestion, ownerId, commissionRate, dateSigned, status, photo, description, cleaningFee, staffId, lodgifyId } = body
 
     const property = await prisma.property.update({
       where: { id: Number(params.id) },
@@ -229,6 +230,7 @@ export async function PUT(
         commissionRate: commissionRate !== undefined ? Number(commissionRate) : undefined,
         cleaningFee: cleaningFee !== undefined ? Number(cleaningFee) : undefined,
         staffId: staffId !== undefined ? (staffId ? Number(staffId) : null) : undefined,
+        lodgifyId: lodgifyId !== undefined ? (lodgifyId ? Number(lodgifyId) : null) : undefined,
         dateSigned: dateSigned !== undefined ? new Date(dateSigned) : undefined,
         status: status !== undefined ? status : undefined,
         photo: photo !== undefined ? photo || null : undefined,

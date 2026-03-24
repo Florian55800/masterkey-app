@@ -53,6 +53,7 @@ async function setup() {
       "typeGestion"    TEXT     NOT NULL DEFAULT 'conciergerie',
       "ownerId"        INTEGER  NOT NULL,
       "commissionRate" REAL     NOT NULL,
+      "lodgifyId"      INTEGER,
       "photo"          TEXT,
       "description"    TEXT,
       "dateSigned"     DATETIME NOT NULL,
@@ -274,6 +275,7 @@ async function setup() {
   const migrations = [
     `ALTER TABLE "Property" ADD COLUMN "cleaningFee" REAL NOT NULL DEFAULT 0`,
     `ALTER TABLE "Property" ADD COLUMN "staffId"     INTEGER`,
+    `ALTER TABLE "Property" ADD COLUMN "lodgifyId"   INTEGER`,
   ]
   for (const sql of migrations) {
     try {

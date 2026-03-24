@@ -275,7 +275,15 @@ export default function PlanningPage() {
   const [activeThread, setActiveThread] = useState<{ uid: string; guest: string } | null>(null)
   const [page,       setPage]       = useState(1)
   const [total,      setTotal]      = useState(0)
+  const [payoutMap,  setPayoutMap]  = useState<Record<number, { commissionRate: number; name: string }>>({})
   const PAGE_SIZE = 50
+
+  // Load payout map once
+  useEffect(() => {
+    fetch('/api/lodgify/payout-map').then(r => r.json()).then(data => {
+      if (data && typeof data === 'object' && !data.error) setPayoutMap(data)
+    }).catch(() => {})
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -404,17 +412,22 @@ export default function PlanningPage() {
                   <th className="text-left px-4 py-3">Plateforme</th>
                   <th className="text-left px-4 py-3">Statut</th>
                   <th className="text-right px-4 py-3">Séjour</th>
+                  <th className="text-right px-4 py-3">Virement</th>
                   <th className="px-4 py-3 w-10"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
                 {displayed.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center py-12 text-gray-500">Aucune réservation</td></tr>
+                  <tr><td colSpan={10} className="text-center py-12 text-gray-500">Aucune réservation</td></tr>
                 ) : displayed.map(b => {
                   const sm = sourceMeta(b.source)
                   const st = statusMeta(b.status)
                   const n  = nights(b.arrival, b.departure)
                   const propName = LODGIFY_PROPERTIES[b.property_id] ?? `#${b.property_id}`
+                  const payout = payoutMap[b.property_id]
+                  const virementAmount = payout && b.subtotals.stay > 0
+                    ? b.subtotals.stay * (1 - payout.commissionRate / 100)
+                    : null
                   return (
                     <tr key={b.id} className="hover:bg-white/[0.02] transition-colors group">
                       <td className="px-5 py-3 font-medium text-white">{propName}</td>
@@ -439,8 +452,15 @@ export default function PlanningPage() {
                       <td className="px-4 py-3">
                         <span className={`text-xs font-medium ${st.color}`}>{st.label}</span>
                       </td>
-                      <td className="px-4 py-3 text-right text-white font-medium">
+                      <td className="px-4 py-3 text-right text-gray-400 font-medium">
                         {b.subtotals.stay > 0 ? formatCurrency(b.subtotals.stay) : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold">
+                        {virementAmount !== null ? (
+                          <span className="text-emerald-400">{formatCurrency(virementAmount)}</span>
+                        ) : (
+                          <span className="text-gray-600 text-xs">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {b.thread_uid && (

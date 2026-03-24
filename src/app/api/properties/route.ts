@@ -28,7 +28,7 @@ export async function GET() {
     try {
       const propsRS = await client.execute(
         `SELECT p.id, p.name, p.address, p.city, p.type, p.typeGestion, p.ownerId,
-                p.commissionRate, p.cleaningFee, p.staffId,
+                p.commissionRate, p.cleaningFee, p.staffId, p.lodgifyId,
                 p.dateSigned, p.dateLost, p.status, p.photo, p.createdAt,
                 o.id as _ownerId, o.name as _ownerName,
                 s.id as _staffId, s.name as _staffName, s.phone as _staffPhone
@@ -60,6 +60,7 @@ export async function GET() {
       select: {
         id: true, name: true, address: true, city: true, type: true,
         typeGestion: true, ownerId: true, commissionRate: true, cleaningFee: true,
+        lodgifyId: true,
         dateSigned: true, dateLost: true, status: true, photo: true, createdAt: true,
         staffId: true,
         owner: { select: { id: true, name: true } },
@@ -79,7 +80,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, address, city, type, typeGestion, ownerId, commissionRate, dateSigned, photo, cleaningFee, staffId } = body
+    const { name, address, city, type, typeGestion, ownerId, commissionRate, dateSigned, photo, cleaningFee, staffId, lodgifyId } = body
 
     const property = await prisma.property.create({
       data: {
@@ -92,6 +93,7 @@ export async function POST(request: NextRequest) {
         commissionRate: Number(commissionRate),
         cleaningFee: Number(cleaningFee) || 0,
         staffId: staffId ? Number(staffId) : null,
+        lodgifyId: lodgifyId ? Number(lodgifyId) : null,
         dateSigned: new Date(dateSigned),
         status: 'active',
         photo: photo || null,

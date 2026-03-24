@@ -64,6 +64,7 @@ model Property {
   cleaningFee    Float             @default(0)
   staffId        Int?
   staff          Staff?            @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  lodgifyId      Int?
   photo          String?
   description    String?
   dateSigned     DateTime

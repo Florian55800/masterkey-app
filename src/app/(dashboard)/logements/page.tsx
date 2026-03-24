@@ -40,6 +40,7 @@ interface Property {
   cleaningFee: number
   staffId?: number | null
   staff?: StaffMember | null
+  lodgifyId?: number | null
   dateSigned: string
   dateLost: string | null
   status: string
@@ -77,6 +78,7 @@ export default function LogementsPage() {
     commissionRate: '20',
     cleaningFee: '0',
     staffId: '',
+    lodgifyId: '',
     dateSigned: format(new Date(), 'yyyy-MM-dd'),
     status: 'active',
     photo: '',
@@ -177,6 +179,7 @@ export default function LogementsPage() {
       commissionRate: '20',
       cleaningFee: '0',
       staffId: '',
+      lodgifyId: '',
       dateSigned: format(new Date(), 'yyyy-MM-dd'),
       status: 'active',
       photo: '',
@@ -197,6 +200,7 @@ export default function LogementsPage() {
       commissionRate: String(property.commissionRate),
       cleaningFee: String(property.cleaningFee ?? 0),
       staffId: property.staffId ? String(property.staffId) : '',
+      lodgifyId: property.lodgifyId ? String(property.lodgifyId) : '',
       dateSigned: format(new Date(property.dateSigned), 'yyyy-MM-dd'),
       status: property.status,
       photo: property.photo ?? '',
@@ -220,6 +224,7 @@ export default function LogementsPage() {
           ...form,
           cleaningFee: Number(form.cleaningFee) || 0,
           staffId: form.staffId ? Number(form.staffId) : null,
+          lodgifyId: form.lodgifyId ? Number(form.lodgifyId) : null,
         }),
       })
 
@@ -602,6 +607,15 @@ export default function LogementsPage() {
               ))}
             </Select>
           </div>
+
+          <Input
+            label="ID Lodgify (optionnel)"
+            type="number"
+            min="0"
+            value={form.lodgifyId}
+            onChange={(e) => setForm({ ...form, lodgifyId: e.target.value })}
+            placeholder="ex: 690597"
+          />
 
           <Input
             label="Date de signature"
