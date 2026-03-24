@@ -19,6 +19,7 @@ import {
   Receipt,
   Briefcase,
   ClipboardList,
+  CalendarDays,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -31,6 +32,7 @@ interface User {
 
 const navItems = [
   { href: '/', label: 'Tableau de bord', icon: LayoutDashboard },
+  { href: '/planning', label: 'Planning', icon: CalendarDays },
   { href: '/facturation', label: 'Facturation', icon: Receipt },
   { href: '/rapports', label: 'Rapports', icon: FileBarChart },
   { href: '/logements', label: 'Logements', icon: Building2 },
