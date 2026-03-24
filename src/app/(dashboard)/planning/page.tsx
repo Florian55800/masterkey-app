@@ -424,10 +424,7 @@ export default function PlanningPage() {
                   const st = statusMeta(b.status)
                   const n  = nights(b.arrival, b.departure)
                   const propName = LODGIFY_PROPERTIES[b.property_id] ?? `#${b.property_id}`
-                  const payout = payoutMap[b.property_id]
-                  const virementAmount = payout && b.total_amount > 0
-                    ? b.total_amount - (payout.commissionRate / 100) * (b.total_amount - (b.subtotals.fees ?? 0))
-                    : null
+                  const virementAmount = b.total_amount > 0 ? b.total_amount : null
                   return (
                     <tr key={b.id} className="hover:bg-white/[0.02] transition-colors group">
                       <td className="px-5 py-3 font-medium text-white">{propName}</td>
