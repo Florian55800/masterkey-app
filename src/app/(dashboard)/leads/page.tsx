@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Plus, Edit2, Trash2, ExternalLink, Phone, Mail, Search, Settings, X, GripVertical, Calendar, MapPin, CalendarDays } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -42,6 +42,7 @@ interface Lead {
   surface: number | null
   lienAnnonce: string | null
   statut: string
+  statuts: string[]
   commentaires: string | null
   dateContact: string
   relanceDate: string | null
@@ -80,7 +81,7 @@ const TYPES_BIEN = ['Appartement', 'Studio', 'Maison', 'Villa', 'Loft', 'Chambre
 
 const emptyForm = {
   nom: '', email: '', telephone: '', adresseBien: '', ville: '', typeBien: 'Appartement',
-  nbChambres: '', surface: '', lienAnnonce: '', statut: 'À contacter',
+  nbChambres: '', surface: '', lienAnnonce: '', statut: 'À contacter', statuts: [] as string[],
   commentaires: '', dateContact: new Date().toISOString().split('T')[0],
   relanceDate: '', relanceNote: '',
 }
@@ -98,6 +99,15 @@ export default function LeadsPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [openPopoverId, setOpenPopoverId] = useState<number | null>(null)
+
+  // Close popover on outside click
+  useEffect(() => {
+    if (openPopoverId === null) return
+    const close = () => setOpenPopoverId(null)
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
+  }, [openPopoverId])
 
   // Gestion des statuts
   const [statuts, setStatuts] = useState<Statut[]>(DEFAULT_STATUTS)
@@ -169,7 +179,8 @@ export default function LeadsPage() {
       adresseBien: lead.adresseBien ?? '', ville: lead.ville ?? '',
       typeBien: lead.typeBien ?? 'Appartement', nbChambres: lead.nbChambres ?? '',
       surface: lead.surface ? String(lead.surface) : '', lienAnnonce: lead.lienAnnonce ?? '',
-      statut: lead.statut, commentaires: lead.commentaires ?? '',
+      statut: lead.statut, statuts: lead.statuts ?? [lead.statut],
+      commentaires: lead.commentaires ?? '',
       dateContact: lead.dateContact.split('T')[0],
       relanceDate: lead.relanceDate ? lead.relanceDate.split('T')[0] : '',
       relanceNote: lead.relanceNote ?? '',
@@ -182,7 +193,8 @@ export default function LeadsPage() {
     setSaving(true)
     const url = editingLead ? `/api/leads/${editingLead.id}` : '/api/leads'
     const method = editingLead ? 'PUT' : 'POST'
-    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+    const payload = { ...form, statuts: form.statuts.length > 0 ? form.statuts : [form.statut] }
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     if (res.ok) {
       const data = await res.json()
       if (editingLead) setLeads(l => l.map(x => x.id === data.id ? data : x))
@@ -198,10 +210,15 @@ export default function LeadsPage() {
     setLeads(l => l.filter(x => x.id !== id))
   }
 
-  const handleStatutChange = async (lead: Lead, newStatut: string) => {
+  const handleStatutsToggle = async (lead: Lead, label: string) => {
+    const current = lead.statuts ?? [lead.statut]
+    const newStatuts = current.includes(label)
+      ? current.filter(s => s !== label)
+      : [...current, label]
+    if (newStatuts.length === 0) return // keep at least one
     const res = await fetch(`/api/leads/${lead.id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...lead, statut: newStatut }),
+      body: JSON.stringify({ ...lead, statuts: newStatuts }),
     })
     if (res.ok) {
       const data = await res.json()
@@ -247,13 +264,14 @@ export default function LeadsPage() {
     const matchSearch = !search || l.nom.toLowerCase().includes(search.toLowerCase()) ||
       l.ville?.toLowerCase().includes(search.toLowerCase()) ||
       l.telephone?.includes(search)
-    const matchStatut = filterStatut === 'tous' || l.statut === filterStatut
+    const ls = l.statuts ?? [l.statut]
+    const matchStatut = filterStatut === 'tous' || ls.includes(filterStatut)
     return matchSearch && matchStatut
   })
 
   if (loading) return <LoadingPage />
 
-  const counts = statuts.reduce((acc, s) => ({ ...acc, [s.label]: leads.filter(l => l.statut === s.label).length }), {} as Record<string, number>)
+  const counts = statuts.reduce((acc, s) => ({ ...acc, [s.label]: leads.filter(l => (l.statuts ?? [l.statut]).includes(s.label)).length }), {} as Record<string, number>)
 
   return (
     <div className="space-y-6">
@@ -440,14 +458,34 @@ export default function LeadsPage() {
                     </td>
                     <td className="px-4 py-3"><p className="text-white/60 text-xs">{lead.ville || '—'}</p></td>
                     <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                      <select value={lead.statut} onChange={e => handleStatutChange(lead, e.target.value)}
-                        className={`text-xs font-semibold px-2 py-1 rounded-lg border cursor-pointer bg-transparent ${getColorCls(statuts.find(s => s.label === lead.statut)?.color ?? 'gray')}`}>
-                        {statuts.map(s => <option key={s.label} value={s.label} className="bg-[#1c1c1c] text-white">{s.label}</option>)}
-                        {/* Affiche le statut actuel même s'il a été supprimé */}
-                        {!statuts.some(s => s.label === lead.statut) && (
-                          <option value={lead.statut} className="bg-[#1c1c1c] text-white">{lead.statut}</option>
+                      <div className="relative">
+                        {/* Badges actifs */}
+                        <div className="flex flex-wrap gap-1 cursor-pointer" onClick={() => setOpenPopoverId(openPopoverId === lead.id ? null : lead.id)}>
+                          {(lead.statuts ?? [lead.statut]).map(s => (
+                            <span key={s} className={`text-xs font-semibold px-2 py-0.5 rounded-md border ${getColorCls(statuts.find(x => x.label === s)?.color ?? 'gray')}`}>
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                        {/* Popover multi-select */}
+                        {openPopoverId === lead.id && (
+                          <div className="absolute top-full left-0 mt-1 z-50 bg-[#1c1c1c] border border-white/[0.1] rounded-xl shadow-2xl p-2 min-w-[180px]"
+                            onClick={e => e.stopPropagation()}>
+                            {statuts.map(s => {
+                              const active = (lead.statuts ?? [lead.statut]).includes(s.label)
+                              return (
+                                <button key={s.label} onClick={() => handleStatutsToggle(lead, s.label)}
+                                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.05] transition-colors text-left">
+                                  <div className={`w-3.5 h-3.5 rounded flex-shrink-0 border flex items-center justify-center ${active ? getColorCls(s.color) : 'border-white/20'}`}>
+                                    {active && <span className="text-[8px] font-bold">✓</span>}
+                                  </div>
+                                  <span className={`text-xs font-medium ${active ? 'text-white' : 'text-white/40'}`}>{s.label}</span>
+                                </button>
+                              )
+                            })}
+                          </div>
                         )}
-                      </select>
+                      </div>
                     </td>
                     <td className="px-4 py-3"><p className="text-white/50 text-xs whitespace-nowrap">{format(new Date(lead.dateContact), 'd MMM yyyy', { locale: fr })}</p></td>
                     <td className="px-4 py-3">
@@ -509,15 +547,27 @@ export default function LeadsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <Input label="Nb chambres" value={form.nbChambres} onChange={e => setForm(f => ({ ...f, nbChambres: e.target.value }))} placeholder="T2, T3..." />
             <Input label="Surface (m²)" type="number" value={form.surface} onChange={e => setForm(f => ({ ...f, surface: e.target.value }))} placeholder="50" />
-            <div>
-              <label className="block text-sm font-medium text-white/60 mb-1.5">Statut</label>
-              <select value={form.statut} onChange={e => setForm(f => ({ ...f, statut: e.target.value }))}
-                className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40">
-                {statuts.map(s => <option key={s.label} value={s.label}>{s.label}</option>)}
-              </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-white/60 mb-2">Statuts</label>
+            <div className="flex flex-wrap gap-2">
+              {statuts.map(s => {
+                const active = form.statuts.includes(s.label)
+                return (
+                  <button key={s.label} type="button"
+                    onClick={() => setForm(f => ({
+                      ...f,
+                      statuts: active ? f.statuts.filter(x => x !== s.label) : [...f.statuts, s.label],
+                    }))}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${active ? getColorCls(s.color) : 'border-white/[0.08] text-white/30 hover:text-white/60'}`}>
+                    {active ? '✓ ' : ''}{s.label}
+                  </button>
+                )
+              })}
             </div>
           </div>
 

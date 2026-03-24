@@ -276,6 +276,7 @@ async function setup() {
     `ALTER TABLE "Property" ADD COLUMN "cleaningFee" REAL NOT NULL DEFAULT 0`,
     `ALTER TABLE "Property" ADD COLUMN "staffId"     INTEGER`,
     `ALTER TABLE "Property" ADD COLUMN "lodgifyId"   INTEGER`,
+    `ALTER TABLE "Lead"     ADD COLUMN "statuts"     TEXT`,
   ]
   for (const sql of migrations) {
     try {

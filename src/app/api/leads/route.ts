@@ -5,7 +5,12 @@ import { prisma } from '@/lib/prisma'
 export async function GET() {
   try {
     const leads = await prisma.lead.findMany({ orderBy: { createdAt: 'desc' } })
-    return NextResponse.json(leads)
+    // Parse statuts JSON for each lead
+    const result = leads.map(l => ({
+      ...l,
+      statuts: l.statuts ? JSON.parse(l.statuts) : [l.statut],
+    }))
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Leads error:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
@@ -27,6 +32,7 @@ export async function POST(req: NextRequest) {
         surface: body.surface ? parseFloat(body.surface) : null,
         lienAnnonce: body.lienAnnonce || null,
         statut: body.statut || 'À contacter',
+        statuts: JSON.stringify(body.statuts ?? [body.statut || 'À contacter']),
         commentaires: body.commentaires || null,
         dateContact: body.dateContact ? new Date(body.dateContact) : new Date(),
         relanceDate: body.relanceDate ? new Date(body.relanceDate) : null,

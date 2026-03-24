@@ -228,6 +228,7 @@ model Lead {
   surface      Float?
   lienAnnonce  String?
   statut       String    @default("À contacter")
+  statuts      String?   // JSON array e.g. '["Signé","Visite effectuée"]'
   commentaires String?
   dateContact  DateTime  @default(now())
   relanceDate  DateTime?
