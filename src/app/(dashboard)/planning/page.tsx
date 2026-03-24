@@ -425,8 +425,8 @@ export default function PlanningPage() {
                   const n  = nights(b.arrival, b.departure)
                   const propName = LODGIFY_PROPERTIES[b.property_id] ?? `#${b.property_id}`
                   const payout = payoutMap[b.property_id]
-                  const virementAmount = payout && b.subtotals.stay > 0
-                    ? b.subtotals.stay * (1 - payout.commissionRate / 100)
+                  const virementAmount = payout && b.total_amount > 0
+                    ? b.total_amount - (payout.commissionRate / 100) * (b.total_amount - (b.subtotals.fees ?? 0))
                     : null
                   return (
                     <tr key={b.id} className="hover:bg-white/[0.02] transition-colors group">
