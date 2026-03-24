@@ -33,6 +33,7 @@ model Owner {
   source         String?
   properties     Property[]
   satisfactions  SatisfactionScore[]
+  advances       Advance[]
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 }
@@ -72,6 +73,7 @@ model Property {
   updatedAt      DateTime          @updatedAt
   revenues       PropertyRevenue[]
   subletExpenses SubletExpense[]
+  advances       Advance[]
 }
 
 model PropertyRevenue {
@@ -196,6 +198,21 @@ model Config {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+model Advance {
+  id          Int       @id @default(autoincrement())
+  description String
+  amount      Float
+  ownerId     Int?
+  owner       Owner?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  propertyId  Int?
+  property    Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  status      String    @default("en_attente") // "en_attente" | "rembourse"
+  date        DateTime  @default(now())
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model Lead {

@@ -243,6 +243,21 @@ async function setup() {
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+
+    `CREATE TABLE IF NOT EXISTS "Advance" (
+      "id"          INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
+      "description" TEXT     NOT NULL,
+      "amount"      REAL     NOT NULL,
+      "ownerId"     INTEGER,
+      "propertyId"  INTEGER,
+      "status"      TEXT     NOT NULL DEFAULT 'en_attente',
+      "date"        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "notes"       TEXT,
+      "createdAt"   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt"   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY ("ownerId")    REFERENCES "Owner"("id")    ON DELETE SET NULL,
+      FOREIGN KEY ("propertyId") REFERENCES "Property"("id") ON DELETE SET NULL
+    )`,
   ]
 
   for (const sql of tables) {

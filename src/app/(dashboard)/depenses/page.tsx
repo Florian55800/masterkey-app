@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, CreditCard, RefreshCw, Home } from 'lucide-react'
+import { Plus, Trash2, CreditCard, RefreshCw, Home, TrendingDown, Check, Clock } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -50,8 +50,19 @@ interface SousLocProperty {
   subletExpenses: SubletExpense[]
 }
 
+interface Advance {
+  id: number
+  description: string
+  amount: number
+  status: 'en_attente' | 'rembourse'
+  date: string
+  notes: string | null
+  owner:    { id: number; name: string } | null
+  property: { id: number; name: string } | null
+}
+
 export default function DepensesPage() {
-  const [mainTab, setMainTab] = useState<'conciergerie' | 'sous-location'>('conciergerie')
+  const [mainTab, setMainTab] = useState<'conciergerie' | 'sous-location' | 'avances'>('conciergerie')
 
   // ── Conciergerie state ─────────────────────────────────────────────────────
   const [reports, setReports] = useState<Report[]>([])
@@ -77,9 +88,23 @@ export default function DepensesPage() {
   const [subletSaving, setSubletSaving] = useState(false)
   const [subletError, setSubletError] = useState('')
 
+  // ── Avances state ──────────────────────────────────────────────────────────
+  const [advances, setAdvances] = useState<Advance[]>([])
+  const [loadingAdvances, setLoadingAdvances] = useState(false)
+  const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false)
+  const [advanceForm, setAdvanceForm] = useState({
+    description: '', amount: '', ownerId: '', propertyId: '', date: new Date().toISOString().split('T')[0], notes: '',
+  })
+  const [advanceSaving, setAdvanceSaving] = useState(false)
+  const [advanceError, setAdvanceError] = useState('')
+  const [owners, setOwners] = useState<{ id: number; name: string }[]>([])
+  const [properties, setProperties] = useState<{ id: number; name: string }[]>([])
+
   useEffect(() => {
     loadReports()
     loadSousLoc()
+    loadAdvances()
+    loadOwnersAndProperties()
   }, [])
 
   const loadReports = async () => {
@@ -185,6 +210,61 @@ export default function DepensesPage() {
     if (selectedReportId) await loadExpenses(selectedReportId)
   }
 
+  const loadAdvances = async () => {
+    setLoadingAdvances(true)
+    try {
+      const res = await fetch('/api/advances')
+      const data = await res.json()
+      setAdvances(Array.isArray(data) ? data : [])
+    } catch {} finally { setLoadingAdvances(false) }
+  }
+
+  const loadOwnersAndProperties = async () => {
+    try {
+      const [oRes, pRes] = await Promise.all([fetch('/api/owners'), fetch('/api/properties')])
+      const oData = await oRes.json(); const pData = await pRes.json()
+      setOwners(Array.isArray(oData) ? oData.map((o: { id: number; name: string }) => ({ id: o.id, name: o.name })) : [])
+      setProperties(Array.isArray(pData) ? pData.map((p: { id: number; name: string }) => ({ id: p.id, name: p.name })) : [])
+    } catch {}
+  }
+
+  const handleAddAdvance = async () => {
+    if (!advanceForm.description || !advanceForm.amount) { setAdvanceError('Description et montant requis'); return }
+    setAdvanceSaving(true); setAdvanceError('')
+    try {
+      const res = await fetch('/api/advances', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: advanceForm.description,
+          amount: Number(advanceForm.amount),
+          ownerId: advanceForm.ownerId ? Number(advanceForm.ownerId) : null,
+          propertyId: advanceForm.propertyId ? Number(advanceForm.propertyId) : null,
+          date: advanceForm.date,
+          notes: advanceForm.notes || null,
+        }),
+      })
+      if (!res.ok) { const d = await res.json(); setAdvanceError(d.error || 'Erreur'); return }
+      await loadAdvances()
+      setIsAdvanceModalOpen(false)
+      setAdvanceForm({ description: '', amount: '', ownerId: '', propertyId: '', date: new Date().toISOString().split('T')[0], notes: '' })
+    } catch { setAdvanceError('Erreur de connexion') } finally { setAdvanceSaving(false) }
+  }
+
+  const handleToggleAdvanceStatus = async (advance: Advance) => {
+    const newStatus = advance.status === 'en_attente' ? 'rembourse' : 'en_attente'
+    await fetch(`/api/advances/${advance.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...advance, ownerId: advance.owner?.id, propertyId: advance.property?.id, status: newStatus, date: advance.date }),
+    })
+    await loadAdvances()
+  }
+
+  const handleDeleteAdvance = async (id: number) => {
+    if (!confirm('Supprimer cette avance ?')) return
+    await fetch(`/api/advances/${id}`, { method: 'DELETE' })
+    await loadAdvances()
+  }
+
   // ── Conciergerie computed ──────────────────────────────────────────────────
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0)
   const recurringExpenses = expenses.filter((e) => e.isRecurring)
@@ -224,14 +304,24 @@ export default function DepensesPage() {
             <Plus className="w-4 h-4" />Ajouter dépense
           </Button>
         )}
+        {mainTab === 'avances' && (
+          <Button onClick={() => setIsAdvanceModalOpen(true)}>
+            <Plus className="w-4 h-4" />Ajouter avance
+          </Button>
+        )}
       </div>
 
       {/* Main tabs */}
       <div className="flex items-center bg-[#1a1a1a] border border-[#2e2e2e] rounded-2xl p-1 w-fit">
-        {([['conciergerie', 'Conciergerie'], ['sous-location', 'Sous-location']] as const).map(([tab, label]) => (
+        {([['conciergerie', 'Conciergerie'], ['sous-location', 'Sous-location'], ['avances', 'Avances']] as const).map(([tab, label]) => (
           <button key={tab} onClick={() => setMainTab(tab)}
-            className={`px-5 py-2 rounded-xl text-sm font-medium transition-all ${mainTab === tab ? 'bg-[#D4AF37] text-black' : 'text-gray-400 hover:text-white'}`}>
+            className={`px-5 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${mainTab === tab ? 'bg-[#D4AF37] text-black' : 'text-gray-400 hover:text-white'}`}>
             {label}
+            {tab === 'avances' && advances.filter(a => a.status === 'en_attente').length > 0 && (
+              <span className={`text-xs px-1.5 py-0.5 rounded-md font-bold ${mainTab === tab ? 'bg-black/20 text-black/70' : 'bg-red-500/20 text-red-400'}`}>
+                {advances.filter(a => a.status === 'en_attente').length}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -536,6 +626,144 @@ export default function DepensesPage() {
           )}
         </>
       )}
+
+      {/* ═══════════════════ ONGLET AVANCES ═══════════════════ */}
+      {mainTab === 'avances' && (
+        <>
+          {loadingAdvances ? <div className="text-gray-500 text-sm text-center py-10">Chargement…</div> : (
+            <>
+              {/* Summary */}
+              {advances.length > 0 && (() => {
+                const enAttente  = advances.filter(a => a.status === 'en_attente')
+                const rembourse  = advances.filter(a => a.status === 'rembourse')
+                const totalDu    = enAttente.reduce((s, a) => s + a.amount, 0)
+                const totalRemb  = rembourse.reduce((s, a) => s + a.amount, 0)
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Card padding="sm" className="text-center">
+                      <p className="text-gray-400 text-xs mb-1">Total avancé</p>
+                      <p className="text-white font-bold text-xl">{formatCurrency(totalDu + totalRemb)}</p>
+                      <p className="text-gray-500 text-xs">{advances.length} avance(s)</p>
+                    </Card>
+                    <Card padding="sm" className="text-center">
+                      <p className="text-gray-400 text-xs mb-1 flex items-center justify-center gap-1"><Clock className="w-3 h-3" />En attente</p>
+                      <p className="text-red-400 font-bold text-xl">{formatCurrency(totalDu)}</p>
+                      <p className="text-gray-500 text-xs">{enAttente.length} avance(s)</p>
+                    </Card>
+                    <Card padding="sm" className="text-center">
+                      <p className="text-gray-400 text-xs mb-1 flex items-center justify-center gap-1"><Check className="w-3 h-3" />Remboursé</p>
+                      <p className="text-emerald-400 font-bold text-xl">{formatCurrency(totalRemb)}</p>
+                      <p className="text-gray-500 text-xs">{rembourse.length} avance(s)</p>
+                    </Card>
+                  </div>
+                )
+              })()}
+
+              {/* Table */}
+              {advances.length === 0 ? (
+                <EmptyState icon={TrendingDown} title="Aucune avance enregistrée"
+                  description="Notez ici tout ce que vous avancez pour les propriétaires lors de l'onboarding."
+                  actionLabel="Ajouter une avance" onAction={() => setIsAdvanceModalOpen(true)} />
+              ) : (
+                <Card>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-white font-semibold">Suivi des avances</h3>
+                    <span className="text-gray-400 text-sm">{advances.length} entrée(s)</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-gray-400 text-xs border-b border-[#2e2e2e]">
+                          <th className="text-left pb-3 pr-4">Date</th>
+                          <th className="text-left pb-3 pr-4">Description</th>
+                          <th className="text-left pb-3 pr-4">Propriétaire</th>
+                          <th className="text-left pb-3 pr-4">Logement</th>
+                          <th className="text-right pb-3 pr-4">Montant</th>
+                          <th className="text-center pb-3 pr-4">Statut</th>
+                          <th className="pb-3 w-8"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#2e2e2e]">
+                        {advances.map((a) => (
+                          <tr key={a.id} className={`group transition-colors hover:bg-white/[0.02] ${a.status === 'rembourse' ? 'opacity-50' : ''}`}>
+                            <td className="py-3 pr-4 text-gray-400 whitespace-nowrap">
+                              {new Date(a.date).toLocaleDateString('fr-FR')}
+                            </td>
+                            <td className="py-3 pr-4">
+                              <p className="text-white font-medium">{a.description}</p>
+                              {a.notes && <p className="text-gray-500 text-xs mt-0.5">{a.notes}</p>}
+                            </td>
+                            <td className="py-3 pr-4 text-gray-300">{a.owner?.name ?? '—'}</td>
+                            <td className="py-3 pr-4 text-gray-300 max-w-[140px] truncate">{a.property?.name ?? '—'}</td>
+                            <td className="py-3 pr-4 text-right text-white font-semibold">{formatCurrency(a.amount)}</td>
+                            <td className="py-3 pr-4 text-center">
+                              <button onClick={() => handleToggleAdvanceStatus(a)}
+                                className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-all ${
+                                  a.status === 'en_attente'
+                                    ? 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
+                                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                                }`}>
+                                {a.status === 'en_attente' ? 'En attente' : 'Remboursé'}
+                              </button>
+                            </td>
+                            <td className="py-3">
+                              <button onClick={() => handleDeleteAdvance(a.id)}
+                                className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all p-1">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-[#2e2e2e]">
+                          <td colSpan={4} className="py-3 text-gray-400 text-xs font-medium">Total en attente</td>
+                          <td className="py-3 text-right text-red-400 font-bold">
+                            {formatCurrency(advances.filter(a => a.status === 'en_attente').reduce((s, a) => s + a.amount, 0))}
+                          </td>
+                          <td colSpan={2}></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </Card>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {/* Add Advance Modal */}
+      <Modal isOpen={isAdvanceModalOpen} onClose={() => setIsAdvanceModalOpen(false)} title="Ajouter une avance">
+        <div className="space-y-4">
+          <Input label="Description *" value={advanceForm.description}
+            onChange={(e) => setAdvanceForm({ ...advanceForm, description: e.target.value })}
+            placeholder="Ex: Achat boîte à clés, mobilier, frais de photos…" />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Montant (€) *" type="number" min="0" step="0.01" value={advanceForm.amount}
+              onChange={(e) => setAdvanceForm({ ...advanceForm, amount: e.target.value })} placeholder="150" />
+            <Input label="Date" type="date" value={advanceForm.date}
+              onChange={(e) => setAdvanceForm({ ...advanceForm, date: e.target.value })} />
+          </div>
+          <Select label="Propriétaire (optionnel)" value={advanceForm.ownerId}
+            onChange={(e) => setAdvanceForm({ ...advanceForm, ownerId: e.target.value })}>
+            <option value="">— Sélectionner un propriétaire —</option>
+            {owners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </Select>
+          <Select label="Logement (optionnel)" value={advanceForm.propertyId}
+            onChange={(e) => setAdvanceForm({ ...advanceForm, propertyId: e.target.value })}>
+            <option value="">— Sélectionner un logement —</option>
+            {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </Select>
+          <Input label="Notes (optionnel)" value={advanceForm.notes}
+            onChange={(e) => setAdvanceForm({ ...advanceForm, notes: e.target.value })} placeholder="Détails supplémentaires…" />
+          {advanceError && <p className="text-red-400 text-sm bg-red-400/10 px-3 py-2 rounded-lg">{advanceError}</p>}
+          <div className="flex gap-3 justify-end">
+            <Button variant="ghost" onClick={() => setIsAdvanceModalOpen(false)}>Annuler</Button>
+            <Button isLoading={advanceSaving} onClick={handleAddAdvance}>Ajouter</Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Add SubletExpense Modal */}
       <Modal isOpen={isSubletModalOpen} onClose={() => setIsSubletModalOpen(false)} title="Ajouter une dépense — Sous-location">
