@@ -35,6 +35,7 @@ services:
       TURSO_AUTH_TOKEN: ""
       # Remplace par un secret fort en production
       JWT_SECRET: "${JWT_SECRET}"
+      LODGIFY_API_KEY: "${LODGIFY_API_KEY}"
     ports:
       - "3000:3000"
 
