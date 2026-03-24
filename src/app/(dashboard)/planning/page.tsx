@@ -275,7 +275,7 @@ export default function PlanningPage() {
   const [activeThread, setActiveThread] = useState<{ uid: string; guest: string } | null>(null)
   const [page,       setPage]       = useState(1)
   const [total,      setTotal]      = useState(0)
-  const [payoutMap,  setPayoutMap]  = useState<Record<number, { commissionRate: number; name: string }>>({})
+  const [payoutMap,  setPayoutMap]  = useState<Record<number, { commissionRate: number; cleaningFee: number; name: string }>>({})
   const PAGE_SIZE = 50
 
   // Load payout map once
@@ -424,7 +424,12 @@ export default function PlanningPage() {
                   const st = statusMeta(b.status)
                   const n  = nights(b.arrival, b.departure)
                   const propName = LODGIFY_PROPERTIES[b.property_id] ?? `#${b.property_id}`
-                  const virementAmount = b.total_amount > 0 ? b.total_amount : null
+                  const AIRBNB_FEE = 0.1861
+                  const payout = payoutMap[b.property_id]
+                  const isAirbnb = b.source === 'Airbnb'
+                  const virementAmount = isAirbnb && payout
+                    ? (b.subtotals.stay + payout.cleaningFee) * (1 - AIRBNB_FEE)
+                    : null
                   return (
                     <tr key={b.id} className="hover:bg-white/[0.02] transition-colors group">
                       <td className="px-5 py-3 font-medium text-white">{propName}</td>
