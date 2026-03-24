@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   LayoutDashboard,
   FileBarChart,
@@ -20,6 +20,7 @@ import {
   Briefcase,
   ClipboardList,
   CalendarDays,
+  GripVertical,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -30,21 +31,27 @@ interface User {
   photo?: string | null
 }
 
-const navItems = [
-  { href: '/', label: 'Tableau de bord', icon: LayoutDashboard },
-  { href: '/planning', label: 'Planning', icon: CalendarDays },
-  { href: '/facturation', label: 'Facturation', icon: Receipt },
-  { href: '/rapports', label: 'Rapports', icon: FileBarChart },
-  { href: '/logements', label: 'Logements', icon: Building2 },
-  { href: '/proprietaires', label: 'Clients', icon: Users },
-  { href: '/equipe', label: 'Équipe', icon: TrendingUp },
-  { href: '/objectifs', label: 'Objectifs', icon: Target },
-  { href: '/depenses', label: 'Dépenses', icon: CreditCard },
-  { href: '/leads', label: 'Leads', icon: UserSearch },
-  { href: '/onboarding', label: 'Onboarding', icon: ClipboardList },
-  { href: '/personnel', label: 'Personnel', icon: Briefcase },
-  { href: '/parametres', label: 'Paramètres', icon: Settings },
+const DEFAULT_NAV = [
+  { href: '/', label: 'Tableau de bord', icon: 'LayoutDashboard' },
+  { href: '/planning', label: 'Planning', icon: 'CalendarDays' },
+  { href: '/facturation', label: 'Facturation', icon: 'Receipt' },
+  { href: '/rapports', label: 'Rapports', icon: 'FileBarChart' },
+  { href: '/logements', label: 'Logements', icon: 'Building2' },
+  { href: '/proprietaires', label: 'Clients', icon: 'Users' },
+  { href: '/equipe', label: 'Équipe', icon: 'TrendingUp' },
+  { href: '/objectifs', label: 'Objectifs', icon: 'Target' },
+  { href: '/depenses', label: 'Dépenses', icon: 'CreditCard' },
+  { href: '/leads', label: 'Leads', icon: 'UserSearch' },
+  { href: '/onboarding', label: 'Onboarding', icon: 'ClipboardList' },
+  { href: '/personnel', label: 'Personnel', icon: 'Briefcase' },
+  { href: '/parametres', label: 'Paramètres', icon: 'Settings' },
 ]
+
+const ICON_MAP: Record<string, React.ElementType> = {
+  LayoutDashboard, CalendarDays, Receipt, FileBarChart, Building2,
+  Users, TrendingUp, Target, CreditCard, UserSearch, ClipboardList,
+  Briefcase, Settings,
+}
 
 // Items shown directly in the bottom bar (most used)
 const bottomBarItems = [
@@ -54,25 +61,39 @@ const bottomBarItems = [
   { href: '/leads', label: 'Leads', icon: UserSearch },
 ]
 
+const STORAGE_KEY = 'mk_nav_order'
+
 export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [navItems, setNavItems] = useState(DEFAULT_NAV)
+  const dragIndex = useRef<number | null>(null)
+  const dragOverIndex = useRef<number | null>(null)
+
+  // Load saved order
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      if (saved) {
+        const order: string[] = JSON.parse(saved)
+        const sorted = [...DEFAULT_NAV].sort(
+          (a, b) => order.indexOf(a.href) - order.indexOf(b.href)
+        )
+        setNavItems(sorted)
+      }
+    } catch { /* ignore */ }
+  }, [])
 
   useEffect(() => {
     fetch('/api/auth/me')
       .then((r) => r.json())
-      .then((data) => {
-        if (data.id) setUser(data)
-      })
+      .then((data) => { if (data.id) setUser(data) })
       .catch(() => {})
   }, [])
 
-  // Close mobile menu on route change
-  useEffect(() => {
-    setMobileMenuOpen(false)
-  }, [pathname])
+  useEffect(() => { setMobileMenuOpen(false) }, [pathname])
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -80,15 +101,27 @@ export function Sidebar() {
     router.refresh()
   }
 
+  const onDragStart = (index: number) => { dragIndex.current = index }
+  const onDragEnter = (index: number) => { dragOverIndex.current = index }
+  const onDragEnd = () => {
+    const from = dragIndex.current
+    const to = dragOverIndex.current
+    if (from === null || to === null || from === to) return
+    const updated = [...navItems]
+    const [moved] = updated.splice(from, 1)
+    updated.splice(to, 0, moved)
+    setNavItems(updated)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated.map(i => i.href)))
+    dragIndex.current = null
+    dragOverIndex.current = null
+  }
+
   return (
     <>
       {/* ─── Desktop Sidebar ─── */}
       <aside
         className="hidden lg:flex flex-col w-64 h-screen fixed left-0 top-0 z-40"
-        style={{
-          background: '#111111',
-          borderRight: '1px solid rgba(255,255,255,0.06)',
-        }}
+        style={{ background: '#111111', borderRight: '1px solid rgba(255,255,255,0.06)' }}
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-5 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -110,34 +143,47 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5">
-          {navItems.map((item) => {
-            const Icon = item.icon
+          {navItems.map((item, index) => {
+            const Icon = ICON_MAP[item.icon]
             const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
             return (
-              <Link
+              <div
                 key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative',
-                  isActive ? 'text-[#D4AF37]' : 'text-white/40 hover:text-white/80'
-                )}
-                style={isActive ? {
-                  background: 'rgba(212,175,55,0.1)',
-                  border: '1px solid rgba(212,175,55,0.15)',
-                } : {
-                  background: 'transparent',
-                  border: '1px solid transparent',
-                }}
+                draggable
+                onDragStart={() => onDragStart(index)}
+                onDragEnter={() => onDragEnter(index)}
+                onDragEnd={onDragEnd}
+                onDragOver={e => e.preventDefault()}
+                className="group/item flex items-center"
               >
-                <Icon className={cn('w-4 h-4 flex-shrink-0 transition-all', isActive ? 'text-[#D4AF37]' : 'text-white/30 group-hover:text-white/60')} />
-                {item.label}
-                {isActive && (
-                  <div
-                    className="w-1 h-1 rounded-full ml-auto"
-                    style={{ background: '#D4AF37', boxShadow: '0 0 6px rgba(212,175,55,0.8)' }}
-                  />
-                )}
-              </Link>
+                {/* Drag handle */}
+                <div className="opacity-0 group-hover/item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing p-1 text-white/20 hover:text-white/50 flex-shrink-0">
+                  <GripVertical className="w-3 h-3" />
+                </div>
+                <Link
+                  href={item.href}
+                  className={cn(
+                    'flex-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative',
+                    isActive ? 'text-[#D4AF37]' : 'text-white/40 hover:text-white/80'
+                  )}
+                  style={isActive ? {
+                    background: 'rgba(212,175,55,0.1)',
+                    border: '1px solid rgba(212,175,55,0.15)',
+                  } : {
+                    background: 'transparent',
+                    border: '1px solid transparent',
+                  }}
+                >
+                  <Icon className={cn('w-4 h-4 flex-shrink-0 transition-all', isActive ? 'text-[#D4AF37]' : 'text-white/30 group-hover:text-white/60')} />
+                  {item.label}
+                  {isActive && (
+                    <div
+                      className="w-1 h-1 rounded-full ml-auto"
+                      style={{ background: '#D4AF37', boxShadow: '0 0 6px rgba(212,175,55,0.8)' }}
+                    />
+                  )}
+                </Link>
+              </div>
             )
           })}
         </nav>
@@ -222,7 +268,7 @@ export function Sidebar() {
           {/* Nav items */}
           <nav className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
             {navItems.map((item) => {
-              const Icon = item.icon
+              const Icon = ICON_MAP[item.icon]
               const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
               return (
                 <Link
@@ -298,7 +344,6 @@ export function Sidebar() {
         }}
       >
         <div className="flex items-center justify-around px-2 py-1.5">
-          {/* 4 fixed shortcut items */}
           {bottomBarItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
