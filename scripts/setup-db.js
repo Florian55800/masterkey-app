@@ -273,6 +273,14 @@ async function setup() {
 
   // Migrations (colonnes ajoutées après le déploiement initial)
   const migrations = [
+    `CREATE TABLE IF NOT EXISTS "OnboardingSession" (
+      "id"        TEXT     NOT NULL PRIMARY KEY,
+      "name"      TEXT     NOT NULL,
+      "type"      TEXT     NOT NULL,
+      "checks"    TEXT     NOT NULL DEFAULT '{}',
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `ALTER TABLE "Property" ADD COLUMN "cleaningFee" REAL NOT NULL DEFAULT 0`,
     `ALTER TABLE "Property" ADD COLUMN "staffId"     INTEGER`,
     `ALTER TABLE "Property" ADD COLUMN "lodgifyId"   INTEGER`,

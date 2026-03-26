@@ -218,15 +218,8 @@ const PHASE_COLOR_MAP: Record<string, { bg: string; border: string; text: string
   emerald: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'text-emerald-400', badge: 'bg-emerald-500/20 text-emerald-300' },
 }
 
-const STORAGE_KEY = 'mk_onboarding_v2'
-
-function loadSessions(): Record<string, Session[]> {
-  if (typeof window === 'undefined') return { conciergerie: [], souslocation: [] }
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') } catch { return {} }
-}
-function saveSessions(data: Record<string, Session[]>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-}
+// localStorage migration key (old data)
+const LEGACY_KEY = 'mk_onboarding_v2'
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
@@ -367,52 +360,94 @@ export default function OnboardingPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [newModalOpen, setNewModalOpen] = useState(false)
   const [newName, setNewName] = useState('')
+  const [loading, setLoading] = useState(true)
 
   const phases = tab === 'conciergerie' ? PHASES_CONCIERGERIE : PHASES_SOUS_LOCATION
   const sessions = allSessions[tab] ?? []
   const selected = sessions.find(s => s.id === selectedId) ?? sessions[0] ?? null
 
-  useEffect(() => {
-    const data = loadSessions()
-    setAllSessions({ conciergerie: data.conciergerie ?? [], souslocation: data.souslocation ?? [] })
+  // Load from API
+  const loadFromAPI = useCallback(async () => {
+    try {
+      const res = await fetch('/api/onboarding')
+      const data: (Session & { type: string })[] = await res.json()
+      if (!Array.isArray(data)) return
+      const grouped: Record<string, Session[]> = { conciergerie: [], souslocation: [] }
+      for (const s of data) {
+        const key = s.type === 'souslocation' ? 'souslocation' : 'conciergerie'
+        grouped[key].push({ id: s.id, name: s.name, createdAt: s.createdAt, checks: s.checks })
+      }
+      setAllSessions(grouped)
+    } catch { /* ignore */ }
+    finally { setLoading(false) }
   }, [])
 
-  // When switching tabs, reset selection
+  useEffect(() => {
+    // Migrate legacy localStorage data once
+    const legacy = localStorage.getItem(LEGACY_KEY)
+    if (legacy) {
+      try {
+        const old: Record<string, Session[]> = JSON.parse(legacy)
+        for (const type of ['conciergerie', 'souslocation']) {
+          for (const s of (old[type] ?? [])) {
+            fetch('/api/onboarding', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: s.name, type }),
+            }).then(r => r.json()).then(created => {
+              if (created.id && Object.keys(s.checks).length > 0) {
+                fetch(`/api/onboarding/${created.id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ checks: s.checks }),
+                })
+              }
+            })
+          }
+        }
+        localStorage.removeItem(LEGACY_KEY)
+      } catch { /* ignore */ }
+    }
+    loadFromAPI()
+  }, [loadFromAPI])
+
   useEffect(() => { setSelectedId(null) }, [tab])
 
-  const persist = useCallback((next: Record<string, Session[]>) => {
-    setAllSessions(next)
-    saveSessions(next)
-  }, [])
-
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!newName.trim()) return
-    const session: Session = {
-      id: Date.now().toString(),
-      name: newName.trim(),
-      createdAt: new Date().toISOString(),
-      checks: {},
+    const res = await fetch('/api/onboarding', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName.trim(), type: tab }),
+    })
+    if (res.ok) {
+      const session: Session & { type: string } = await res.json()
+      const newSession = { id: session.id, name: session.name, createdAt: session.createdAt, checks: {} }
+      setAllSessions(prev => ({ ...prev, [tab]: [newSession, ...(prev[tab] ?? [])] }))
+      setSelectedId(session.id)
     }
-    const next = { ...allSessions, [tab]: [session, ...(allSessions[tab] ?? [])] }
-    persist(next)
-    setSelectedId(session.id)
     setNewName('')
     setNewModalOpen(false)
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Supprimer ce dossier d\'onboarding ?')) return
-    const next = { ...allSessions, [tab]: (allSessions[tab] ?? []).filter(s => s.id !== id) }
-    persist(next)
+    await fetch(`/api/onboarding/${id}`, { method: 'DELETE' })
+    setAllSessions(prev => ({ ...prev, [tab]: (prev[tab] ?? []).filter(s => s.id !== id) }))
     if (selected?.id === id) setSelectedId(null)
   }
 
-  const handleUpdate = (checks: Record<string, boolean>) => {
-    const next = {
-      ...allSessions,
-      [tab]: (allSessions[tab] ?? []).map(s => s.id === selected?.id ? { ...s, checks } : s),
-    }
-    persist(next)
+  const handleUpdate = async (checks: Record<string, boolean>) => {
+    if (!selected) return
+    setAllSessions(prev => ({
+      ...prev,
+      [tab]: (prev[tab] ?? []).map(s => s.id === selected.id ? { ...s, checks } : s),
+    }))
+    await fetch(`/api/onboarding/${selected.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checks }),
+    })
   }
 
   const activeSession = selected ?? null
