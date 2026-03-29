@@ -2,23 +2,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { randomUUID } from 'crypto'
-
-export const DEFAULT_CHECKLIST = [
-  { id: 'photos-avant',  label: 'Prendre des photos AVANT le ménage',          isDefault: true },
-  { id: 'turno',         label: 'Accepter la mission sur Turno',                isDefault: true },
-  { id: 'draps',         label: 'Changer tous les draps et taies d\'oreiller',  isDefault: true },
-  { id: 'serviettes',    label: 'Changer toutes les serviettes',                isDefault: true },
-  { id: 'cuisine',       label: 'Nettoyer la cuisine (four, plaques, frigo)',   isDefault: true },
-  { id: 'sdb',           label: 'Nettoyer la/les salle(s) de bain',             isDefault: true },
-  { id: 'aspirateur',    label: 'Passer l\'aspirateur partout',                 isDefault: true },
-  { id: 'serpilliere',   label: 'Passer la serpillière',                        isDefault: true },
-  { id: 'poubelles',     label: 'Vider toutes les poubelles',                   isDefault: true },
-  { id: 'consommables',  label: 'Vérifier les consommables (PQ, savon, gel)',   isDefault: true },
-  { id: 'radiateurs',    label: 'Éteindre tous les radiateurs',                 isDefault: true },
-  { id: 'lumieres',      label: 'Éteindre toutes les lumières',                 isDefault: true },
-  { id: 'fenetres',      label: 'Fermer toutes les fenêtres',                   isDefault: true },
-  { id: 'photos-apres',  label: 'Prendre des photos APRÈS le ménage',           isDefault: true },
-]
+import { DEFAULT_CHECKLIST } from '@/lib/cleaning-defaults'
 
 function toRows(rs: { columns: string[]; rows: unknown[][] }): Record<string, unknown>[] {
   return rs.rows.map((row) => {
