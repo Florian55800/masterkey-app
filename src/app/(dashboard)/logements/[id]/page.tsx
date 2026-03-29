@@ -93,6 +93,7 @@ export default function PropertyDetailPage() {
 
   // PDF revenus mensuels
   const [printRevenuesOpen, setPrintRevenuesOpen] = useState(false)
+  const [excludedMonths, setExcludedMonths] = useState<Set<string>>(new Set())
 
   // ── Load property ──────────────────────────────────────────────────────────
 
@@ -171,6 +172,16 @@ export default function PropertyDetailPage() {
 
   const isConciergerie = (property.typeGestion || 'conciergerie') === 'conciergerie'
   const activeMonths = property.monthlyStats.filter((m) => m.totalGross > 0)
+  const monthKey = (m: MonthlyStat) => `${m.year}-${m.month}`
+  const includedMonths = activeMonths.filter(m => !excludedMonths.has(monthKey(m)))
+  const toggleMonth = (m: MonthlyStat) => {
+    const k = monthKey(m)
+    setExcludedMonths(prev => {
+      const next = new Set(prev)
+      next.has(k) ? next.delete(k) : next.add(k)
+      return next
+    })
+  }
 
   // Top 3 months by partMK (conciergerie) or totalNet (sous-location)
   const sortedByRevenue = [...activeMonths].sort((a, b) =>
@@ -347,7 +358,17 @@ export default function PropertyDetailPage() {
           <h2 className="text-white font-semibold text-lg">Revenus mensuels</h2>
           {activeMonths.length > 0 && (
             <>
-              <span className="text-gray-500 text-sm">{activeMonths.length} mois</span>
+              <span className="text-gray-500 text-sm">
+                {excludedMonths.size > 0
+                  ? <>{includedMonths.length}/{activeMonths.length} mois sélectionnés</>
+                  : <>{activeMonths.length} mois</>}
+              </span>
+              {excludedMonths.size > 0 && (
+                <button onClick={() => setExcludedMonths(new Set())}
+                  className="text-xs px-2 py-1 rounded-lg bg-[#D4AF37]/10 text-[#D4AF37] hover:bg-[#D4AF37]/20 transition-all">
+                  Réinitialiser
+                </button>
+              )}
               <button
                 onClick={() => setPrintRevenuesOpen(true)}
                 className="ml-auto flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-white/[0.08] text-white/40 hover:text-white/70 hover:bg-white/5 transition-all"
@@ -371,6 +392,7 @@ export default function PropertyDetailPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-gray-400 text-xs border-b border-white/[0.06]">
+                    <th className="pb-3 pr-2 w-6"></th>
                     <th className="text-left pb-3 pr-4 font-medium">Mois</th>
                     <th className="text-right pb-3 pr-4 font-medium">Brut</th>
                     <th className="text-right pb-3 pr-4 font-medium">Ménage</th>
@@ -388,8 +410,16 @@ export default function PropertyDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.04]">
-                  {activeMonths.map((m) => (
-                    <tr key={`${m.year}-${m.month}`} className="hover:bg-white/[0.02] transition-colors">
+                  {activeMonths.map((m) => {
+                    const excluded = excludedMonths.has(monthKey(m))
+                    return (
+                    <tr key={`${m.year}-${m.month}`} className={`transition-colors ${excluded ? 'opacity-35' : 'hover:bg-white/[0.02]'}`}>
+                      <td className="py-3 pr-2">
+                        <button onClick={() => toggleMonth(m)}
+                          className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${excluded ? 'border-gray-600 bg-transparent' : 'border-[#D4AF37] bg-[#D4AF37]'}`}>
+                          {!excluded && <Check className="w-2.5 h-2.5 text-black" strokeWidth={3} />}
+                        </button>
+                      </td>
                       <td className="py-3 pr-4 text-white font-medium">{m.label}</td>
                       <td className="py-3 pr-4 text-right text-gray-200">{formatCurrency(m.totalGross)}</td>
                       <td className="py-3 pr-4 text-right text-gray-400">{formatCurrency(m.totalCleaning)}</td>
@@ -426,19 +456,19 @@ export default function PropertyDetailPage() {
                         )}
                       </td>
                     </tr>
-                  ))}
+                  )})}
+
                 </tbody>
                 {/* Totals / averages row */}
-                {activeMonths.length > 1 && (() => {
-                  const totGross    = activeMonths.reduce((s, m) => s + m.totalGross, 0)
-                  const totCleaning = activeMonths.reduce((s, m) => s + m.totalCleaning, 0)
-                  const totNet      = activeMonths.reduce((s, m) => s + m.totalNet, 0)
-                  const totMK       = activeMonths.reduce((s, m) => s + m.totalPartMK, 0)
-                  const totProprio  = activeMonths.reduce((s, m) => s + m.totalPartProprio, 0)
-                  const totSejours  = activeMonths.reduce((s, m) => s + m.nbSejours, 0)
-                  const totNuits    = activeMonths.reduce((s, m) => s + m.nbNuits, 0)
-                  // Moyennes pondérées sur les mois avec des nuits renseignées
-                  const moisAvecNuits = activeMonths.filter(m => m.nbNuits > 0)
+                {includedMonths.length > 1 && (() => {
+                  const totGross    = includedMonths.reduce((s, m) => s + m.totalGross, 0)
+                  const totCleaning = includedMonths.reduce((s, m) => s + m.totalCleaning, 0)
+                  const totNet      = includedMonths.reduce((s, m) => s + m.totalNet, 0)
+                  const totMK       = includedMonths.reduce((s, m) => s + m.totalPartMK, 0)
+                  const totProprio  = includedMonths.reduce((s, m) => s + m.totalPartProprio, 0)
+                  const totSejours  = includedMonths.reduce((s, m) => s + m.nbSejours, 0)
+                  const totNuits    = includedMonths.reduce((s, m) => s + m.nbNuits, 0)
+                  const moisAvecNuits = includedMonths.filter(m => m.nbNuits > 0)
                   const totNuitsAvg  = moisAvecNuits.reduce((s, m) => s + m.nbNuits, 0)
                   const totDaysAvg   = moisAvecNuits.reduce((s, m) => s + m.daysInMonth, 0)
                   const totNetAvg    = moisAvecNuits.reduce((s, m) => s + m.totalNet, 0)
@@ -447,7 +477,9 @@ export default function PropertyDetailPage() {
                   return (
                     <tfoot>
                       <tr className="border-t border-[#D4AF37]/20">
-                        <td className="pt-3 pr-4 text-gray-400 text-xs font-semibold uppercase tracking-wide">Total</td>
+                        <td colSpan={2} className="pt-3 pr-4 text-gray-400 text-xs font-semibold uppercase tracking-wide">
+                          {excludedMonths.size > 0 ? `Sélection (${includedMonths.length} mois)` : 'Total'}
+                        </td>
                         <td className="pt-3 pr-4 text-right text-[#D4AF37] font-bold">{formatCurrency(totGross)}</td>
                         <td className="pt-3 pr-4 text-right text-gray-400 font-medium">{formatCurrency(totCleaning)}</td>
                         <td className="pt-3 pr-4 text-right text-white font-bold">{formatCurrency(totNet)}</td>
@@ -474,7 +506,10 @@ export default function PropertyDetailPage() {
                       </tr>
                       <tr>
                         <td colSpan={isConciergerie ? 10 : 8} className="pt-1 pb-0">
-                          <p className="text-gray-600 text-xs text-right">Taux occup. et prix/nuit = moyennes sur {moisAvecNuits.length} mois avec données</p>
+                          <p className="text-gray-600 text-xs text-right">
+                            Taux occup. et prix/nuit = moyennes sur {moisAvecNuits.length} mois avec données
+                            {excludedMonths.size > 0 && ` · ${excludedMonths.size} mois exclus`}
+                          </p>
                         </td>
                       </tr>
                     </tfoot>

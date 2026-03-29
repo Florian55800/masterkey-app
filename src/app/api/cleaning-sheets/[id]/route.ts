@@ -1,9 +1,14 @@
 export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { writeFile, unlink } from 'fs/promises'
+import { writeFile, unlink, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
+
+// In standalone Docker, public is always at /app/public
+const PUBLIC_DIR = process.env.NODE_ENV === 'production'
+  ? '/app/public'
+  : join(process.cwd(), 'public')
 
 function toRows(rs: { columns: string[]; rows: unknown[][] }): Record<string, unknown>[] {
   return rs.rows.map((row) => {
@@ -95,8 +100,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (file.size > 50 * 1024 * 1024) return NextResponse.json({ error: 'Fichier trop lourd (max 50MB)' }, { status: 400 })
 
     const filename = `${randomUUID()}.${ext}`
-    const uploadDir = join(process.cwd(), 'public', 'uploads', 'cleaning')
-    const { mkdir } = require('fs/promises')
+    const uploadDir = join(PUBLIC_DIR, 'uploads', 'cleaning')
     await mkdir(uploadDir, { recursive: true })
     const bytes = await file.arrayBuffer()
     await writeFile(join(uploadDir, filename), Buffer.from(bytes))
