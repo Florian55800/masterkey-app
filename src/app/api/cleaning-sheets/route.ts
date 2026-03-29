@@ -1,0 +1,124 @@
+export const dynamic = 'force-dynamic'
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { randomUUID } from 'crypto'
+
+export const DEFAULT_CHECKLIST = [
+  { id: 'photos-avant',  label: 'Prendre des photos AVANT le ménage',          isDefault: true },
+  { id: 'turno',         label: 'Accepter la mission sur Turno',                isDefault: true },
+  { id: 'draps',         label: 'Changer tous les draps et taies d\'oreiller',  isDefault: true },
+  { id: 'serviettes',    label: 'Changer toutes les serviettes',                isDefault: true },
+  { id: 'cuisine',       label: 'Nettoyer la cuisine (four, plaques, frigo)',   isDefault: true },
+  { id: 'sdb',           label: 'Nettoyer la/les salle(s) de bain',             isDefault: true },
+  { id: 'aspirateur',    label: 'Passer l\'aspirateur partout',                 isDefault: true },
+  { id: 'serpilliere',   label: 'Passer la serpillière',                        isDefault: true },
+  { id: 'poubelles',     label: 'Vider toutes les poubelles',                   isDefault: true },
+  { id: 'consommables',  label: 'Vérifier les consommables (PQ, savon, gel)',   isDefault: true },
+  { id: 'radiateurs',    label: 'Éteindre tous les radiateurs',                 isDefault: true },
+  { id: 'lumieres',      label: 'Éteindre toutes les lumières',                 isDefault: true },
+  { id: 'fenetres',      label: 'Fermer toutes les fenêtres',                   isDefault: true },
+  { id: 'photos-apres',  label: 'Prendre des photos APRÈS le ménage',           isDefault: true },
+]
+
+function toRows(rs: { columns: string[]; rows: unknown[][] }): Record<string, unknown>[] {
+  return rs.rows.map((row) => {
+    const obj: Record<string, unknown> = {}
+    rs.columns.forEach((col, i) => { obj[col] = (row as unknown[])[i] })
+    return obj
+  })
+}
+
+function parseSheet(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    propertyId: row.propertyId,
+    instructions: row.instructions ?? '',
+    checklist: row.checklist ? JSON.parse(row.checklist as string) : DEFAULT_CHECKLIST,
+    mediaUrls: row.mediaUrls ? JSON.parse(row.mediaUrls as string) : [],
+    shareToken: row.shareToken,
+    createdAt: row.createdAt,
+    propertyName: row.propertyName ?? null,
+    staffName: row.staffName ?? null,
+    staffPhone: row.staffPhone ?? null,
+    propertyAddress: row.propertyAddress ?? null,
+    propertyCity: row.propertyCity ?? null,
+  }
+}
+
+export async function GET() {
+  try {
+    if (process.env.TURSO_DATABASE_URL) {
+      const { createClient } = require('@libsql/client')
+      const client = createClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN })
+      try {
+        const rs = await client.execute(`
+          SELECT cs.*, p.name as propertyName, p.address as propertyAddress, p.city as propertyCity,
+                 s.name as staffName, s.phone as staffPhone
+          FROM CleaningSheet cs
+          LEFT JOIN Property p ON p.id = cs.propertyId
+          LEFT JOIN Staff s ON s.id = p.staffId
+          ORDER BY cs.createdAt DESC
+        `)
+        return NextResponse.json(toRows(rs).map(parseSheet))
+      } finally { client.close() }
+    }
+    const sheets = await prisma.cleaningSheet.findMany({
+      include: { property: { include: { staff: true } } },
+      orderBy: { createdAt: 'desc' },
+    })
+    return NextResponse.json(sheets.map(s => ({
+      ...s,
+      checklist: JSON.parse(s.checklist),
+      mediaUrls: JSON.parse(s.mediaUrls),
+      propertyName: s.property.name,
+      propertyAddress: s.property.address,
+      propertyCity: s.property.city,
+      staffName: s.property.staff?.name ?? null,
+      staffPhone: s.property.staff?.phone ?? null,
+    })))
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 })
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { propertyId } = await req.json()
+    const shareToken = randomUUID().replace(/-/g, '')
+    const checklistJson = JSON.stringify(DEFAULT_CHECKLIST)
+    const now = new Date().toISOString()
+
+    if (process.env.TURSO_DATABASE_URL) {
+      const { createClient } = require('@libsql/client')
+      const client = createClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN })
+      try {
+        await client.execute({
+          sql: `INSERT INTO CleaningSheet (propertyId, checklist, mediaUrls, shareToken, createdAt, updatedAt)
+                VALUES (?, ?, '[]', ?, ?, ?)
+                ON CONFLICT(propertyId) DO NOTHING`,
+          args: [propertyId, checklistJson, shareToken, now, now],
+        })
+        const rs = await client.execute({ sql: `SELECT cs.*, p.name as propertyName, p.address as propertyAddress, p.city as propertyCity, s.name as staffName, s.phone as staffPhone FROM CleaningSheet cs LEFT JOIN Property p ON p.id = cs.propertyId LEFT JOIN Staff s ON s.id = p.staffId WHERE cs.propertyId = ?`, args: [propertyId] })
+        return NextResponse.json(parseSheet(toRows(rs)[0]), { status: 201 })
+      } finally { client.close() }
+    }
+    const sheet = await prisma.cleaningSheet.upsert({
+      where: { propertyId },
+      create: { propertyId, checklist: checklistJson, shareToken },
+      update: {},
+      include: { property: { include: { staff: true } } },
+    })
+    return NextResponse.json({
+      ...sheet,
+      checklist: JSON.parse(sheet.checklist),
+      mediaUrls: JSON.parse(sheet.mediaUrls),
+      propertyName: sheet.property.name,
+      propertyAddress: sheet.property.address,
+      propertyCity: sheet.property.city,
+      staffName: sheet.property.staff?.name ?? null,
+      staffPhone: sheet.property.staff?.phone ?? null,
+    }, { status: 201 })
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 })
+  }
+}

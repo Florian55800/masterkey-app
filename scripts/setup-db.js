@@ -273,6 +273,16 @@ async function setup() {
 
   // Migrations (colonnes ajoutées après le déploiement initial)
   const migrations = [
+    `CREATE TABLE IF NOT EXISTS "CleaningSheet" (
+      "id"           INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
+      "propertyId"   INTEGER  NOT NULL UNIQUE REFERENCES "Property"("id") ON DELETE CASCADE,
+      "instructions" TEXT,
+      "checklist"    TEXT     NOT NULL DEFAULT '[]',
+      "mediaUrls"    TEXT     NOT NULL DEFAULT '[]',
+      "shareToken"   TEXT     NOT NULL UNIQUE,
+      "createdAt"    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt"    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE TABLE IF NOT EXISTS "OnboardingSession" (
       "id"        TEXT     NOT NULL PRIMARY KEY,
       "name"      TEXT     NOT NULL,
