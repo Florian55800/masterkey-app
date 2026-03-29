@@ -116,6 +116,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         const rows = toRows(rs)
         const current: string[] = rows[0]?.mediaUrls ? JSON.parse(rows[0].mediaUrls as string) : []
         await client.execute({ sql: `UPDATE CleaningSheet SET mediaUrls = ?, updatedAt = ? WHERE id = ?`, args: [JSON.stringify([...current, url]), now, Number(params.id)] })
+      } catch (dbErr) {
+        console.error('[upload] DB update failed:', dbErr)
+        // Still return the url — file was saved to disk
       } finally { client.close() }
     }
     return NextResponse.json({ url })

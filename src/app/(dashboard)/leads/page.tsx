@@ -98,6 +98,7 @@ export default function LeadsPage() {
   const [editingLead, setEditingLead] = useState<Lead | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [openPopoverId, setOpenPopoverId] = useState<number | null>(null)
 
@@ -171,7 +172,7 @@ export default function LeadsPage() {
     setVisits(v => v.filter(x => x.id !== id))
   }
 
-  const openCreate = () => { setEditingLead(null); setForm(emptyForm); setIsModalOpen(true) }
+  const openCreate = () => { setEditingLead(null); setForm(emptyForm); setSaveError(null); setIsModalOpen(true) }
   const openEdit = (lead: Lead) => {
     setEditingLead(lead)
     setForm({
@@ -191,15 +192,23 @@ export default function LeadsPage() {
   const handleSave = async () => {
     if (!form.nom) return
     setSaving(true)
-    const url = editingLead ? `/api/leads/${editingLead.id}` : '/api/leads'
-    const method = editingLead ? 'PUT' : 'POST'
-    const payload = { ...form, statuts: form.statuts.length > 0 ? form.statuts : [form.statut] }
-    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-    if (res.ok) {
-      const data = await res.json()
-      if (editingLead) setLeads(l => l.map(x => x.id === data.id ? data : x))
-      else setLeads(l => [data, ...l])
-      setIsModalOpen(false)
+    setSaveError(null)
+    try {
+      const url = editingLead ? `/api/leads/${editingLead.id}` : '/api/leads'
+      const method = editingLead ? 'PUT' : 'POST'
+      const payload = { ...form, statuts: form.statuts.length > 0 ? form.statuts : [form.statut] }
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      if (res.ok) {
+        const data = await res.json()
+        if (editingLead) setLeads(l => l.map(x => x.id === data.id ? data : x))
+        else setLeads(l => [data, ...l])
+        setIsModalOpen(false)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setSaveError(data.error || 'Erreur lors de l\'enregistrement')
+      }
+    } catch {
+      setSaveError('Erreur réseau, réessayez')
     }
     setSaving(false)
   }
@@ -587,6 +596,7 @@ export default function LeadsPage() {
               className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40 resize-none" />
           </div>
 
+          {saveError && <p className="text-red-400 text-sm text-center">{saveError}</p>}
           <div className="flex gap-3 pt-2">
             <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="flex-1">Annuler</Button>
             <Button onClick={handleSave} disabled={saving} className="flex-1">{saving ? 'Enregistrement...' : 'Enregistrer'}</Button>
