@@ -39,7 +39,10 @@ export async function POST(req: NextRequest) {
         relanceNote: body.relanceNote || null,
       },
     })
-    return NextResponse.json(lead)
+    return NextResponse.json({
+      ...lead,
+      statuts: lead.statuts ? JSON.parse(lead.statuts) : [lead.statut],
+    })
   } catch (error) {
     console.error('Lead create error:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
