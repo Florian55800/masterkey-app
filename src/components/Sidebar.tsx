@@ -21,6 +21,7 @@ import {
   ClipboardList,
   CalendarDays,
   GripVertical,
+  BookOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -44,13 +45,14 @@ const DEFAULT_NAV = [
   { href: '/leads', label: 'Leads', icon: 'UserSearch' },
   { href: '/onboarding', label: 'Onboarding', icon: 'ClipboardList' },
   { href: '/personnel', label: 'Personnel', icon: 'Briefcase' },
+  { href: '/livrets', label: 'Livrets d\'accueil', icon: 'BookOpen' },
   { href: '/parametres', label: 'Paramètres', icon: 'Settings' },
 ]
 
 const ICON_MAP: Record<string, React.ElementType> = {
   LayoutDashboard, CalendarDays, Receipt, FileBarChart, Building2,
   Users, TrendingUp, Target, CreditCard, UserSearch, ClipboardList,
-  Briefcase, Settings,
+  Briefcase, Settings, BookOpen,
 }
 
 // Items shown directly in the bottom bar (most used)

@@ -295,6 +295,25 @@ async function setup() {
     `ALTER TABLE "Property" ADD COLUMN "staffId"     INTEGER`,
     `ALTER TABLE "Property" ADD COLUMN "lodgifyId"   INTEGER`,
     `ALTER TABLE "Lead"     ADD COLUMN "statuts"     TEXT`,
+    `CREATE TABLE IF NOT EXISTS "WelcomeGuide" (
+      "id"             INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
+      "propertyId"     INTEGER  NOT NULL UNIQUE,
+      "shareToken"     TEXT     NOT NULL UNIQUE,
+      "welcomeMessage" TEXT,
+      "wifiName"       TEXT,
+      "wifiPassword"   TEXT,
+      "keyCode"        TEXT,
+      "checkIn"        TEXT,
+      "checkOut"       TEXT,
+      "houseRules"     TEXT     NOT NULL DEFAULT '[]',
+      "restaurants"    TEXT     NOT NULL DEFAULT '[]',
+      "activities"     TEXT     NOT NULL DEFAULT '[]',
+      "customSections" TEXT     NOT NULL DEFAULT '[]',
+      "mediaUrls"      TEXT     NOT NULL DEFAULT '[]',
+      "createdAt"      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt"      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY ("propertyId") REFERENCES "Property"("id") ON DELETE CASCADE
+    )`,
   ]
   for (const sql of migrations) {
     try {

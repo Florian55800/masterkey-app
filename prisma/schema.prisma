@@ -76,6 +76,7 @@ model Property {
   subletExpenses SubletExpense[]
   advances       Advance[]
   cleaningSheet  CleaningSheet?
+  welcomeGuide   WelcomeGuide?
 }
 
 model PropertyRevenue {
@@ -227,6 +228,26 @@ model CleaningSheet {
   shareToken   String   @unique @default(cuid())
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model WelcomeGuide {
+  id             Int      @id @default(autoincrement())
+  propertyId     Int      @unique
+  property       Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  shareToken     String   @unique @default(cuid())
+  welcomeMessage String?
+  wifiName       String?
+  wifiPassword   String?
+  keyCode        String?
+  checkIn        String?
+  checkOut       String?
+  houseRules     String   @default("[]")
+  restaurants    String   @default("[]")
+  activities     String   @default("[]")
+  customSections String   @default("[]")
+  mediaUrls      String   @default("[]")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model OnboardingSession {
