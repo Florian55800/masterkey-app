@@ -106,20 +106,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     await writeFile(join(uploadDir, filename), Buffer.from(bytes))
     const url = `/uploads/cleaning/${filename}`
 
-    // Append to mediaUrls
-    const now = new Date().toISOString()
-    if (process.env.TURSO_DATABASE_URL) {
-      const { createClient } = require('@libsql/client')
-      const client = createClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN })
-      try {
-        const rs = await client.execute({ sql: `SELECT mediaUrls FROM CleaningSheet WHERE id = ?`, args: [Number(params.id)] })
-        const rows = toRows(rs)
-        const current: string[] = rows[0]?.mediaUrls ? JSON.parse(rows[0].mediaUrls as string) : []
-        await client.execute({ sql: `UPDATE CleaningSheet SET mediaUrls = ?, updatedAt = ? WHERE id = ?`, args: [JSON.stringify([...current, url]), now, Number(params.id)] })
-      } catch (dbErr) {
-        console.error('[upload] DB update failed:', dbErr)
-        // Still return the url — file was saved to disk
-      } finally { client.close() }
+    // Append to mediaUrls — always via Prisma (works with both libsql adapter and local SQLite)
+    const sheet = await (prisma.cleaningSheet as any).findUnique({ where: { id: Number(params.id) } })
+    if (sheet) {
+      const current: string[] = sheet.mediaUrls ? JSON.parse(sheet.mediaUrls) : []
+      await (prisma.cleaningSheet as any).update({
+        where: { id: Number(params.id) },
+        data: { mediaUrls: JSON.stringify([...current, url]) },
+      })
     }
     return NextResponse.json({ url })
   } catch (e) {
