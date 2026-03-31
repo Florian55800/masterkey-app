@@ -195,15 +195,16 @@ export default function LivretsPage() {
       const fd = new FormData()
       fd.append('file', file)
       const res = await fetch(`/api/welcome-guides/${activeGuide.id}`, { method: 'POST', body: fd })
+      if (res.status === 413) { setUploadError('Fichier trop lourd pour le serveur (limite nginx)'); return }
       const data = await res.json()
       if (data.url) {
         const newUrls = [...(draft.mediaUrls ?? []), data.url]
         setDraft(prev => ({ ...prev, mediaUrls: newUrls }))
       } else {
-        setUploadError(data.error ?? 'Erreur lors de l\'upload')
+        setUploadError(data.error ?? `Erreur ${res.status}`)
       }
-    } catch {
-      setUploadError('Erreur réseau')
+    } catch (e) {
+      setUploadError(`Erreur: ${String(e)}`)
     } finally {
       setUploadingPhoto(false)
     }

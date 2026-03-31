@@ -100,11 +100,12 @@ function FicheEditor({ sheet, onClose }: { sheet: CleaningSheet; onClose: () => 
       const fd = new FormData()
       fd.append('file', file)
       const res = await fetch(`/api/cleaning-sheets/${sheet.id}`, { method: 'POST', body: fd })
+      if (res.status === 413) { setUploadError('Fichier trop lourd pour le serveur (limite nginx)'); return }
       const data = await res.json()
       if (data.url) setMediaUrls(prev => [...prev, data.url])
-      else setUploadError(data.error ?? 'Erreur lors de l\'upload')
-    } catch {
-      setUploadError('Erreur réseau')
+      else setUploadError(data.error ?? `Erreur ${res.status}`)
+    } catch (e) {
+      setUploadError(`Erreur: ${String(e)}`)
     } finally {
       setUploading(false)
     }
