@@ -52,6 +52,29 @@ const EMPTY_FORM = { name: '', phone: '', email: '', role: 'ménage', notes: '' 
 const VIDEO_EXTS = ['mp4', 'mov', 'avi', 'webm']
 function isVideo(url: string) { return VIDEO_EXTS.includes(url.split('.').pop()?.toLowerCase() ?? '') }
 
+async function compressImage(file: File): Promise<File> {
+  if (!file.type.startsWith('image/')) return file
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const MAX = 1600
+      let { width, height } = img
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round(height * MAX / width); width = MAX }
+        else { width = Math.round(width * MAX / height); height = MAX }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width; canvas.height = height
+      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
+      canvas.toBlob(blob => {
+        resolve(blob ? new File([blob], file.name, { type: 'image/jpeg' }) : file)
+      }, 'image/jpeg', 0.82)
+    }
+    img.onerror = () => resolve(file)
+    img.src = URL.createObjectURL(file)
+  })
+}
+
 // ─── Fiche Ménage Editor ──────────────────────────────────────────────────────
 
 function FicheEditor({ sheet, onClose }: { sheet: CleaningSheet; onClose: () => void }) {
@@ -97,8 +120,9 @@ function FicheEditor({ sheet, onClose }: { sheet: CleaningSheet; onClose: () => 
     setUploading(true)
     setUploadError(null)
     try {
+      const compressed = await compressImage(file)
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', compressed)
       const res = await fetch(`/api/cleaning-sheets/${sheet.id}`, { method: 'POST', body: fd })
       if (res.status === 413) { setUploadError('Fichier trop lourd pour le serveur (limite nginx)'); return }
       const data = await res.json()

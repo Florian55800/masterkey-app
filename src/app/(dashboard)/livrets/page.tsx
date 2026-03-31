@@ -58,6 +58,29 @@ const ACTIVITY_CATEGORIES = ['Plage', 'Randonnée', 'Musée', 'Culture', 'Shoppi
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+async function compressImage(file: File): Promise<File> {
+  if (!file.type.startsWith('image/')) return file
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const MAX = 1600
+      let { width, height } = img
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round(height * MAX / width); width = MAX }
+        else { width = Math.round(width * MAX / height); height = MAX }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width; canvas.height = height
+      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
+      canvas.toBlob(blob => {
+        resolve(blob ? new File([blob], file.name, { type: 'image/jpeg' }) : file)
+      }, 'image/jpeg', 0.82)
+    }
+    img.onerror = () => resolve(file)
+    img.src = URL.createObjectURL(file)
+  })
+}
+
 function inputStyle(extra?: string) {
   return `w-full px-3 py-2 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-[#D4AF37] ${extra ?? ''}`
 }
@@ -192,8 +215,9 @@ export default function LivretsPage() {
     setUploadingPhoto(true)
     setUploadError(null)
     try {
+      const compressed = await compressImage(file)
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', compressed)
       const res = await fetch(`/api/welcome-guides/${activeGuide.id}`, { method: 'POST', body: fd })
       if (res.status === 413) { setUploadError('Fichier trop lourd pour le serveur (limite nginx)'); return }
       const data = await res.json()
