@@ -33,6 +33,8 @@ services:
       TURSO_DATABASE_URL: "http://sqld:8080"
       # sqld sans auth JWT : token vide (le header Bearer est ignoré par sqld)
       TURSO_AUTH_TOKEN: ""
+      # Requis par Prisma au démarrage même avec l'adaptateur libsql
+      DATABASE_URL: "file:/tmp/dummy.db"
       # Remplace par un secret fort en production
       JWT_SECRET: "${JWT_SECRET}"
       LODGIFY_API_KEY: "${LODGIFY_API_KEY}"

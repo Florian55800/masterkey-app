@@ -61,6 +61,7 @@ function FicheEditor({ sheet, onClose }: { sheet: CleaningSheet; onClose: () => 
   const [newTask, setNewTask]           = useState('')
   const [saving, setSaving]             = useState(false)
   const [uploading, setUploading]       = useState(false)
+  const [uploadError, setUploadError]   = useState<string | null>(null)
   const [copied, setCopied]             = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -94,12 +95,19 @@ function FicheEditor({ sheet, onClose }: { sheet: CleaningSheet; onClose: () => 
 
   const uploadFile = async (file: File) => {
     setUploading(true)
-    const fd = new FormData()
-    fd.append('file', file)
-    const res = await fetch(`/api/cleaning-sheets/${sheet.id}`, { method: 'POST', body: fd })
-    const data = await res.json()
-    if (data.url) setMediaUrls(prev => [...prev, data.url])
-    setUploading(false)
+    setUploadError(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch(`/api/cleaning-sheets/${sheet.id}`, { method: 'POST', body: fd })
+      const data = await res.json()
+      if (data.url) setMediaUrls(prev => [...prev, data.url])
+      else setUploadError(data.error ?? 'Erreur lors de l\'upload')
+    } catch {
+      setUploadError('Erreur réseau')
+    } finally {
+      setUploading(false)
+    }
   }
 
   const removeMedia = async (url: string) => {
@@ -197,6 +205,7 @@ function FicheEditor({ sheet, onClose }: { sheet: CleaningSheet; onClose: () => 
             <p className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-2">Photos & vidéos de référence</p>
             <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden"
               onChange={e => { const f = e.target.files?.[0]; if (f) uploadFile(f); e.target.value = '' }} />
+            {uploadError && <p className="text-red-400 text-xs mb-2">{uploadError}</p>}
             {mediaUrls.length > 0 && (
               <div className="grid grid-cols-3 gap-2 mb-3">
                 {mediaUrls.map((url, i) => (

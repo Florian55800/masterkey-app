@@ -83,6 +83,7 @@ export default function LivretsPage() {
   const [copied, setCopied] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Draft state for edit panel
@@ -189,6 +190,7 @@ export default function LivretsPage() {
   async function uploadPhoto(file: File) {
     if (!activeGuide) return
     setUploadingPhoto(true)
+    setUploadError(null)
     try {
       const fd = new FormData()
       fd.append('file', file)
@@ -197,9 +199,11 @@ export default function LivretsPage() {
       if (data.url) {
         const newUrls = [...(draft.mediaUrls ?? []), data.url]
         setDraft(prev => ({ ...prev, mediaUrls: newUrls }))
+      } else {
+        setUploadError(data.error ?? 'Erreur lors de l\'upload')
       }
-    } catch (e) {
-      console.error(e)
+    } catch {
+      setUploadError('Erreur réseau')
     } finally {
       setUploadingPhoto(false)
     }
@@ -852,6 +856,7 @@ export default function LivretsPage() {
                     <span>{uploadingPhoto ? 'Envoi en cours...' : 'Cliquez pour ajouter des photos / vidéos'}</span>
                     <span className="text-xs text-white/25">JPG, PNG, GIF, WebP, MP4 — max 50MB</span>
                   </button>
+                  {uploadError && <p className="text-red-400 text-xs mt-2 text-center">{uploadError}</p>}
 
                   {(draft.mediaUrls ?? []).length > 0 && (
                     <div className="grid grid-cols-2 gap-3 mt-4">
