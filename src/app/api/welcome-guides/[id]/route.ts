@@ -66,7 +66,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       } finally { client.close() }
     }
     const where = isToken ? { shareToken: params.id } : { id: Number(params.id) }
-    const guide = await (prisma.welcomeGuide as any).findUnique({ where, include: { property: true } })
+    const guide = await (prisma as any).welcomeGuide.findUnique({ where, include: { property: true } })
     if (!guide) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     return NextResponse.json({
       ...guide,
@@ -125,7 +125,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         return NextResponse.json({ success: true })
       } finally { client.close() }
     }
-    await (prisma.welcomeGuide as any).update({
+    await (prisma as any).welcomeGuide.update({
       where: { id: Number(params.id) },
       data: {
         welcomeMessage: welcomeMessage ?? null,
@@ -167,10 +167,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const url = `/uploads/welcome/${filename}`
 
     // Append to mediaUrls — always via Prisma (works with both libsql adapter and local SQLite)
-    const guide = await (prisma.welcomeGuide as any).findUnique({ where: { id: Number(params.id) } })
+    const guide = await (prisma as any).welcomeGuide.findUnique({ where: { id: Number(params.id) } })
     if (guide) {
       const current: string[] = guide.mediaUrls ? JSON.parse(guide.mediaUrls) : []
-      await (prisma.welcomeGuide as any).update({
+      await (prisma as any).welcomeGuide.update({
         where: { id: Number(params.id) },
         data: { mediaUrls: JSON.stringify([...current, url]) },
       })
@@ -201,11 +201,11 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
         })
       } finally { client.close() }
     } else {
-      const guide = await (prisma.welcomeGuide as any).findUnique({ where: { id: Number(params.id) } })
+      const guide = await (prisma as any).welcomeGuide.findUnique({ where: { id: Number(params.id) } })
       if (guide) {
         const current: string[] = JSON.parse(guide.mediaUrls)
         const updated = current.filter(u => u !== url)
-        await (prisma.welcomeGuide as any).update({
+        await (prisma as any).welcomeGuide.update({
           where: { id: Number(params.id) },
           data: { mediaUrls: JSON.stringify(updated) },
         })

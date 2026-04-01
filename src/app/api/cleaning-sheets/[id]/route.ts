@@ -45,7 +45,7 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       } finally { client.close() }
     }
     const where = isToken ? { shareToken: params.id } : { id: Number(params.id) }
-    const sheet = await (prisma.cleaningSheet as any).findUnique({ where, include: { property: { include: { staff: true } } } })
+    const sheet = await (prisma as any).cleaningSheet.findUnique({ where, include: { property: { include: { staff: true } } } })
     if (!sheet) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     return NextResponse.json({
       ...sheet,
@@ -77,7 +77,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         return NextResponse.json({ success: true })
       } finally { client.close() }
     }
-    await (prisma.cleaningSheet as any).update({
+    await (prisma as any).cleaningSheet.update({
       where: { id: Number(params.id) },
       data: { instructions, checklist: JSON.stringify(checklist), mediaUrls: JSON.stringify(mediaUrls ?? []) },
     })
@@ -107,10 +107,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const url = `/uploads/cleaning/${filename}`
 
     // Append to mediaUrls — always via Prisma (works with both libsql adapter and local SQLite)
-    const sheet = await (prisma.cleaningSheet as any).findUnique({ where: { id: Number(params.id) } })
+    const sheet = await (prisma as any).cleaningSheet.findUnique({ where: { id: Number(params.id) } })
     if (sheet) {
       const current: string[] = sheet.mediaUrls ? JSON.parse(sheet.mediaUrls) : []
-      await (prisma.cleaningSheet as any).update({
+      await (prisma as any).cleaningSheet.update({
         where: { id: Number(params.id) },
         data: { mediaUrls: JSON.stringify([...current, url]) },
       })

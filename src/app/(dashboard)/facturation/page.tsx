@@ -649,167 +649,114 @@ function fmt(n: number) {
 
 async function downloadPDF(property: Property, revenues: PropertyRevenue[], month: number, year: number) {
   const { default: jsPDF } = await import('jspdf')
-  const { default: autoTable } = await import('jspdf-autotable')
-
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const totals = propertyTotals(revenues)
-  const totalSejours = revenues.reduce((s, r) => s + (r.nbSejours || 0), 0)
-  const totalNuits   = revenues.reduce((s, r) => s + (r.nbNuits   || 0), 0)
   const today = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
-  const W = 210, margin = 14, contentW = W - 2 * margin
-  let y = margin
+  const W = 210, mg = 14, cW = W - mg * 2
+  let y = 0
 
-  // ── Bande dorée haut ──────────────────────────────────────────────────────
-  doc.setFillColor(212, 175, 55)
-  doc.rect(0, 0, W, 1.5, 'F')
+  const text  = (t: string, x: number, yy: number, opts?: { align?: 'left'|'right'|'center', maxWidth?: number }) => doc.text(t, x, yy, opts)
+  const font  = (style: 'normal'|'bold', size: number) => { doc.setFont('helvetica', style); doc.setFontSize(size) }
+  const color = (r: number, g: number, b: number) => doc.setTextColor(r, g, b)
+  const fill  = (r: number, g: number, b: number) => doc.setFillColor(r, g, b)
+  const stroke= (r: number, g: number, b: number) => doc.setDrawColor(r, g, b)
 
-  // ── En-tête ───────────────────────────────────────────────────────────────
-  y = 10
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(22)
-  doc.setTextColor(26, 26, 26)
-  doc.text('Master', margin, y)
-  const mkW = doc.getTextWidth('Master')
-  doc.setTextColor(212, 175, 55)
-  doc.text('Key', margin + mkW, y)
+  // bande or haut
+  fill(212,175,55); doc.rect(0,0,W,1.5,'F')
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(160, 160, 160)
-  doc.text('Conciergerie & Gestion Locative', margin, y + 4.5)
+  // header
+  y = 11
+  font('bold', 20); color(26,26,26); text('Master', mg, y)
+  color(212,175,55); text('Key', mg + doc.getTextWidth('Master'), y)
+  font('normal', 8); color(160,160,160); text('Conciergerie & Gestion Locative', mg, y+5)
+  font('bold', 12); color(212,175,55); text(`Relevé — ${MONTHS_FR[month]} ${year}`, W-mg, y, { align:'right' })
+  font('normal', 8); color(160,160,160); text(`Édité le ${today}`, W-mg, y+5, { align:'right' })
 
-  // Période à droite
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13)
-  doc.setTextColor(212, 175, 55)
-  const period = `Relevé — ${MONTHS_FR[month]} ${year}`
-  doc.text(period, W - margin, y, { align: 'right' })
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(160, 160, 160)
-  doc.text(`Édité le ${today}`, W - margin, y + 4.5, { align: 'right' })
+  y += 9; stroke(212,175,55); doc.setLineWidth(0.4); doc.line(mg,y,W-mg,y); y += 6
 
-  // Ligne séparatrice or
-  y += 9
-  doc.setDrawColor(212, 175, 55)
-  doc.setLineWidth(0.5)
-  doc.line(margin, y, W - margin, y)
-  y += 5
-
-  // ── Bloc propriété ────────────────────────────────────────────────────────
-  doc.setFillColor(249, 249, 249)
-  doc.roundedRect(margin, y, contentW, 18, 2, 2, 'F')
-  doc.setDrawColor(232, 232, 232)
-  doc.setLineWidth(0.3)
-  doc.roundedRect(margin, y, contentW, 18, 2, 2, 'S')
-  // Barre gauche dorée
-  doc.setFillColor(212, 175, 55)
-  doc.roundedRect(margin, y, 1.5, 18, 0.5, 0.5, 'F')
-
-  const fields = [
-    { label: 'LOGEMENT', value: property.name },
-    { label: 'ADRESSE', value: `${property.address}, ${property.city}` },
-    { label: 'PROPRIÉTAIRE', value: property.owner.name },
-    { label: 'COMMISSION', value: `${property.commissionRate} %` },
-    ...(totalSejours > 0 ? [{ label: 'ACTIVITÉ', value: `${totalSejours} séj. · ${totalNuits} nuits` }] : []),
+  // bloc propriété
+  fill(249,249,249); stroke(230,230,230); doc.setLineWidth(0.25)
+  doc.roundedRect(mg, y, cW, 20, 2, 2, 'FD')
+  fill(212,175,55); doc.rect(mg, y, 2, 20, 'F')
+  const propFields = [
+    ['LOGEMENT', property.name],
+    ['ADRESSE', `${property.address}, ${property.city}`],
+    ['PROPRIÉTAIRE', property.owner.name],
+    ['COMMISSION', `${property.commissionRate} %`],
   ]
-  const colW = contentW / fields.length
-  fields.forEach((f, i) => {
-    const x = margin + i * colW + 4
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7)
-    doc.setTextColor(180, 180, 180)
-    doc.text(f.label, x, y + 6)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9.5)
-    doc.setTextColor(26, 26, 26)
-    doc.text(f.value, x, y + 13, { maxWidth: colW - 5 })
+  const fw = cW / propFields.length
+  propFields.forEach(([lbl, val], i) => {
+    const x = mg + 3 + i * fw
+    font('bold', 7); color(180,180,180); text(lbl, x, y+7)
+    font('bold', 9); color(26,26,26); text(val, x, y+14, { maxWidth: fw-4 })
   })
-  y += 24
+  y += 25
 
-  // ── Tableau des revenus ───────────────────────────────────────────────────
-  const head = [['Plateforme', 'Montant brut', 'Frais ménage', 'Com. %', 'Base calcul', 'Part MasterKey', 'Part propriétaire']]
-  const body = revenues.map(r => {
-    const { base, partMK, partProprio } = calcRevenue(r)
-    return [
-      PLATFORM_LABELS[r.platform] ?? r.platform,
-      fmt(r.platformAmount),
-      r.cleaningFees > 0 ? fmt(r.cleaningFees) : '—',
-      `${r.commissionRate} %`,
-      fmt(base),
-      fmt(partMK),
-      fmt(partProprio),
-    ]
+  // tableau header
+  const cols = ['Plateforme','Montant brut','Frais ménage','Com. %','Base calcul','Part MasterKey','Part propriétaire']
+  const colWidths = [28, 26, 26, 17, 26, 29, 30]
+  const rowH = 8
+
+  fill(26,26,26); doc.rect(mg, y, cW, rowH, 'F')
+  font('bold', 7.5); color(255,255,255)
+  let cx = mg + 2
+  cols.forEach((c, i) => { text(c, cx + (i>0 ? colWidths[i]-1 : 0), y+5.5, { align: i>0 ? 'right' : 'left' }); cx += colWidths[i] })
+  y += rowH
+
+  // lignes données
+  const allRows = [
+    ...revenues.map(r => {
+      const { base, partMK, partProprio } = calcRevenue(r)
+      return { cells: [PLATFORM_LABELS[r.platform]??r.platform, fmt(r.platformAmount), r.cleaningFees>0?fmt(r.cleaningFees):'—', `${r.commissionRate}%`, fmt(base), fmt(partMK), fmt(partProprio)], isTotal: false }
+    }),
+    { cells: ['TOTAL', fmt(totals.platformAmount), fmt(totals.cleaningFees), '', fmt(totals.base), fmt(totals.partMK), fmt(totals.partProprio)], isTotal: true },
+  ]
+  allRows.forEach((row, ri) => {
+    const bg = row.isTotal ? [240,240,240] : ri%2===0 ? [255,255,255] : [250,250,250]
+    fill(bg[0],bg[1],bg[2]); stroke(230,230,230); doc.setLineWidth(0.15)
+    doc.rect(mg, y, cW, rowH, 'FD')
+    cx = mg + 2
+    row.cells.forEach((cell, ci) => {
+      font(row.isTotal||ci===0?'bold':'normal', 8.5)
+      if (ci===5) color(146,112,10)
+      else if (ci===6) color(22,101,52)
+      else if (ci>=2&&ci<=3) color(130,130,130)
+      else color(26,26,26)
+      text(cell, cx+(ci>0?colWidths[ci]-1:0), y+5.5, { align:ci>0?'right':'left' })
+      cx += colWidths[ci]
+    })
+    y += rowH
   })
-  body.push(['TOTAL', fmt(totals.platformAmount), fmt(totals.cleaningFees), '', fmt(totals.base), fmt(totals.partMK), fmt(totals.partProprio)])
+  y += 6
 
-  autoTable(doc, {
-    head,
-    body,
-    startY: y,
-    theme: 'grid',
-    styles: { font: 'helvetica', fontSize: 9, cellPadding: 3.5, valign: 'middle' },
-    headStyles: { fillColor: [26, 26, 26], textColor: 255, fontStyle: 'bold', fontSize: 8 },
-    columnStyles: {
-      0: { fontStyle: 'bold' },
-      1: { halign: 'right' },
-      2: { halign: 'right', textColor: [136, 136, 136] },
-      3: { halign: 'right', textColor: [136, 136, 136] },
-      4: { halign: 'right' },
-      5: { halign: 'right', textColor: [146, 112, 10], fontStyle: 'bold' },
-      6: { halign: 'right', textColor: [22, 101, 52], fontStyle: 'bold' },
-    },
-    didParseCell: (data) => {
-      if (data.row.index === body.length - 1) {
-        data.cell.styles.fillColor = [245, 245, 245]
-        data.cell.styles.fontStyle = 'bold'
-        data.cell.styles.fontSize = 9.5
-      }
-    },
-  })
-
-  y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8
-
-  // ── Cartes synthèse ───────────────────────────────────────────────────────
+  // cartes synthèse
   const cards = [
-    { label: 'Total facturé',    value: fmt(totals.platformAmount), bg: [245,245,245] as [number,number,number], fg: [26,26,26] as [number,number,number] },
-    { label: 'Frais ménage',     value: fmt(totals.cleaningFees),   bg: [245,245,245] as [number,number,number], fg: [26,26,26] as [number,number,number] },
-    { label: 'Base commission',  value: fmt(totals.base),           bg: [245,245,245] as [number,number,number], fg: [26,26,26] as [number,number,number] },
-    { label: 'Part MasterKey',   value: fmt(totals.partMK),         bg: [255,251,235] as [number,number,number], fg: [146,112,10] as [number,number,number] },
-    { label: 'Part propriétaire',value: fmt(totals.partProprio),    bg: [240,253,244] as [number,number,number], fg: [22,101,52] as [number,number,number] },
-  ]
-  const cardW = contentW / cards.length - 2
-  cards.forEach((c, i) => {
-    const x = margin + i * (cardW + 2)
-    doc.setFillColor(...c.bg)
-    doc.roundedRect(x, y, cardW, 16, 2, 2, 'F')
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(7)
-    doc.setTextColor(160, 160, 160)
-    doc.text(c.label.toUpperCase(), x + cardW / 2, y + 5, { align: 'center' })
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.setTextColor(...c.fg)
-    doc.text(c.value, x + cardW / 2, y + 12, { align: 'center' })
+    { lbl:'Total facturé',    val:fmt(totals.platformAmount), bg:[245,245,245], fg:[26,26,26] },
+    { lbl:'Frais ménage',     val:fmt(totals.cleaningFees),   bg:[245,245,245], fg:[26,26,26] },
+    { lbl:'Base commission',  val:fmt(totals.base),           bg:[245,245,245], fg:[26,26,26] },
+    { lbl:'Part MasterKey',   val:fmt(totals.partMK),         bg:[255,251,235], fg:[146,112,10] },
+    { lbl:'Part propriétaire',val:fmt(totals.partProprio),    bg:[240,253,244], fg:[22,101,52] },
+  ] as { lbl:string; val:string; bg:[number,number,number]; fg:[number,number,number] }[]
+  const cCardW = cW/cards.length - 2
+  cards.forEach((c,i) => {
+    const x = mg + i*(cCardW+2)
+    fill(...c.bg); stroke(220,220,220); doc.setLineWidth(0.2)
+    doc.roundedRect(x, y, cCardW, 17, 2, 2, 'FD')
+    font('normal',7); color(150,150,150); text(c.lbl.toUpperCase(), x+cCardW/2, y+6, {align:'center'})
+    font('bold',10); color(...c.fg); text(c.val, x+cCardW/2, y+13, {align:'center'})
   })
   y += 22
 
-  // ── Pied de page ──────────────────────────────────────────────────────────
-  doc.setDrawColor(230, 230, 230)
-  doc.setLineWidth(0.3)
-  doc.line(margin, y, W - margin, y)
-  y += 4
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.setTextColor(180, 180, 180)
-  doc.text('MasterKey — Conciergerie & Gestion Locative', margin, y)
-  doc.text(`Document confidentiel · ${today}`, W - margin, y, { align: 'right' })
+  // footer
+  stroke(220,220,220); doc.setLineWidth(0.2); doc.line(mg,y,W-mg,y); y+=4
+  font('normal',7.5); color(180,180,180)
+  text('MasterKey — Conciergerie & Gestion Locative', mg, y)
+  text(`Document confidentiel · ${today}`, W-mg, y, {align:'right'})
 
-  // Bande dorée bas
-  doc.setFillColor(212, 175, 55)
-  doc.rect(0, 294.5, W, 1.5, 'F')
+  // bande or bas
+  fill(212,175,55); doc.rect(0,294.5,W,1.5,'F')
 
-  doc.save(`MasterKey_${property.name.replace(/\s+/g, '_')}_${MONTHS_FR[month]}_${year}.pdf`)
+  doc.save(`MasterKey_${property.name.replace(/\s+/g,'_')}_${MONTHS_FR[month]}_${year}.pdf`)
 }
 
 

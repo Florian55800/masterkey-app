@@ -55,7 +55,7 @@ function isVideo(url: string) { return VIDEO_EXTS.includes(url.split('.').pop()?
 async function compressImage(file: File): Promise<File> {
   if (!file.type.startsWith('image/')) return file
   return new Promise((resolve) => {
-    const img = new Image()
+    const img = new window.Image()
     img.onload = () => {
       const MAX = 1600
       let { width, height } = img

@@ -49,7 +49,7 @@ export async function GET() {
         return NextResponse.json(toRows(rs).map(parseGuide))
       } finally { client.close() }
     }
-    const guides = await (prisma.welcomeGuide as any).findMany({
+    const guides = await (prisma as any).welcomeGuide.findMany({
       include: { property: true },
       orderBy: { createdAt: 'desc' },
     })
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(parseGuide(toRows(rs)[0]), { status: 201 })
       } finally { client.close() }
     }
-    const guide = await (prisma.welcomeGuide as any).upsert({
+    const guide = await (prisma as any).welcomeGuide.upsert({
       where: { propertyId },
       create: { propertyId, shareToken },
       update: {},
