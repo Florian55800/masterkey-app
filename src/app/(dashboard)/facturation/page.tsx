@@ -643,6 +643,180 @@ function SubletModal({
 
 // ─── Print Modal ──────────────────────────────────────────────────────────────
 
+function fmt(n: number) {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n)
+}
+
+function buildPdfHtml(property: Property, revenues: PropertyRevenue[], month: number, year: number) {
+  const totals = propertyTotals(revenues)
+  const totalSejours = revenues.reduce((s, r) => s + (r.nbSejours || 0), 0)
+  const totalNuits   = revenues.reduce((s, r) => s + (r.nbNuits   || 0), 0)
+  const today = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
+
+  const rows = revenues.map(r => {
+    const { base, partMK, partProprio } = calcRevenue(r)
+    const platformLabel = PLATFORM_LABELS[r.platform] ?? r.platform
+    const sejInfo = r.nbSejours ? `${r.nbSejours} séj. / ${r.nbNuits} nuits` : '—'
+    return `
+      <tr>
+        <td><span class="badge badge-${r.platform}">${platformLabel}</span></td>
+        <td class="num">${fmt(r.platformAmount)}</td>
+        <td class="num muted">${r.cleaningFees > 0 ? fmt(r.cleaningFees) : '—'}</td>
+        <td class="num muted">${r.commissionRate}&nbsp;%</td>
+        <td class="num">${fmt(base)}</td>
+        <td class="num gold"><strong>${fmt(partMK)}</strong></td>
+        <td class="num green"><strong>${fmt(partProprio)}</strong></td>
+        <td class="muted small">${sejInfo}</td>
+        <td class="muted small italic">${r.notes ?? '—'}</td>
+      </tr>`
+  }).join('')
+
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<title>Rapport ${MONTHS_FR[month]} ${year} — ${property.name}</title>
+<style>
+  @page { size: A4 landscape; margin: 18mm 16mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 11px; color: #1a1a1a; background: #fff; }
+
+  /* ── Header ── */
+  .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 14px; border-bottom: 2px solid #D4AF37; margin-bottom: 18px; }
+  .brand { font-size: 22px; font-weight: 800; color: #D4AF37; letter-spacing: -0.5px; }
+  .brand span { color: #1a1a1a; }
+  .header-right { text-align: right; }
+  .period { font-size: 15px; font-weight: 700; color: #D4AF37; }
+  .meta { font-size: 10px; color: #888; margin-top: 2px; }
+
+  /* ── Property info ── */
+  .property-block { display: flex; gap: 32px; margin-bottom: 18px; background: #f9f9f9; border-radius: 8px; padding: 12px 16px; border-left: 3px solid #D4AF37; }
+  .prop-field label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; color: #aaa; font-weight: 600; display: block; margin-bottom: 2px; }
+  .prop-field span { font-size: 11.5px; font-weight: 600; color: #1a1a1a; }
+
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+  thead tr { background: #1a1a1a; }
+  thead th { color: #fff; font-size: 9.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; padding: 8px 10px; text-align: left; white-space: nowrap; }
+  thead th.num { text-align: right; }
+  tbody tr { border-bottom: 1px solid #f0f0f0; }
+  tbody tr:nth-child(even) { background: #fafafa; }
+  tbody tr:last-child { border-bottom: 2px solid #e0e0e0; }
+  td { padding: 7px 10px; vertical-align: middle; }
+  td.num { text-align: right; }
+  td.muted { color: #888; }
+  td.gold { color: #b8920a; }
+  td.green { color: #1a7a3f; }
+  td.small { font-size: 10px; }
+  td.italic { font-style: italic; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+  .badge-airbnb  { background: #fef2f2; color: #c0392b; border: 1px solid #fecaca; }
+  .badge-booking { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+  .badge-direct  { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+  .badge-autre   { background: #f5f5f5; color: #555; border: 1px solid #e5e5e5; }
+
+  /* ── Totals ── */
+  .totals { display: flex; gap: 12px; margin-bottom: 24px; }
+  .total-card { flex: 1; border-radius: 8px; padding: 12px 14px; }
+  .total-card.neutral { background: #f5f5f5; border: 1px solid #e5e5e5; }
+  .total-card.gold    { background: #fffbeb; border: 1px solid #fde68a; }
+  .total-card.green   { background: #f0fdf4; border: 1px solid #bbf7d0; }
+  .total-card.blue    { background: #eff6ff; border: 1px solid #bfdbfe; }
+  .total-card label   { font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; color: #888; display: block; margin-bottom: 4px; font-weight: 600; }
+  .total-card .amount { font-size: 16px; font-weight: 800; }
+  .total-card.neutral .amount { color: #1a1a1a; }
+  .total-card.gold    .amount { color: #92700a; }
+  .total-card.green   .amount { color: #166534; }
+  .total-card.blue    .amount { color: #1d4ed8; }
+
+  /* ── Footer ── */
+  .footer { border-top: 1px solid #e5e5e5; padding-top: 10px; display: flex; justify-content: space-between; color: #aaa; font-size: 9px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="brand">Master<span>Key</span></div>
+    <div style="font-size:10px;color:#888;margin-top:3px">Conciergerie & Gestion Locative</div>
+  </div>
+  <div class="header-right">
+    <div class="period">Relevé — ${MONTHS_FR[month]} ${year}</div>
+    <div class="meta">Édité le ${today}</div>
+  </div>
+</div>
+
+<div class="property-block">
+  <div class="prop-field"><label>Logement</label><span>${property.name}</span></div>
+  <div class="prop-field"><label>Adresse</label><span>${property.address}, ${property.city}</span></div>
+  <div class="prop-field"><label>Propriétaire</label><span>${property.owner.name}</span></div>
+  <div class="prop-field"><label>Taux commission</label><span>${property.commissionRate}&nbsp;%</span></div>
+  ${totalSejours > 0 ? `<div class="prop-field"><label>Séjours / Nuits</label><span>${totalSejours} séj. / ${totalNuits} nuits</span></div>` : ''}
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Plateforme</th>
+      <th class="num">Montant brut</th>
+      <th class="num">Frais ménage</th>
+      <th class="num">Commission</th>
+      <th class="num">Base calcul</th>
+      <th class="num">Part MasterKey</th>
+      <th class="num">Part propriétaire</th>
+      <th>Séjours</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${rows}
+    <tr style="background:#f5f5f5;font-weight:700;">
+      <td><strong>TOTAL</strong></td>
+      <td class="num"><strong>${fmt(totals.platformAmount)}</strong></td>
+      <td class="num muted">${fmt(totals.cleaningFees)}</td>
+      <td></td>
+      <td class="num"><strong>${fmt(totals.base)}</strong></td>
+      <td class="num gold"><strong>${fmt(totals.partMK)}</strong></td>
+      <td class="num green"><strong>${fmt(totals.partProprio)}</strong></td>
+      <td></td><td></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="totals">
+  <div class="total-card neutral">
+    <label>Total facturé</label>
+    <div class="amount">${fmt(totals.platformAmount)}</div>
+  </div>
+  <div class="total-card neutral">
+    <label>Frais de ménage</label>
+    <div class="amount">${fmt(totals.cleaningFees)}</div>
+  </div>
+  <div class="total-card neutral">
+    <label>Base de commission</label>
+    <div class="amount">${fmt(totals.base)}</div>
+  </div>
+  <div class="total-card gold">
+    <label>Part MasterKey</label>
+    <div class="amount">${fmt(totals.partMK)}</div>
+  </div>
+  <div class="total-card green">
+    <label>Part propriétaire</label>
+    <div class="amount">${fmt(totals.partProprio)}</div>
+  </div>
+</div>
+
+<div class="footer">
+  <span>MasterKey — Conciergerie & Gestion Locative</span>
+  <span>Document généré automatiquement — ${today}</span>
+</div>
+
+<script>window.onload = () => { window.print(); }</script>
+</body>
+</html>`
+}
+
 function PrintModal({
   isOpen, onClose, property, revenues, month, year,
 }: {
@@ -650,61 +824,33 @@ function PrintModal({
   property: Property; revenues: PropertyRevenue[]; month: number; year: number
 }) {
   const totals = propertyTotals(revenues)
-  const handlePrint = () => window.print()
+
+  const handlePrint = () => {
+    const html = buildPdfHtml(property, revenues, month, year)
+    const w = window.open('', '_blank', 'width=1100,height=750')
+    if (!w) return
+    w.document.write(html)
+    w.document.close()
+  }
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Rapport — ${property.name}`}>
-      {/* Print content */}
-      <div id="print-area" className="space-y-4">
-        {/* Header */}
-        <div className="flex items-start justify-between">
+      <div className="space-y-4">
+        {/* Preview header */}
+        <div className="flex items-start justify-between bg-[#141414] rounded-xl p-4">
           <div>
-            <h2 className="text-white text-xl font-bold">{property.name}</h2>
-            <p className="text-white/40 text-sm">{property.address}, {property.city}</p>
-            <p className="text-white/40 text-sm mt-0.5">Propriétaire : <span className="text-white/70">{property.owner.name}</span></p>
+            <p className="text-white font-semibold">{property.name}</p>
+            <p className="text-white/40 text-xs mt-0.5">{property.address}, {property.city}</p>
+            <p className="text-white/40 text-xs">Propriétaire : <span className="text-white/60">{property.owner.name}</span></p>
           </div>
           <div className="text-right">
-            <p className="text-[#D4AF37] font-semibold">{MONTHS_FR[month]} {year}</p>
+            <p className="text-[#D4AF37] font-semibold text-sm">{MONTHS_FR[month]} {year}</p>
             <p className="text-white/30 text-xs mt-0.5">Commission : {property.commissionRate}%</p>
           </div>
         </div>
 
-        {/* Revenue table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-white/[0.06]">
-                {['Plateforme', 'Montant', 'Ménage', 'Com.%', 'Base comm.', 'Part MK', 'Part proprio', 'Notes'].map(h => (
-                  <th key={h} className="text-left text-white/30 text-[11px] font-medium py-2 pr-3">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {revenues.map(r => {
-                const { base, partMK, partProprio } = calcRevenue(r)
-                return (
-                  <tr key={r.id} className="border-b border-white/[0.03]">
-                    <td className="py-2.5 pr-3">
-                      <span className={`px-2 py-0.5 rounded-lg text-[11px] font-medium border ${PLATFORM_COLORS[r.platform]}`}>
-                        {PLATFORM_LABELS[r.platform]}
-                      </span>
-                    </td>
-                    <td className="py-2.5 pr-3 text-white font-medium">{formatCurrency(r.platformAmount)}</td>
-                    <td className="py-2.5 pr-3 text-white/60">{formatCurrency(r.cleaningFees)}</td>
-                    <td className="py-2.5 pr-3 text-white/60">{r.commissionRate}%</td>
-                    <td className="py-2.5 pr-3 text-white/80">{formatCurrency(base)}</td>
-                    <td className="py-2.5 pr-3 text-[#D4AF37] font-semibold">{formatCurrency(partMK)}</td>
-                    <td className="py-2.5 pr-3 text-green-400 font-semibold">{formatCurrency(partProprio)}</td>
-                    <td className="py-2.5 text-white/30 text-xs italic">{r.notes ?? '—'}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Totals summary */}
-        <div className="grid grid-cols-3 gap-3 pt-2">
+        {/* Summary cards */}
+        <div className="grid grid-cols-3 gap-3">
           <div className="bg-[#141414] rounded-xl p-3 text-center">
             <p className="text-white/30 text-[10px] mb-1">Total facturé</p>
             <p className="text-white font-bold">{formatCurrency(totals.platformAmount)}</p>
@@ -719,29 +865,16 @@ function PrintModal({
           </div>
         </div>
 
-        <div className="flex gap-3 justify-end pt-2">
+        <p className="text-white/30 text-xs text-center">Le PDF s&apos;ouvrira dans un nouvel onglet au format paysage A4</p>
+
+        <div className="flex gap-3 justify-end">
           <Button variant="ghost" onClick={onClose}>Fermer</Button>
           <Button onClick={handlePrint}>
-            <Printer className="w-4 h-4 mr-1.5" />
-            Imprimer / PDF
+            <Download className="w-4 h-4 mr-1.5" />
+            Générer le PDF
           </Button>
         </div>
       </div>
-
-      {/* Hidden print styles */}
-      <style>{`
-        @media print {
-          body * { visibility: hidden !important; }
-          #print-area, #print-area * { visibility: visible !important; }
-          #print-area { position: fixed; top: 0; left: 0; width: 100%; padding: 24px; background: white; color: black; }
-          #print-area h2 { color: #1a1a1a; font-size: 20px; }
-          #print-area p { color: #555; }
-          #print-area table { width: 100%; border-collapse: collapse; }
-          #print-area th, #print-area td { border: 1px solid #ddd; padding: 6px 8px; font-size: 12px; color: #333; }
-          #print-area th { background: #f5f5f5; font-weight: 600; }
-          .no-print { display: none !important; }
-        }
-      `}</style>
     </Modal>
   )
 }
