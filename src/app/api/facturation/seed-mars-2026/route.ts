@@ -29,15 +29,15 @@ export async function POST() {
       return p as { id: number; name: string }
     }
 
-    const bar       = byName('Bar')
-    const commercy  = byName('Commercy')
-    const lignyT2   = byName('Ligny Centre')
-    const lignyStudio = byName('Studio Ligny')
-    const nancy     = byName('Nancy')
-    const rochelle  = byName('Rochelle')
-    const stanislas = byName('Stanislas')
-    const stDizier  = byName('Dizier')
-    const hyperNancy = byName('Hyper')
+    const bar         = byName('Bar')
+    const commercy    = byName('Commercy')
+    const lignyT2     = byName('Grand Salon')
+    const lignyStudio = byName('Centre Ligny')
+    const nancy       = byName('Rives')
+    const rochelle    = byName('Rochelle')
+    const stanislas   = byName('Chaleureux')
+    const stDizier    = byName('Dizier')
+    const hyperNancy  = byName('Hyper')
 
     const data = [
       // Bar-le-Duc
