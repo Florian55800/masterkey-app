@@ -901,12 +901,10 @@ function PropertyRevenueCard({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {totals.partMK > 0 && (
-            <button onClick={() => setPrintOpen(true)}
-              className="p-2 rounded-xl text-white/20 hover:text-blue-400 hover:bg-blue-400/10 transition-all" title="Rapport propriétaire">
-              <Printer className="w-4 h-4" />
-            </button>
-          )}
+          <button onClick={() => setPrintOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-[#D4AF37] bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/20 transition-all">
+            <Download className="w-3.5 h-3.5" /> PDF
+          </button>
           {hasExtra && (
             <button onClick={() => setExtraOpen(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white/40 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.06] transition-all">
