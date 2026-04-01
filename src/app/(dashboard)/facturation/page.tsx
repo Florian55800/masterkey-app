@@ -692,6 +692,36 @@ async function downloadPDF(property: Property, revenues: PropertyRevenue[], mont
   })
   y += 25
 
+  // ── Bloc stats par plateforme ─────────────────────────────────────────────
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const statPlatforms = revenues.filter(r => r.nbNuits > 0 || r.nbSejours > 0)
+  if (statPlatforms.length > 0) {
+    const blockW = cW / statPlatforms.length - 2
+    statPlatforms.forEach((r, i) => {
+      const x = mg + i * (blockW + 2)
+      const tauxOcc = daysInMonth > 0 ? Math.round((r.nbNuits / daysInMonth) * 100) : 0
+      const prixMoyen = r.nbNuits > 0 ? (r.platformAmount - r.cleaningFees) / r.nbNuits : 0
+      const platColors: Record<string,[number,number,number]> = {
+        airbnb: [255,90,70], booking: [0,102,204], direct: [22,101,52], autre: [120,120,120],
+      }
+      const pc = platColors[r.platform] ?? [80,80,80]
+      fill(pc[0],pc[1],pc[2]); stroke(pc[0],pc[1],pc[2]); doc.setLineWidth(0.3)
+      doc.roundedRect(x, y, blockW, 28, 2, 2, 'FD')
+      // Titre plateforme
+      font('bold', 9); color(255,255,255)
+      text(PLATFORM_LABELS[r.platform]??r.platform, x + blockW/2, y+7, {align:'center'})
+      // Stats en blanc
+      const statsLine1 = `${r.nbSejours} séjour${r.nbSejours>1?'s':''} · ${r.nbNuits} nuit${r.nbNuits>1?'s':''}`
+      const statsLine2 = `Taux occupation : ${tauxOcc} %`
+      const statsLine3 = prixMoyen > 0 ? `Prix moyen : ${fmt(prixMoyen)} / nuit` : ''
+      font('normal', 7.5); color(255,255,255)
+      text(statsLine1, x + blockW/2, y+14, {align:'center'})
+      text(statsLine2, x + blockW/2, y+19.5, {align:'center'})
+      if (statsLine3) text(statsLine3, x + blockW/2, y+25, {align:'center'})
+    })
+    y += 32
+  }
+
   // tableau header
   const cols = ['Plateforme','Montant brut','Frais ménage','Com. %','Base calcul','Part MasterKey','Part propriétaire']
   const colWidths = [28, 26, 26, 17, 26, 29, 30]
