@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Search, Users, Phone, Mail, Edit2, Bell, Star, Trash2 } from 'lucide-react'
+import { Plus, Search, Users, Phone, Mail, Edit2, Bell, Star, Trash2, Download } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -44,6 +44,50 @@ interface Owner {
 }
 
 const SOURCES = ['Recommandation', 'Réseaux sociaux', 'Bouche à oreille', 'Prospection directe', 'Site web', 'Partenaire', 'Autre']
+
+function exportOwnersXls(owners: Owner[]) {
+  const esc = (v: string | null | undefined) => (v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  const cell = (v: string | null | undefined, type: 'String' | 'Number' = 'String') =>
+    `<Cell><Data ss:Type="${type}">${esc(v)}</Data></Cell>`
+
+  const headers = ['Nom', 'Email', 'Téléphone', 'Nb logements', 'Source', 'Notes']
+  const headerRow = headers.map(h => cell(h)).join('')
+
+  const dataRows = owners.map(o => {
+    const nbLogements = String(o.properties?.length ?? 0)
+    return [
+      cell(o.name),
+      cell(o.email),
+      cell(o.phone),
+      cell(nbLogements, 'Number'),
+      cell(o.source),
+      cell(o.notes),
+    ].join('')
+  }).map(r => `<Row>${r}</Row>`).join('\n')
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="h"><Font ss:Bold="1"/><Interior ss:Color="#1a1a1a" ss:Pattern="Solid"/><Font ss:Color="#FFFFFF" ss:Bold="1"/></Style>
+ </Styles>
+ <Worksheet ss:Name="Propriétaires">
+  <Table>
+   <Row>${headers.map(h => `<Cell ss:StyleID="h"><Data ss:Type="String">${esc(h)}</Data></Cell>`).join('')}</Row>
+   ${dataRows}
+  </Table>
+ </Worksheet>
+</Workbook>`
+
+  const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `masterkey-proprietaires-${new Date().toISOString().slice(0, 10)}.xls`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 5000)
+}
 
 export default function ProprietairesPage() {
   const [owners, setOwners] = useState<Owner[]>([])
@@ -190,10 +234,16 @@ export default function ProprietairesPage() {
             {owners.length} client(s) · {activeOwnersCount} actif(s)
           </p>
         </div>
-        <Button onClick={openCreateModal}>
-          <Plus className="w-4 h-4" />
-          Ajouter
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={() => exportOwnersXls(owners)} disabled={owners.length === 0}>
+            <Download className="w-4 h-4" />
+            Exporter XLS
+          </Button>
+          <Button onClick={openCreateModal}>
+            <Plus className="w-4 h-4" />
+            Ajouter
+          </Button>
+        </div>
       </div>
 
       {/* TypeGestion Tabs */}
