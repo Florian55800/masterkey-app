@@ -655,164 +655,175 @@ function buildPdfHtml(property: Property, revenues: PropertyRevenue[], month: nu
 
   const rows = revenues.map(r => {
     const { base, partMK, partProprio } = calcRevenue(r)
-    const platformLabel = PLATFORM_LABELS[r.platform] ?? r.platform
-    const sejInfo = r.nbSejours ? `${r.nbSejours} séj. / ${r.nbNuits} nuits` : '—'
-    return `
-      <tr>
-        <td><span class="badge badge-${r.platform}">${platformLabel}</span></td>
-        <td class="num">${fmt(r.platformAmount)}</td>
-        <td class="num muted">${r.cleaningFees > 0 ? fmt(r.cleaningFees) : '—'}</td>
-        <td class="num muted">${r.commissionRate}&nbsp;%</td>
-        <td class="num">${fmt(base)}</td>
-        <td class="num gold"><strong>${fmt(partMK)}</strong></td>
-        <td class="num green"><strong>${fmt(partProprio)}</strong></td>
-        <td class="muted small">${sejInfo}</td>
-        <td class="muted small italic">${r.notes ?? '—'}</td>
-      </tr>`
+    const pl = PLATFORM_LABELS[r.platform] ?? r.platform
+    const colors: Record<string,string> = {
+      airbnb:  'background:#fef2f2;color:#c0392b;border:1px solid #fecaca',
+      booking: 'background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe',
+      direct:  'background:#f0fdf4;color:#166534;border:1px solid #bbf7d0',
+      autre:   'background:#f5f5f5;color:#555;border:1px solid #e5e5e5',
+    }
+    const badge = `<span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;${colors[r.platform] ?? colors.autre}">${pl}</span>`
+    const notesCell = r.notes ? `<span style="color:#aaa;font-style:italic">${r.notes}</span>` : '<span style="color:#ccc">—</span>'
+    return `<tr>
+      <td>${badge}</td>
+      <td style="text-align:right">${fmt(r.platformAmount)}</td>
+      <td style="text-align:right;color:#888">${r.cleaningFees > 0 ? fmt(r.cleaningFees) : '—'}</td>
+      <td style="text-align:right;color:#888">${r.commissionRate}&nbsp;%</td>
+      <td style="text-align:right">${fmt(base)}</td>
+      <td style="text-align:right;color:#92700a;font-weight:700">${fmt(partMK)}</td>
+      <td style="text-align:right;color:#166534;font-weight:700">${fmt(partProprio)}</td>
+      ${totalSejours > 0 ? `<td style="color:#aaa;font-size:10px">${r.nbSejours ? `${r.nbSejours} séj.` : '—'}</td>` : ''}
+      <td>${notesCell}</td>
+    </tr>`
   }).join('')
+
+  const sejoursCol = totalSejours > 0 ? '<th>Séjours</th>' : ''
 
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8"/>
-<title>Rapport ${MONTHS_FR[month]} ${year} — ${property.name}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Relevé ${MONTHS_FR[month]} ${year} — ${property.name}</title>
 <style>
-  @page { size: A4 landscape; margin: 18mm 16mm; }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 11px; color: #1a1a1a; background: #fff; }
+  @page { size: A4 portrait; margin: 14mm 14mm 12mm 14mm; }
+  *  { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 11.5px; color: #1a1a1a; background: #fff;
+    width: 182mm; margin: 0 auto; padding: 10px 0;
+  }
 
-  /* ── Header ── */
-  .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 14px; border-bottom: 2px solid #D4AF37; margin-bottom: 18px; }
-  .brand { font-size: 22px; font-weight: 800; color: #D4AF37; letter-spacing: -0.5px; }
-  .brand span { color: #1a1a1a; }
-  .header-right { text-align: right; }
-  .period { font-size: 15px; font-weight: 700; color: #D4AF37; }
-  .meta { font-size: 10px; color: #888; margin-top: 2px; }
+  /* header */
+  .doc-header { display: flex; justify-content: space-between; align-items: flex-start;
+    border-bottom: 2.5px solid #D4AF37; padding-bottom: 12px; margin-bottom: 14px; }
+  .brand { font-size: 24px; font-weight: 900; letter-spacing: -1px; }
+  .brand em { color: #D4AF37; font-style: normal; }
+  .brand sub { font-size: 10px; font-weight: 400; color: #aaa; display: block; letter-spacing: 0; }
+  .doc-header .right { text-align: right; }
+  .doc-header .period { font-size: 14px; font-weight: 700; color: #D4AF37; }
+  .doc-header .edited { font-size: 9.5px; color: #aaa; margin-top: 2px; }
 
-  /* ── Property info ── */
-  .property-block { display: flex; gap: 32px; margin-bottom: 18px; background: #f9f9f9; border-radius: 8px; padding: 12px 16px; border-left: 3px solid #D4AF37; }
-  .prop-field label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; color: #aaa; font-weight: 600; display: block; margin-bottom: 2px; }
-  .prop-field span { font-size: 11.5px; font-weight: 600; color: #1a1a1a; }
+  /* property band */
+  .prop-band {
+    display: flex; flex-wrap: wrap; gap: 0; margin-bottom: 14px;
+    border: 1px solid #e8e8e8; border-radius: 7px; overflow: hidden;
+  }
+  .prop-cell { flex: 1; min-width: 80px; padding: 8px 12px; border-right: 1px solid #f0f0f0; }
+  .prop-cell:last-child { border-right: none; }
+  .prop-cell label { display: block; font-size: 8.5px; text-transform: uppercase;
+    letter-spacing: 0.7px; color: #aaa; font-weight: 600; margin-bottom: 3px; }
+  .prop-cell span { font-size: 11px; font-weight: 600; color: #1a1a1a; }
 
-  /* ── Table ── */
-  table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
-  thead tr { background: #1a1a1a; }
-  thead th { color: #fff; font-size: 9.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; padding: 8px 10px; text-align: left; white-space: nowrap; }
-  thead th.num { text-align: right; }
-  tbody tr { border-bottom: 1px solid #f0f0f0; }
+  /* table */
+  table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 11px; }
+  thead th {
+    background: #1a1a1a; color: #fff; font-size: 9px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px; padding: 7px 9px;
+    text-align: left; white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid #f2f2f2; }
   tbody tr:nth-child(even) { background: #fafafa; }
-  tbody tr:last-child { border-bottom: 2px solid #e0e0e0; }
-  td { padding: 7px 10px; vertical-align: middle; }
-  td.num { text-align: right; }
-  td.muted { color: #888; }
-  td.gold { color: #b8920a; }
-  td.green { color: #1a7a3f; }
-  td.small { font-size: 10px; }
-  td.italic { font-style: italic; }
+  td { padding: 7px 9px; vertical-align: middle; }
+  .total-row { background: #f5f5f5 !important; border-top: 2px solid #ddd; }
+  .total-row td { font-weight: 700; }
 
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
-  .badge-airbnb  { background: #fef2f2; color: #c0392b; border: 1px solid #fecaca; }
-  .badge-booking { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-  .badge-direct  { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
-  .badge-autre   { background: #f5f5f5; color: #555; border: 1px solid #e5e5e5; }
+  /* summary cards */
+  .summary { display: flex; gap: 8px; margin-bottom: 14px; }
+  .sum-card { flex: 1; padding: 10px 12px; border-radius: 7px; }
+  .sum-card label { display: block; font-size: 8.5px; text-transform: uppercase;
+    letter-spacing: 0.6px; font-weight: 600; margin-bottom: 4px; }
+  .sum-card .val { font-size: 14px; font-weight: 800; }
+  .sum-card.neutral { background: #f5f5f5; border: 1px solid #e8e8e8; }
+  .sum-card.neutral label { color: #999; }
+  .sum-card.neutral .val { color: #1a1a1a; }
+  .sum-card.gold  { background: #fffbeb; border: 1px solid #fde68a; }
+  .sum-card.gold  label { color: #a07720; }
+  .sum-card.gold  .val { color: #92700a; }
+  .sum-card.green { background: #f0fdf4; border: 1px solid #bbf7d0; }
+  .sum-card.green label { color: #15803d; }
+  .sum-card.green .val { color: #166534; }
 
-  /* ── Totals ── */
-  .totals { display: flex; gap: 12px; margin-bottom: 24px; }
-  .total-card { flex: 1; border-radius: 8px; padding: 12px 14px; }
-  .total-card.neutral { background: #f5f5f5; border: 1px solid #e5e5e5; }
-  .total-card.gold    { background: #fffbeb; border: 1px solid #fde68a; }
-  .total-card.green   { background: #f0fdf4; border: 1px solid #bbf7d0; }
-  .total-card.blue    { background: #eff6ff; border: 1px solid #bfdbfe; }
-  .total-card label   { font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; color: #888; display: block; margin-bottom: 4px; font-weight: 600; }
-  .total-card .amount { font-size: 16px; font-weight: 800; }
-  .total-card.neutral .amount { color: #1a1a1a; }
-  .total-card.gold    .amount { color: #92700a; }
-  .total-card.green   .amount { color: #166534; }
-  .total-card.blue    .amount { color: #1d4ed8; }
+  /* footer */
+  .doc-footer { border-top: 1px solid #eee; padding-top: 8px;
+    display: flex; justify-content: space-between; font-size: 9px; color: #bbb; }
 
-  /* ── Footer ── */
-  .footer { border-top: 1px solid #e5e5e5; padding-top: 10px; display: flex; justify-content: space-between; color: #aaa; font-size: 9px; }
+  /* print button — hidden on print */
+  .print-btn {
+    display: block; width: 100%; margin-bottom: 16px;
+    padding: 10px; background: #1a1a1a; color: #fff;
+    font-size: 13px; font-weight: 600; border: none; border-radius: 7px;
+    cursor: pointer; letter-spacing: 0.3px;
+  }
+  .print-btn:hover { background: #333; }
+  @media print { .print-btn { display: none !important; } }
 </style>
 </head>
 <body>
 
-<div class="header">
+<button class="print-btn" onclick="window.print()">🖨️&nbsp; Imprimer / Enregistrer en PDF</button>
+
+<div class="doc-header">
   <div>
-    <div class="brand">Master<span>Key</span></div>
-    <div style="font-size:10px;color:#888;margin-top:3px">Conciergerie & Gestion Locative</div>
+    <div class="brand"><em>Master</em>Key<sub>Conciergerie &amp; Gestion Locative</sub></div>
   </div>
-  <div class="header-right">
-    <div class="period">Relevé — ${MONTHS_FR[month]} ${year}</div>
-    <div class="meta">Édité le ${today}</div>
+  <div class="right">
+    <div class="period">Relevé ${MONTHS_FR[month]} ${year}</div>
+    <div class="edited">Édité le ${today}</div>
   </div>
 </div>
 
-<div class="property-block">
-  <div class="prop-field"><label>Logement</label><span>${property.name}</span></div>
-  <div class="prop-field"><label>Adresse</label><span>${property.address}, ${property.city}</span></div>
-  <div class="prop-field"><label>Propriétaire</label><span>${property.owner.name}</span></div>
-  <div class="prop-field"><label>Taux commission</label><span>${property.commissionRate}&nbsp;%</span></div>
-  ${totalSejours > 0 ? `<div class="prop-field"><label>Séjours / Nuits</label><span>${totalSejours} séj. / ${totalNuits} nuits</span></div>` : ''}
+<div class="prop-band">
+  <div class="prop-cell"><label>Logement</label><span>${property.name}</span></div>
+  <div class="prop-cell"><label>Adresse</label><span>${property.address}, ${property.city}</span></div>
+  <div class="prop-cell"><label>Propriétaire</label><span>${property.owner.name}</span></div>
+  <div class="prop-cell"><label>Commission</label><span>${property.commissionRate}&nbsp;%</span></div>
+  ${totalSejours > 0 ? `<div class="prop-cell"><label>Activité</label><span>${totalSejours} séj. · ${totalNuits} nuits</span></div>` : ''}
 </div>
 
 <table>
   <thead>
     <tr>
       <th>Plateforme</th>
-      <th class="num">Montant brut</th>
-      <th class="num">Frais ménage</th>
-      <th class="num">Commission</th>
-      <th class="num">Base calcul</th>
-      <th class="num">Part MasterKey</th>
-      <th class="num">Part propriétaire</th>
-      <th>Séjours</th>
+      <th style="text-align:right">Montant brut</th>
+      <th style="text-align:right">Frais ménage</th>
+      <th style="text-align:right">Com.&nbsp;%</th>
+      <th style="text-align:right">Base calcul</th>
+      <th style="text-align:right">Part MasterKey</th>
+      <th style="text-align:right">Part propriétaire</th>
+      ${sejoursCol}
       <th>Notes</th>
     </tr>
   </thead>
   <tbody>
     ${rows}
-    <tr style="background:#f5f5f5;font-weight:700;">
-      <td><strong>TOTAL</strong></td>
-      <td class="num"><strong>${fmt(totals.platformAmount)}</strong></td>
-      <td class="num muted">${fmt(totals.cleaningFees)}</td>
+    <tr class="total-row">
+      <td>TOTAL</td>
+      <td style="text-align:right">${fmt(totals.platformAmount)}</td>
+      <td style="text-align:right;color:#888">${fmt(totals.cleaningFees)}</td>
       <td></td>
-      <td class="num"><strong>${fmt(totals.base)}</strong></td>
-      <td class="num gold"><strong>${fmt(totals.partMK)}</strong></td>
-      <td class="num green"><strong>${fmt(totals.partProprio)}</strong></td>
-      <td></td><td></td>
+      <td style="text-align:right">${fmt(totals.base)}</td>
+      <td style="text-align:right;color:#92700a">${fmt(totals.partMK)}</td>
+      <td style="text-align:right;color:#166534">${fmt(totals.partProprio)}</td>
+      ${totalSejours > 0 ? `<td style="color:#888">${totalSejours}</td>` : ''}
+      <td></td>
     </tr>
   </tbody>
 </table>
 
-<div class="totals">
-  <div class="total-card neutral">
-    <label>Total facturé</label>
-    <div class="amount">${fmt(totals.platformAmount)}</div>
-  </div>
-  <div class="total-card neutral">
-    <label>Frais de ménage</label>
-    <div class="amount">${fmt(totals.cleaningFees)}</div>
-  </div>
-  <div class="total-card neutral">
-    <label>Base de commission</label>
-    <div class="amount">${fmt(totals.base)}</div>
-  </div>
-  <div class="total-card gold">
-    <label>Part MasterKey</label>
-    <div class="amount">${fmt(totals.partMK)}</div>
-  </div>
-  <div class="total-card green">
-    <label>Part propriétaire</label>
-    <div class="amount">${fmt(totals.partProprio)}</div>
-  </div>
+<div class="summary">
+  <div class="sum-card neutral"><label>Total facturé</label><div class="val">${fmt(totals.platformAmount)}</div></div>
+  <div class="sum-card neutral"><label>Frais ménage</label><div class="val">${fmt(totals.cleaningFees)}</div></div>
+  <div class="sum-card neutral"><label>Base commission</label><div class="val">${fmt(totals.base)}</div></div>
+  <div class="sum-card gold"><label>Part MasterKey</label><div class="val">${fmt(totals.partMK)}</div></div>
+  <div class="sum-card green"><label>Part propriétaire</label><div class="val">${fmt(totals.partProprio)}</div></div>
 </div>
 
-<div class="footer">
-  <span>MasterKey — Conciergerie & Gestion Locative</span>
-  <span>Document généré automatiquement — ${today}</span>
+<div class="doc-footer">
+  <span>MasterKey — Conciergerie &amp; Gestion Locative</span>
+  <span>Document confidentiel · ${today}</span>
 </div>
 
-<script>window.onload = () => { window.print(); }</script>
 </body>
 </html>`
 }
@@ -827,10 +838,10 @@ function PrintModal({
 
   const handlePrint = () => {
     const html = buildPdfHtml(property, revenues, month, year)
-    const w = window.open('', '_blank', 'width=1100,height=750')
-    if (!w) return
-    w.document.write(html)
-    w.document.close()
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank')
+    setTimeout(() => URL.revokeObjectURL(url), 10000)
   }
 
   return (
