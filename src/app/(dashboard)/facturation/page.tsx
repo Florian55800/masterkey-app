@@ -641,192 +641,177 @@ function SubletModal({
   )
 }
 
-// ─── Print Modal ──────────────────────────────────────────────────────────────
+// ─── PDF Generation ───────────────────────────────────────────────────────────
 
 function fmt(n: number) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n)
 }
 
-function buildPdfHtml(property: Property, revenues: PropertyRevenue[], month: number, year: number) {
+async function downloadPDF(property: Property, revenues: PropertyRevenue[], month: number, year: number) {
+  const { default: jsPDF } = await import('jspdf')
+  const { default: autoTable } = await import('jspdf-autotable')
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
   const totals = propertyTotals(revenues)
   const totalSejours = revenues.reduce((s, r) => s + (r.nbSejours || 0), 0)
   const totalNuits   = revenues.reduce((s, r) => s + (r.nbNuits   || 0), 0)
   const today = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
+  const W = 210, margin = 14, contentW = W - 2 * margin
+  let y = margin
 
-  const rows = revenues.map(r => {
+  // ── Bande dorée haut ──────────────────────────────────────────────────────
+  doc.setFillColor(212, 175, 55)
+  doc.rect(0, 0, W, 1.5, 'F')
+
+  // ── En-tête ───────────────────────────────────────────────────────────────
+  y = 10
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(22)
+  doc.setTextColor(26, 26, 26)
+  doc.text('Master', margin, y)
+  const mkW = doc.getTextWidth('Master')
+  doc.setTextColor(212, 175, 55)
+  doc.text('Key', margin + mkW, y)
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(160, 160, 160)
+  doc.text('Conciergerie & Gestion Locative', margin, y + 4.5)
+
+  // Période à droite
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(13)
+  doc.setTextColor(212, 175, 55)
+  const period = `Relevé — ${MONTHS_FR[month]} ${year}`
+  doc.text(period, W - margin, y, { align: 'right' })
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  doc.setTextColor(160, 160, 160)
+  doc.text(`Édité le ${today}`, W - margin, y + 4.5, { align: 'right' })
+
+  // Ligne séparatrice or
+  y += 9
+  doc.setDrawColor(212, 175, 55)
+  doc.setLineWidth(0.5)
+  doc.line(margin, y, W - margin, y)
+  y += 5
+
+  // ── Bloc propriété ────────────────────────────────────────────────────────
+  doc.setFillColor(249, 249, 249)
+  doc.roundedRect(margin, y, contentW, 18, 2, 2, 'F')
+  doc.setDrawColor(232, 232, 232)
+  doc.setLineWidth(0.3)
+  doc.roundedRect(margin, y, contentW, 18, 2, 2, 'S')
+  // Barre gauche dorée
+  doc.setFillColor(212, 175, 55)
+  doc.roundedRect(margin, y, 1.5, 18, 0.5, 0.5, 'F')
+
+  const fields = [
+    { label: 'LOGEMENT', value: property.name },
+    { label: 'ADRESSE', value: `${property.address}, ${property.city}` },
+    { label: 'PROPRIÉTAIRE', value: property.owner.name },
+    { label: 'COMMISSION', value: `${property.commissionRate} %` },
+    ...(totalSejours > 0 ? [{ label: 'ACTIVITÉ', value: `${totalSejours} séj. · ${totalNuits} nuits` }] : []),
+  ]
+  const colW = contentW / fields.length
+  fields.forEach((f, i) => {
+    const x = margin + i * colW + 4
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7)
+    doc.setTextColor(180, 180, 180)
+    doc.text(f.label, x, y + 6)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    doc.setTextColor(26, 26, 26)
+    doc.text(f.value, x, y + 13, { maxWidth: colW - 5 })
+  })
+  y += 24
+
+  // ── Tableau des revenus ───────────────────────────────────────────────────
+  const head = [['Plateforme', 'Montant brut', 'Frais ménage', 'Com. %', 'Base calcul', 'Part MasterKey', 'Part propriétaire']]
+  const body = revenues.map(r => {
     const { base, partMK, partProprio } = calcRevenue(r)
-    const pl = PLATFORM_LABELS[r.platform] ?? r.platform
-    const colors: Record<string,string> = {
-      airbnb:  'background:#fef2f2;color:#c0392b;border:1px solid #fecaca',
-      booking: 'background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe',
-      direct:  'background:#f0fdf4;color:#166534;border:1px solid #bbf7d0',
-      autre:   'background:#f5f5f5;color:#555;border:1px solid #e5e5e5',
-    }
-    const badge = `<span style="display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;${colors[r.platform] ?? colors.autre}">${pl}</span>`
-    const notesCell = r.notes ? `<span style="color:#aaa;font-style:italic">${r.notes}</span>` : '<span style="color:#ccc">—</span>'
-    return `<tr>
-      <td>${badge}</td>
-      <td style="text-align:right">${fmt(r.platformAmount)}</td>
-      <td style="text-align:right;color:#888">${r.cleaningFees > 0 ? fmt(r.cleaningFees) : '—'}</td>
-      <td style="text-align:right;color:#888">${r.commissionRate}&nbsp;%</td>
-      <td style="text-align:right">${fmt(base)}</td>
-      <td style="text-align:right;color:#92700a;font-weight:700">${fmt(partMK)}</td>
-      <td style="text-align:right;color:#166534;font-weight:700">${fmt(partProprio)}</td>
-      ${totalSejours > 0 ? `<td style="color:#aaa;font-size:10px">${r.nbSejours ? `${r.nbSejours} séj.` : '—'}</td>` : ''}
-      <td>${notesCell}</td>
-    </tr>`
-  }).join('')
+    return [
+      PLATFORM_LABELS[r.platform] ?? r.platform,
+      fmt(r.platformAmount),
+      r.cleaningFees > 0 ? fmt(r.cleaningFees) : '—',
+      `${r.commissionRate} %`,
+      fmt(base),
+      fmt(partMK),
+      fmt(partProprio),
+    ]
+  })
+  body.push(['TOTAL', fmt(totals.platformAmount), fmt(totals.cleaningFees), '', fmt(totals.base), fmt(totals.partMK), fmt(totals.partProprio)])
 
-  const sejoursCol = totalSejours > 0 ? '<th>Séjours</th>' : ''
+  autoTable(doc, {
+    head,
+    body,
+    startY: y,
+    theme: 'grid',
+    styles: { font: 'helvetica', fontSize: 9, cellPadding: 3.5, valign: 'middle' },
+    headStyles: { fillColor: [26, 26, 26], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+    columnStyles: {
+      0: { fontStyle: 'bold' },
+      1: { halign: 'right' },
+      2: { halign: 'right', textColor: [136, 136, 136] },
+      3: { halign: 'right', textColor: [136, 136, 136] },
+      4: { halign: 'right' },
+      5: { halign: 'right', textColor: [146, 112, 10], fontStyle: 'bold' },
+      6: { halign: 'right', textColor: [22, 101, 52], fontStyle: 'bold' },
+    },
+    didParseCell: (data) => {
+      if (data.row.index === body.length - 1) {
+        data.cell.styles.fillColor = [245, 245, 245]
+        data.cell.styles.fontStyle = 'bold'
+        data.cell.styles.fontSize = 9.5
+      }
+    },
+  })
 
-  return `<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Relevé ${MONTHS_FR[month]} ${year} — ${property.name}</title>
-<style>
-  @page { size: A4 portrait; margin: 14mm 14mm 12mm 14mm; }
-  *  { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    font-size: 11.5px; color: #1a1a1a; background: #fff;
-    width: 182mm; margin: 0 auto; padding: 10px 0;
-  }
+  y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8
 
-  /* header */
-  .doc-header { display: flex; justify-content: space-between; align-items: flex-start;
-    border-bottom: 2.5px solid #D4AF37; padding-bottom: 12px; margin-bottom: 14px; }
-  .brand { font-size: 24px; font-weight: 900; letter-spacing: -1px; }
-  .brand em { color: #D4AF37; font-style: normal; }
-  .brand sub { font-size: 10px; font-weight: 400; color: #aaa; display: block; letter-spacing: 0; }
-  .doc-header .right { text-align: right; }
-  .doc-header .period { font-size: 14px; font-weight: 700; color: #D4AF37; }
-  .doc-header .edited { font-size: 9.5px; color: #aaa; margin-top: 2px; }
+  // ── Cartes synthèse ───────────────────────────────────────────────────────
+  const cards = [
+    { label: 'Total facturé',    value: fmt(totals.platformAmount), bg: [245,245,245] as [number,number,number], fg: [26,26,26] as [number,number,number] },
+    { label: 'Frais ménage',     value: fmt(totals.cleaningFees),   bg: [245,245,245] as [number,number,number], fg: [26,26,26] as [number,number,number] },
+    { label: 'Base commission',  value: fmt(totals.base),           bg: [245,245,245] as [number,number,number], fg: [26,26,26] as [number,number,number] },
+    { label: 'Part MasterKey',   value: fmt(totals.partMK),         bg: [255,251,235] as [number,number,number], fg: [146,112,10] as [number,number,number] },
+    { label: 'Part propriétaire',value: fmt(totals.partProprio),    bg: [240,253,244] as [number,number,number], fg: [22,101,52] as [number,number,number] },
+  ]
+  const cardW = contentW / cards.length - 2
+  cards.forEach((c, i) => {
+    const x = margin + i * (cardW + 2)
+    doc.setFillColor(...c.bg)
+    doc.roundedRect(x, y, cardW, 16, 2, 2, 'F')
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.setTextColor(160, 160, 160)
+    doc.text(c.label.toUpperCase(), x + cardW / 2, y + 5, { align: 'center' })
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.setTextColor(...c.fg)
+    doc.text(c.value, x + cardW / 2, y + 12, { align: 'center' })
+  })
+  y += 22
 
-  /* property band */
-  .prop-band {
-    display: flex; flex-wrap: wrap; gap: 0; margin-bottom: 14px;
-    border: 1px solid #e8e8e8; border-radius: 7px; overflow: hidden;
-  }
-  .prop-cell { flex: 1; min-width: 80px; padding: 8px 12px; border-right: 1px solid #f0f0f0; }
-  .prop-cell:last-child { border-right: none; }
-  .prop-cell label { display: block; font-size: 8.5px; text-transform: uppercase;
-    letter-spacing: 0.7px; color: #aaa; font-weight: 600; margin-bottom: 3px; }
-  .prop-cell span { font-size: 11px; font-weight: 600; color: #1a1a1a; }
+  // ── Pied de page ──────────────────────────────────────────────────────────
+  doc.setDrawColor(230, 230, 230)
+  doc.setLineWidth(0.3)
+  doc.line(margin, y, W - margin, y)
+  y += 4
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7.5)
+  doc.setTextColor(180, 180, 180)
+  doc.text('MasterKey — Conciergerie & Gestion Locative', margin, y)
+  doc.text(`Document confidentiel · ${today}`, W - margin, y, { align: 'right' })
 
-  /* table */
-  table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 11px; }
-  thead th {
-    background: #1a1a1a; color: #fff; font-size: 9px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.5px; padding: 7px 9px;
-    text-align: left; white-space: nowrap;
-  }
-  tbody tr { border-bottom: 1px solid #f2f2f2; }
-  tbody tr:nth-child(even) { background: #fafafa; }
-  td { padding: 7px 9px; vertical-align: middle; }
-  .total-row { background: #f5f5f5 !important; border-top: 2px solid #ddd; }
-  .total-row td { font-weight: 700; }
+  // Bande dorée bas
+  doc.setFillColor(212, 175, 55)
+  doc.rect(0, 294.5, W, 1.5, 'F')
 
-  /* summary cards */
-  .summary { display: flex; gap: 8px; margin-bottom: 14px; }
-  .sum-card { flex: 1; padding: 10px 12px; border-radius: 7px; }
-  .sum-card label { display: block; font-size: 8.5px; text-transform: uppercase;
-    letter-spacing: 0.6px; font-weight: 600; margin-bottom: 4px; }
-  .sum-card .val { font-size: 14px; font-weight: 800; }
-  .sum-card.neutral { background: #f5f5f5; border: 1px solid #e8e8e8; }
-  .sum-card.neutral label { color: #999; }
-  .sum-card.neutral .val { color: #1a1a1a; }
-  .sum-card.gold  { background: #fffbeb; border: 1px solid #fde68a; }
-  .sum-card.gold  label { color: #a07720; }
-  .sum-card.gold  .val { color: #92700a; }
-  .sum-card.green { background: #f0fdf4; border: 1px solid #bbf7d0; }
-  .sum-card.green label { color: #15803d; }
-  .sum-card.green .val { color: #166534; }
-
-  /* footer */
-  .doc-footer { border-top: 1px solid #eee; padding-top: 8px;
-    display: flex; justify-content: space-between; font-size: 9px; color: #bbb; }
-
-  /* print button — hidden on print */
-  .print-btn {
-    display: block; width: 100%; margin-bottom: 16px;
-    padding: 10px; background: #1a1a1a; color: #fff;
-    font-size: 13px; font-weight: 600; border: none; border-radius: 7px;
-    cursor: pointer; letter-spacing: 0.3px;
-  }
-  .print-btn:hover { background: #333; }
-  @media print { .print-btn { display: none !important; } }
-</style>
-</head>
-<body>
-
-<button class="print-btn" onclick="window.print()">🖨️&nbsp; Imprimer / Enregistrer en PDF</button>
-
-<div class="doc-header">
-  <div>
-    <div class="brand"><em>Master</em>Key<sub>Conciergerie &amp; Gestion Locative</sub></div>
-  </div>
-  <div class="right">
-    <div class="period">Relevé ${MONTHS_FR[month]} ${year}</div>
-    <div class="edited">Édité le ${today}</div>
-  </div>
-</div>
-
-<div class="prop-band">
-  <div class="prop-cell"><label>Logement</label><span>${property.name}</span></div>
-  <div class="prop-cell"><label>Adresse</label><span>${property.address}, ${property.city}</span></div>
-  <div class="prop-cell"><label>Propriétaire</label><span>${property.owner.name}</span></div>
-  <div class="prop-cell"><label>Commission</label><span>${property.commissionRate}&nbsp;%</span></div>
-  ${totalSejours > 0 ? `<div class="prop-cell"><label>Activité</label><span>${totalSejours} séj. · ${totalNuits} nuits</span></div>` : ''}
-</div>
-
-<table>
-  <thead>
-    <tr>
-      <th>Plateforme</th>
-      <th style="text-align:right">Montant brut</th>
-      <th style="text-align:right">Frais ménage</th>
-      <th style="text-align:right">Com.&nbsp;%</th>
-      <th style="text-align:right">Base calcul</th>
-      <th style="text-align:right">Part MasterKey</th>
-      <th style="text-align:right">Part propriétaire</th>
-      ${sejoursCol}
-      <th>Notes</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${rows}
-    <tr class="total-row">
-      <td>TOTAL</td>
-      <td style="text-align:right">${fmt(totals.platformAmount)}</td>
-      <td style="text-align:right;color:#888">${fmt(totals.cleaningFees)}</td>
-      <td></td>
-      <td style="text-align:right">${fmt(totals.base)}</td>
-      <td style="text-align:right;color:#92700a">${fmt(totals.partMK)}</td>
-      <td style="text-align:right;color:#166534">${fmt(totals.partProprio)}</td>
-      ${totalSejours > 0 ? `<td style="color:#888">${totalSejours}</td>` : ''}
-      <td></td>
-    </tr>
-  </tbody>
-</table>
-
-<div class="summary">
-  <div class="sum-card neutral"><label>Total facturé</label><div class="val">${fmt(totals.platformAmount)}</div></div>
-  <div class="sum-card neutral"><label>Frais ménage</label><div class="val">${fmt(totals.cleaningFees)}</div></div>
-  <div class="sum-card neutral"><label>Base commission</label><div class="val">${fmt(totals.base)}</div></div>
-  <div class="sum-card gold"><label>Part MasterKey</label><div class="val">${fmt(totals.partMK)}</div></div>
-  <div class="sum-card green"><label>Part propriétaire</label><div class="val">${fmt(totals.partProprio)}</div></div>
-</div>
-
-<div class="doc-footer">
-  <span>MasterKey — Conciergerie &amp; Gestion Locative</span>
-  <span>Document confidentiel · ${today}</span>
-</div>
-
-</body>
-</html>`
+  doc.save(`MasterKey_${property.name.replace(/\s+/g, '_')}_${MONTHS_FR[month]}_${year}.pdf`)
 }
+
 
 function PrintModal({
   isOpen, onClose, property, revenues, month, year,
@@ -835,19 +820,17 @@ function PrintModal({
   property: Property; revenues: PropertyRevenue[]; month: number; year: number
 }) {
   const totals = propertyTotals(revenues)
+  const [generating, setGenerating] = useState(false)
 
-  const handlePrint = () => {
-    const html = buildPdfHtml(property, revenues, month, year)
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    window.open(url, '_blank')
-    setTimeout(() => URL.revokeObjectURL(url), 10000)
+  const handleDownload = async () => {
+    setGenerating(true)
+    await downloadPDF(property, revenues, month, year)
+    setGenerating(false)
   }
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Rapport — ${property.name}`}>
       <div className="space-y-4">
-        {/* Preview header */}
         <div className="flex items-start justify-between bg-[#141414] rounded-xl p-4">
           <div>
             <p className="text-white font-semibold">{property.name}</p>
@@ -860,7 +843,6 @@ function PrintModal({
           </div>
         </div>
 
-        {/* Summary cards */}
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-[#141414] rounded-xl p-3 text-center">
             <p className="text-white/30 text-[10px] mb-1">Total facturé</p>
@@ -876,13 +858,11 @@ function PrintModal({
           </div>
         </div>
 
-        <p className="text-white/30 text-xs text-center">Le PDF s&apos;ouvrira dans un nouvel onglet au format paysage A4</p>
-
         <div className="flex gap-3 justify-end">
           <Button variant="ghost" onClick={onClose}>Fermer</Button>
-          <Button onClick={handlePrint}>
+          <Button onClick={handleDownload} isLoading={generating}>
             <Download className="w-4 h-4 mr-1.5" />
-            Générer le PDF
+            {generating ? 'Génération…' : 'Télécharger le PDF'}
           </Button>
         </div>
       </div>
