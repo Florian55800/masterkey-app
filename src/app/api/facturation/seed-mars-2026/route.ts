@@ -2,6 +2,14 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+export async function GET() {
+  const props = await (prisma as any).property.findMany({
+    select: { id: true, name: true, typeGestion: true },
+    orderBy: { name: 'asc' },
+  })
+  return NextResponse.json(props)
+}
+
 /**
  * POST /api/facturation/seed-mars-2026
  * Met à jour uniquement nbSejours et nbNuits pour mars 2026
