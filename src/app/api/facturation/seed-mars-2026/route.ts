@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   const props = await (prisma as any).property.findMany({
-    select: { id: true, name: true, typeGestion: true },
+    select: { id: true, name: true, typeGestion: true, status: true, lodgifyId: true },
     orderBy: { name: 'asc' },
   })
   return NextResponse.json(props)
