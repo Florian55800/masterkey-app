@@ -34,12 +34,13 @@ const LODGIFY_PROPERTIES: Record<number, string> = {
   690597: 'T2 Commercy',
   690679: 'Studio Rochelle',
   694500: 'T2 Pompidou Metz',
-  702625: 'Studio Ligny',
+  702625: 'Studio Ligny Centre',
   702626: 'T2 Cosy Ligny',
   705470: 'Studio Nancy Rives',
   745678: 'T2 Bar-le-Duc',
-  783021: 'T4 Stanislas',
+  783021: 'T4 Stanislas Nancy',
   783678: 'Studio Saint-Dizier',
+  784842: 'T2 Hyper-Centre Nancy',
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -78,106 +79,200 @@ function fmtDate(d: string) {
 
 const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
 
-// ─── Calendar view ────────────────────────────────────────────────────────────
+// ─── Timeline calendar (style Lodgify) ───────────────────────────────────────
 
 function CalendarView({ bookings }: { bookings: Booking[] }) {
-  const today = new Date()
-  const [year,  setYear]  = useState(today.getFullYear())
-  const [month, setMonth] = useState(today.getMonth())   // 0-based
+  const todayD = new Date(); todayD.setHours(0, 0, 0, 0)
+  const [year,  setYear]  = useState(todayD.getFullYear())
+  const [month, setMonth] = useState(todayD.getMonth())
+  const [selected, setSelected] = useState<Booking | null>(null)
 
-  const prev = () => { if (month === 0) { setMonth(11); setYear(y => y - 1) } else setMonth(m => m - 1) }
-  const next = () => { if (month === 11) { setMonth(0); setYear(y => y + 1) } else setMonth(m => m + 1) }
+  const prev    = () => { if (month === 0) { setMonth(11); setYear(y => y - 1) } else setMonth(m => m - 1) }
+  const next    = () => { if (month === 11) { setMonth(0); setYear(y => y + 1) } else setMonth(m => m + 1) }
+  const goToday = () => { setYear(todayD.getFullYear()); setMonth(todayD.getMonth()) }
 
-  const firstDay   = new Date(year, month, 1).getDay()   // 0=Sun
-  const startOffset = (firstDay + 6) % 7                 // Mon-based
   const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const DAY_W  = 36
+  const PROP_W = 160
+  const ROW_H  = 50
+  const BAR_H  = 26
+  const BAR_TOP = (ROW_H - BAR_H) / 2
 
-  // Which bookings overlap this month?
   const monthStart = new Date(year, month, 1)
   const monthEnd   = new Date(year, month + 1, 0)
 
   const relevant = bookings.filter(b => {
     if (['Declined','Cancelled','Canceled'].includes(b.status)) return false
     const arr = new Date(b.arrival); const dep = new Date(b.departure)
-    return arr <= monthEnd && dep >= monthStart
+    return arr <= monthEnd && dep > monthStart
   })
 
-  function bookingsOnDay(day: number) {
-    const d = new Date(year, month, day)
-    return relevant.filter(b => {
-      const arr = new Date(b.arrival); const dep = new Date(b.departure)
-      // arrival day counts, departure day does NOT (checkout day)
-      return d >= arr && d < dep
-    })
+  const byProp: Record<number, Booking[]> = {}
+  for (const b of relevant) {
+    if (!byProp[b.property_id]) byProp[b.property_id] = []
+    byProp[b.property_id].push(b)
   }
 
-  const cells = Array.from({ length: startOffset + daysInMonth }, (_, i) =>
-    i < startOffset ? null : i - startOffset + 1
-  )
+  const allProps = Object.entries(LODGIFY_PROPERTIES)
+    .map(([id, name]) => ({ id: Number(id), name }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  function barLayout(b: Booking) {
+    const arr = new Date(b.arrival); arr.setHours(0, 0, 0, 0)
+    const dep = new Date(b.departure); dep.setHours(0, 0, 0, 0)
+    const startsBefore = arr < monthStart
+    const endsAfter    = dep > monthEnd
+    const arrDay = startsBefore ? 0 : arr.getDate() - 1
+    const depDay = endsAfter ? daysInMonth : dep.getDate() - 1
+    const left  = arrDay * DAY_W + 2
+    const width = Math.max((depDay - arrDay) * DAY_W - 4, DAY_W / 2)
+    return { left, width, startsBefore, endsAfter }
+  }
+
+  const DOW = ['Di','Lu','Ma','Me','Je','Ve','Sa']
 
   return (
-    <Card>
-      {/* Month nav */}
-      <div className="flex items-center justify-between mb-4">
-        <button onClick={prev} className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all">
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <h3 className="text-white font-semibold">{MONTHS_FR[month]} {year}</h3>
-        <button onClick={next} className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/[0.06] transition-all">
-          <ChevronRight className="w-4 h-4" />
-        </button>
+    <div className="bg-[#181818] border border-white/[0.06] rounded-2xl overflow-hidden">
+      {/* Navigation */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.06]">
+        <div className="flex items-center gap-2">
+          <button onClick={prev} className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/[0.05] transition-all">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="text-white font-semibold text-sm w-36 text-center">{MONTHS_FR[month]} {year}</span>
+          <button onClick={next} className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/[0.05] transition-all">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+          <button onClick={goToday} className="ml-1 px-2.5 py-1 rounded-lg text-xs text-white/40 hover:text-white border border-white/[0.08] hover:border-white/20 transition-all">
+            Aujourd'hui
+          </button>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5"><div className="w-3 h-2.5 rounded-sm bg-rose-500" /><span className="text-white/30 text-xs">Airbnb</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-3 h-2.5 rounded-sm bg-blue-600" /><span className="text-white/30 text-xs">Booking</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-3 h-2.5 rounded-sm bg-[#C9A227]" /><span className="text-white/30 text-xs">Direct</span></div>
+        </div>
       </div>
 
-      {/* Day headers */}
-      <div className="grid grid-cols-7 mb-2">
-        {['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].map(d => (
-          <div key={d} className="text-center text-gray-600 text-xs font-medium py-1">{d}</div>
-        ))}
-      </div>
+      {/* Scrollable grid */}
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: PROP_W + daysInMonth * DAY_W }}>
 
-      {/* Days */}
-      <div className="grid grid-cols-7 gap-0.5">
-        {cells.map((day, i) => {
-          if (!day) return <div key={`empty-${i}`} />
-          const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear()
-          const bks = bookingsOnDay(day)
-          return (
-            <div key={day} className={`min-h-[64px] rounded-xl p-1 border transition-colors ${
-              isToday ? 'border-[#D4AF37]/40 bg-[#D4AF37]/05' : 'border-transparent hover:border-white/[0.06]'
-            }`}>
-              <span className={`text-xs font-medium block text-center mb-1 ${isToday ? 'text-[#D4AF37]' : 'text-gray-400'}`}>
-                {day}
-              </span>
-              <div className="space-y-0.5">
-                {bks.slice(0, 2).map(b => {
-                  const sm = sourceMeta(b.source)
-                  const isArrival = new Date(b.arrival).getDate() === day &&
-                    new Date(b.arrival).getMonth() === month &&
-                    new Date(b.arrival).getFullYear() === year
-                  return (
-                    <div key={b.id} className={`text-[10px] px-1 py-0.5 rounded truncate ${sm.bg} ${sm.color} ${isArrival ? 'font-semibold' : 'opacity-70'}`}
-                      title={`${b.guest.name} — ${LODGIFY_PROPERTIES[b.property_id] ?? b.property_id}`}>
-                      {isArrival ? '→ ' : ''}{b.guest.name.split(' ')[0]}
-                    </div>
-                  )
-                })}
-                {bks.length > 2 && <div className="text-[10px] text-gray-500 text-center">+{bks.length - 2}</div>}
-              </div>
+          {/* Day header */}
+          <div className="flex border-b border-white/[0.06]" style={{ background: '#181818', position: 'sticky', top: 0, zIndex: 10 }}>
+            <div style={{ width: PROP_W, minWidth: PROP_W }} className="flex-shrink-0 px-3 py-2 border-r border-white/[0.06] flex items-center">
+              <span className="text-white/20 text-[10px] uppercase tracking-widest">Logement</span>
             </div>
-          )
-        })}
+            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
+              const date = new Date(year, month, d)
+              const isToday   = d === todayD.getDate() && month === todayD.getMonth() && year === todayD.getFullYear()
+              const isWeekend = date.getDay() === 0 || date.getDay() === 6
+              return (
+                <div key={d} style={{ width: DAY_W, minWidth: DAY_W }}
+                  className={`flex-shrink-0 text-center py-2 border-l border-white/[0.04] ${
+                    isToday ? 'bg-[#D4AF37]/20' : isWeekend ? 'bg-white/[0.025]' : ''
+                  }`}>
+                  <div className={`text-[9px] leading-none mb-0.5 ${isToday ? 'text-[#D4AF37]' : 'text-white/20'}`}>{DOW[date.getDay()]}</div>
+                  <div className={`text-sm font-bold leading-none ${isToday ? 'text-[#D4AF37]' : isWeekend ? 'text-white/50' : 'text-white/55'}`}>{d}</div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Property rows */}
+          {allProps.map(({ id, name }) => {
+            const propBookings = byProp[id] ?? []
+            return (
+              <div key={id} className="flex border-b border-white/[0.04] hover:bg-white/[0.01] transition-colors" style={{ height: ROW_H }}>
+                {/* Label */}
+                <div style={{ width: PROP_W, minWidth: PROP_W, height: ROW_H }}
+                  className="flex-shrink-0 px-3 flex items-center border-r border-white/[0.04]">
+                  <span className="text-white/55 text-xs font-medium truncate" title={name}>{name}</span>
+                </div>
+                {/* Timeline area */}
+                <div className="flex-1 relative" style={{ height: ROW_H }}>
+                  {/* Day cell backgrounds */}
+                  <div className="absolute inset-0 flex pointer-events-none">
+                    {Array.from({ length: daysInMonth }, (_, i) => {
+                      const d = i + 1
+                      const date = new Date(year, month, d)
+                      const isToday   = d === todayD.getDate() && month === todayD.getMonth() && year === todayD.getFullYear()
+                      const isWeekend = date.getDay() === 0 || date.getDay() === 6
+                      return (
+                        <div key={d} style={{ width: DAY_W, minWidth: DAY_W, flexShrink: 0 }}
+                          className={`h-full border-l border-white/[0.03] ${
+                            isToday ? 'bg-[#D4AF37]/[0.06]' : isWeekend ? 'bg-white/[0.015]' : ''
+                          }`} />
+                      )
+                    })}
+                  </div>
+
+                  {/* Booking bars */}
+                  {propBookings.map(b => {
+                    const { left, width, startsBefore, endsAfter } = barLayout(b)
+                    const n = nights(b.arrival, b.departure)
+                    const guestFirst = b.guest.name.split(' ')[0]
+                    const isSelected = selected?.id === b.id
+                    const barCls = b.source === 'Airbnb'
+                      ? 'bg-rose-500 border-rose-300/20 text-white'
+                      : b.source === 'BookingCom'
+                      ? 'bg-blue-600 border-blue-300/20 text-white'
+                      : 'bg-[#C9A227] border-[#D4AF37]/30 text-black'
+                    return (
+                      <div
+                        key={b.id}
+                        onClick={() => setSelected(isSelected ? null : b)}
+                        title={`${b.guest.name} • ${n} nuits • ${fmtDate(b.arrival)} → ${fmtDate(b.departure)} • ${formatCurrency(b.subtotals.stay)}`}
+                        style={{
+                          position: 'absolute',
+                          left,
+                          top: BAR_TOP,
+                          width,
+                          height: BAR_H,
+                          borderRadius: startsBefore ? '0 5px 5px 0' : endsAfter ? '5px 0 0 5px' : 5,
+                          zIndex: 2,
+                        }}
+                        className={`${barCls} border flex items-center px-2 gap-1 overflow-hidden cursor-pointer select-none shadow-sm transition-all ${
+                          isSelected ? 'ring-2 ring-white/60 brightness-110' : 'hover:brightness-110'
+                        }`}
+                      >
+                        <span className="text-[11px] font-semibold truncate leading-none">{guestFirst}</span>
+                        {width > 70 && <span className="text-[10px] opacity-60 flex-shrink-0 leading-none">{n}n</span>}
+                        {width > 128 && b.subtotals.stay > 0 && (
+                          <span className="text-[10px] opacity-70 ml-auto flex-shrink-0 leading-none">{Math.round(b.subtotals.stay)}€</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-4 mt-4 pt-3 border-t border-white/[0.05]">
-        {Object.entries(SOURCE_META).map(([key, sm]) => (
-          <div key={key} className="flex items-center gap-1.5">
-            <div className={`w-2.5 h-2.5 rounded-full ${sm.bg} ${sm.color} border ${sm.border}`} />
-            <span className="text-gray-500 text-xs">{sm.label}</span>
+      {/* Detail panel (clic sur une résa) */}
+      {selected && (
+        <div className="border-t border-white/[0.06] px-5 py-3 flex items-center justify-between gap-4 bg-white/[0.02]">
+          <div className="flex items-center gap-4 flex-wrap text-sm">
+            <div>
+              <p className="text-white font-semibold">{selected.guest.name}</p>
+              <p className="text-white/30 text-xs">{LODGIFY_PROPERTIES[selected.property_id] ?? `#${selected.property_id}`}</p>
+            </div>
+            <span className="text-white/40">{fmtDate(selected.arrival)} → {fmtDate(selected.departure)} <span className="text-white/20">({nights(selected.arrival, selected.departure)} nuits)</span></span>
+            {selected.guest.phone && <span className="text-white/40">{selected.guest.phone}</span>}
+            {selected.subtotals.stay > 0 && <span className="text-[#D4AF37] font-bold">{formatCurrency(selected.subtotals.stay)}</span>}
+            <span className={`text-xs px-2 py-0.5 rounded-full border ${sourceMeta(selected.source).bg} ${sourceMeta(selected.source).color} ${sourceMeta(selected.source).border}`}>
+              {sourceMeta(selected.source).label}
+            </span>
+            <span className={`text-xs font-medium ${statusMeta(selected.status).color}`}>{statusMeta(selected.status).label}</span>
           </div>
-        ))}
-      </div>
-    </Card>
+          <button onClick={() => setSelected(null)} className="text-white/20 hover:text-white transition-colors flex-shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 
