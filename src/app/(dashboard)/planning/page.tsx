@@ -30,8 +30,19 @@ interface Thread  { messages: Message[]; booking_id: number; property_name?: str
 
 // ─── Lodgify property map (IDs → names) ───────────────────────────────────────
 
-// Chargé dynamiquement depuis payout-map (vide au démarrage)
-const LODGIFY_PROPERTIES: Record<number, string> = {}
+// Liste complète des logements Lodgify (source de vérité pour les IDs)
+const LODGIFY_PROPERTIES: Record<number, string> = {
+  690597: 'T2 Commercy',
+  690679: 'Studio Rochelle',
+  694500: 'T2 Pompidou Metz',
+  702625: 'Studio Ligny Centre',
+  702626: 'T2 Cosy Ligny',
+  705470: 'Studio Nancy Rives',
+  745678: 'T2 Bar-le-Duc',
+  783021: 'T4 Stanislas Nancy',
+  783678: 'Studio Saint-Dizier',
+  784842: 'T2 Hyper-Centre Nancy',
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -107,6 +118,7 @@ function CalendarView({ bookings, activeProps }: { bookings: Booking[]; activePr
   const allProps = activeProps.length > 0
     ? activeProps
     : Object.entries(LODGIFY_PROPERTIES).map(([id, name]) => ({ id: Number(id), name })).sort((a, b) => a.name.localeCompare(b.name))
+
 
   function barLayout(b: Booking) {
     const arr = new Date(b.arrival); arr.setHours(0, 0, 0, 0)
@@ -362,23 +374,32 @@ export default function PlanningPage() {
   const [activeProps, setActiveProps] = useState<{ id: number; name: string }[]>([])
   const PAGE_SIZE = 50
 
-  // Load payout map once — alimente aussi LODGIFY_PROPERTIES et la liste des actifs
+  // Load payout map once — pour commissions + filtrage actif/inactif
   useEffect(() => {
     fetch('/api/lodgify/payout-map').then(r => r.json()).then(data => {
       if (data && typeof data === 'object' && !data.error) {
         setPayoutMap(data)
-        // Alimentation dynamique du dictionnaire global
-        for (const [id, info] of Object.entries(data) as [string, any][]) {
-          LODGIFY_PROPERTIES[Number(id)] = info.name
-        }
-        // Liste des logements ACTIFS uniquement pour la timeline
-        const active = Object.entries(data as Record<string, any>)
-          .filter(([, info]) => info.status === 'active')
-          .map(([id, info]) => ({ id: Number(id), name: info.name as string }))
+        // Construire la liste des Lodgify IDs actifs :
+        // Un logement est inactif si le payout-map le connaît ET le marque inactif.
+        // Les logements non encore dans le payout-map sont considérés actifs.
+        const inactiveLodgifyIds = new Set(
+          Object.entries(data as Record<string, any>)
+            .filter(([, info]) => info.status !== 'active')
+            .map(([id]) => Number(id))
+        )
+        const active = Object.entries(LODGIFY_PROPERTIES)
+          .map(([id, name]) => ({ id: Number(id), name }))
+          .filter(({ id }) => !inactiveLodgifyIds.has(id))
           .sort((a, b) => a.name.localeCompare(b.name))
         setActiveProps(active)
       }
-    }).catch(() => {})
+    }).catch(() => {
+      // Si payout-map échoue, afficher tous les logements
+      const all = Object.entries(LODGIFY_PROPERTIES)
+        .map(([id, name]) => ({ id: Number(id), name }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+      setActiveProps(all)
+    })
   }, [])
 
   const load = useCallback(async () => {
