@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
       // For historical months, use the stored value in the report (snapshot at time of report).
       // For the current month (or if no report exists), count live from DB.
       // Only count conciergerie properties (sous-location is a separate business, excluded from commission KPIs)
-      prisma.property.count({ where: { status: 'active', typeGestion: 'conciergerie' } }),
+      prisma.property.count({ where: { status: 'active' } }),
       // Relances (always based on today) — show ALL upcoming + overdue (no upper date limit)
       prisma.owner.findMany({
         where: { relanceDate: { gte: today } },
