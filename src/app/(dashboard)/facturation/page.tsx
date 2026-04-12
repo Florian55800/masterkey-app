@@ -1192,7 +1192,15 @@ export default function FacturationPage() {
     else setMonth(m => m + 1)
   }
 
-  const totalBrut = conciergerieProps.reduce((s, p) => s + propertyTotals(p.revenues).partMK, 0)
+  const totalBrutConcierge = conciergerieProps.reduce((s, p) => s + propertyTotals(p.revenues).partMK, 0)
+  const totalBrutSousLoc = sousLocationProps.reduce((s, p) => {
+    const gross = p.revenues.reduce((sum, r) => sum + r.platformAmount, 0)
+    const cleaning = p.revenues.reduce((sum, r) => sum + r.cleaningFees, 0)
+    const exp = p.subletExpenses[0] ?? null
+    const charges = exp ? exp.loyer + exp.electricite + exp.wifi + exp.autresCharges : 0
+    return s + (gross - cleaning - charges)
+  }, 0)
+  const totalBrutGlobal = totalBrutConcierge + totalBrutSousLoc
 
   const handleSeed = async () => {
     if (!confirm('Importer les données historiques (Août 2025 → Fév 2026) ? Les entrées existantes ne seront pas écrasées.')) return
@@ -1238,10 +1246,26 @@ export default function FacturationPage() {
             <Download className="w-3.5 h-3.5" />
             {seeding ? 'Import...' : 'Données historiques'}
           </button>
-          {totalBrut > 0 && (
-            <div className="bg-[#D4AF37]/10 border border-[#D4AF37]/20 rounded-2xl px-4 py-2.5 text-center">
-              <p className="text-white/40 text-[10px] uppercase tracking-wider mb-0.5">Total brut {MONTHS_FR[month]}</p>
-              <p className="text-[#D4AF37] font-bold text-xl">{formatCurrency(totalBrut)}</p>
+          {(totalBrutConcierge > 0 || totalBrutSousLoc !== 0) && (
+            <div className="flex items-center gap-2">
+              {totalBrutConcierge > 0 && (
+                <div className="bg-[#D4AF37]/10 border border-[#D4AF37]/20 rounded-2xl px-3 py-2 text-center">
+                  <p className="text-white/40 text-[10px] uppercase tracking-wider mb-0.5">Conciergerie</p>
+                  <p className="text-[#D4AF37] font-bold text-lg">{formatCurrency(totalBrutConcierge)}</p>
+                </div>
+              )}
+              {totalBrutSousLoc !== 0 && (
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl px-3 py-2 text-center">
+                  <p className="text-white/40 text-[10px] uppercase tracking-wider mb-0.5">Sous-location</p>
+                  <p className="text-blue-400 font-bold text-lg">{formatCurrency(totalBrutSousLoc)}</p>
+                </div>
+              )}
+              {totalBrutConcierge > 0 && totalBrutSousLoc !== 0 && (
+                <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl px-3 py-2 text-center">
+                  <p className="text-white/40 text-[10px] uppercase tracking-wider mb-0.5">Total {MONTHS_FR[month]}</p>
+                  <p className="text-white font-bold text-lg">{formatCurrency(totalBrutGlobal)}</p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1310,10 +1334,10 @@ export default function FacturationPage() {
                   <PropertyRevenueCard key={p.id} property={p} month={month} year={year} onReload={load} />
                 ))
               )}
-              {conciergerieProps.length > 0 && totalBrut > 0 && (
+              {conciergerieProps.length > 0 && totalBrutConcierge > 0 && (
                 <div className="flex items-center justify-between bg-[#D4AF37]/5 border border-[#D4AF37]/15 rounded-2xl px-6 py-4">
-                  <span className="text-white/50 font-medium">TOTAL BRUT MENSUEL</span>
-                  <span className="text-[#D4AF37] font-bold text-2xl">{formatCurrency(totalBrut)}</span>
+                  <span className="text-white/50 font-medium">TOTAL BRUT MENSUEL — CONCIERGERIE</span>
+                  <span className="text-[#D4AF37] font-bold text-2xl">{formatCurrency(totalBrutConcierge)}</span>
                 </div>
               )}
             </div>
