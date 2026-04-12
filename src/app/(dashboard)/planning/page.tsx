@@ -30,11 +30,10 @@ interface Thread  { messages: Message[]; booking_id: number; property_name?: str
 
 // ─── Lodgify property map (IDs → names) ───────────────────────────────────────
 
-// Liste complète des logements Lodgify (source de vérité pour les IDs)
+// Liste des logements Lodgify ACTIFS (source de vérité pour les IDs)
 const LODGIFY_PROPERTIES: Record<number, string> = {
   690597: 'T2 Commercy',
   690679: 'Studio Rochelle',
-  694500: 'T2 Pompidou Metz',
   702625: 'Studio Ligny Centre',
   702626: 'T2 Cosy Ligny',
   705470: 'Studio Nancy Rives',
@@ -42,6 +41,7 @@ const LODGIFY_PROPERTIES: Record<number, string> = {
   783021: 'T4 Stanislas Nancy',
   783678: 'Studio Saint-Dizier',
   784842: 'T2 Hyper-Centre Nancy',
+  788776: 'Le Loft Sauvage Bar-le-Duc',
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
