@@ -25,16 +25,17 @@ export async function GET() {
       })
       try {
         const rs = await client.execute(
-          `SELECT id, name, lodgifyId, commissionRate, cleaningFee FROM Property WHERE lodgifyId IS NOT NULL`
+          `SELECT id, name, lodgifyId, commissionRate, cleaningFee, status FROM Property WHERE lodgifyId IS NOT NULL`
         )
         const rows = toRows(rs)
-        const map: Record<number, { commissionRate: number; cleaningFee: number; name: string }> = {}
+        const map: Record<number, { commissionRate: number; cleaningFee: number; name: string; status: string }> = {}
         for (const row of rows) {
           if (row.lodgifyId) {
             map[row.lodgifyId as number] = {
               commissionRate: Number(row.commissionRate) || 0,
               cleaningFee: Number(row.cleaningFee) || 0,
               name: row.name as string,
+              status: row.status as string,
             }
           }
         }
@@ -47,12 +48,12 @@ export async function GET() {
     // Local dev: Prisma
     const properties = await prisma.property.findMany({
       where: { lodgifyId: { not: null } },
-      select: { id: true, name: true, lodgifyId: true, commissionRate: true, cleaningFee: true },
+      select: { id: true, name: true, lodgifyId: true, commissionRate: true, cleaningFee: true, status: true },
     })
-    const map: Record<number, { commissionRate: number; cleaningFee: number; name: string }> = {}
+    const map: Record<number, { commissionRate: number; cleaningFee: number; name: string; status: string }> = {}
     for (const p of properties) {
       if (p.lodgifyId) {
-        map[p.lodgifyId] = { commissionRate: p.commissionRate, cleaningFee: p.cleaningFee, name: p.name }
+        map[p.lodgifyId] = { commissionRate: p.commissionRate, cleaningFee: p.cleaningFee, name: p.name, status: p.status }
       }
     }
     return NextResponse.json(map)

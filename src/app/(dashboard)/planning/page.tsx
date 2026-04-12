@@ -30,29 +30,20 @@ interface Thread  { messages: Message[]; booking_id: number; property_name?: str
 
 // ─── Lodgify property map (IDs → names) ───────────────────────────────────────
 
-const LODGIFY_PROPERTIES: Record<number, string> = {
-  690597: 'T2 Commercy',
-  690679: 'Studio Rochelle',
-  694500: 'T2 Pompidou Metz',
-  702625: 'Studio Ligny Centre',
-  702626: 'T2 Cosy Ligny',
-  705470: 'Studio Nancy Rives',
-  745678: 'T2 Bar-le-Duc',
-  783021: 'T4 Stanislas Nancy',
-  783678: 'Studio Saint-Dizier',
-  784842: 'T2 Hyper-Centre Nancy',
-}
+// Chargé dynamiquement depuis payout-map (vide au démarrage)
+const LODGIFY_PROPERTIES: Record<number, string> = {}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Lodgify et Direct sont en réalité des réservations Airbnb
 const SOURCE_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  Airbnb:     { label: 'Airbnb',      color: 'text-rose-400',   bg: 'bg-rose-500/10',   border: 'border-rose-500/20' },
-  BookingCom: { label: 'Booking.com', color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20' },
-  Lodgify:    { label: 'Direct',      color: 'text-[#D4AF37]',  bg: 'bg-[#D4AF37]/10',  border: 'border-[#D4AF37]/20' },
-  Direct:     { label: 'Direct',      color: 'text-[#D4AF37]',  bg: 'bg-[#D4AF37]/10',  border: 'border-[#D4AF37]/20' },
+  Airbnb:     { label: 'Airbnb',      color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
+  BookingCom: { label: 'Booking',     color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+  Lodgify:    { label: 'Airbnb',      color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
+  Direct:     { label: 'Airbnb',      color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
 }
 function sourceMeta(s: string) {
-  return SOURCE_META[s] ?? { label: s, color: 'text-gray-400', bg: 'bg-gray-500/10', border: 'border-gray-500/20' }
+  return SOURCE_META[s] ?? { label: 'Airbnb', color: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' }
 }
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
@@ -81,7 +72,7 @@ const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','A
 
 // ─── Timeline calendar (style Lodgify) ───────────────────────────────────────
 
-function CalendarView({ bookings }: { bookings: Booking[] }) {
+function CalendarView({ bookings, activeProps }: { bookings: Booking[]; activeProps: { id: number; name: string }[] }) {
   const todayD = new Date(); todayD.setHours(0, 0, 0, 0)
   const [year,  setYear]  = useState(todayD.getFullYear())
   const [month, setMonth] = useState(todayD.getMonth())
@@ -113,9 +104,9 @@ function CalendarView({ bookings }: { bookings: Booking[] }) {
     byProp[b.property_id].push(b)
   }
 
-  const allProps = Object.entries(LODGIFY_PROPERTIES)
-    .map(([id, name]) => ({ id: Number(id), name }))
-    .sort((a, b) => a.name.localeCompare(b.name))
+  const allProps = activeProps.length > 0
+    ? activeProps
+    : Object.entries(LODGIFY_PROPERTIES).map(([id, name]) => ({ id: Number(id), name })).sort((a, b) => a.name.localeCompare(b.name))
 
   function barLayout(b: Booking) {
     const arr = new Date(b.arrival); arr.setHours(0, 0, 0, 0)
@@ -150,7 +141,6 @@ function CalendarView({ bookings }: { bookings: Booking[] }) {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5"><div className="w-3 h-2.5 rounded-sm bg-rose-500" /><span className="text-white/30 text-xs">Airbnb</span></div>
           <div className="flex items-center gap-1.5"><div className="w-3 h-2.5 rounded-sm bg-blue-600" /><span className="text-white/30 text-xs">Booking</span></div>
-          <div className="flex items-center gap-1.5"><div className="w-3 h-2.5 rounded-sm bg-[#C9A227]" /><span className="text-white/30 text-xs">Direct</span></div>
         </div>
       </div>
 
@@ -213,11 +203,9 @@ function CalendarView({ bookings }: { bookings: Booking[] }) {
                     const n = nights(b.arrival, b.departure)
                     const guestFirst = b.guest.name.split(' ')[0]
                     const isSelected = selected?.id === b.id
-                    const barCls = b.source === 'Airbnb'
-                      ? 'bg-rose-500 border-rose-300/20 text-white'
-                      : b.source === 'BookingCom'
+                    const barCls = b.source === 'BookingCom'
                       ? 'bg-blue-600 border-blue-300/20 text-white'
-                      : 'bg-[#C9A227] border-[#D4AF37]/30 text-black'
+                      : 'bg-rose-500 border-rose-300/20 text-white'
                     return (
                       <div
                         key={b.id}
@@ -370,13 +358,26 @@ export default function PlanningPage() {
   const [activeThread, setActiveThread] = useState<{ uid: string; guest: string } | null>(null)
   const [page,       setPage]       = useState(1)
   const [total,      setTotal]      = useState(0)
-  const [payoutMap,  setPayoutMap]  = useState<Record<number, { commissionRate: number; cleaningFee: number; name: string }>>({})
+  const [payoutMap,  setPayoutMap]  = useState<Record<number, { commissionRate: number; cleaningFee: number; name: string; status: string }>>({})
+  const [activeProps, setActiveProps] = useState<{ id: number; name: string }[]>([])
   const PAGE_SIZE = 50
 
-  // Load payout map once
+  // Load payout map once — alimente aussi LODGIFY_PROPERTIES et la liste des actifs
   useEffect(() => {
     fetch('/api/lodgify/payout-map').then(r => r.json()).then(data => {
-      if (data && typeof data === 'object' && !data.error) setPayoutMap(data)
+      if (data && typeof data === 'object' && !data.error) {
+        setPayoutMap(data)
+        // Alimentation dynamique du dictionnaire global
+        for (const [id, info] of Object.entries(data) as [string, any][]) {
+          LODGIFY_PROPERTIES[Number(id)] = info.name
+        }
+        // Liste des logements ACTIFS uniquement pour la timeline
+        const active = Object.entries(data as Record<string, any>)
+          .filter(([, info]) => info.status === 'active')
+          .map(([id, info]) => ({ id: Number(id), name: info.name as string }))
+          .sort((a, b) => a.name.localeCompare(b.name))
+        setActiveProps(active)
+      }
     }).catch(() => {})
   }, [])
 
@@ -394,9 +395,12 @@ export default function PlanningPage() {
 
   useEffect(() => { load() }, [load])
 
+  // Normalise Lodgify/Direct → Airbnb
+  function normSource(s: string) { return (s === 'Lodgify' || s === 'Direct') ? 'Airbnb' : s }
+
   // Filters applied client-side
   const displayed = bookings.filter(b => {
-    if (srcFilter !== 'tous' && b.source !== srcFilter) return false
+    if (srcFilter !== 'tous' && normSource(b.source) !== srcFilter) return false
     if (statusFilter !== 'tous' && b.status !== statusFilter) return false
     return true
   })
@@ -406,7 +410,7 @@ export default function PlanningPage() {
   const totalRev   = bookings.filter(b => b.status === 'Confirmed').reduce((s, b) => s + b.subtotals.stay, 0)
   const totalNights = bookings.filter(b => b.status === 'Confirmed').reduce((s, b) => s + nights(b.arrival, b.departure), 0)
 
-  const allSources = Array.from(new Set(bookings.map(b => b.source)))
+  const allSources = Array.from(new Set(bookings.map(b => normSource(b.source))))
   const allStatuses = Array.from(new Set(bookings.map(b => b.status)))
 
   return (
@@ -492,7 +496,7 @@ export default function PlanningPage() {
       </div>
 
       {loading ? <LoadingPage /> : view === 'calendar' ? (
-        <CalendarView bookings={displayed} />
+        <CalendarView bookings={displayed} activeProps={activeProps} />
       ) : (
         <Card padding="none">
           <div className="overflow-x-auto">

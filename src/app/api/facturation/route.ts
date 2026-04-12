@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
     const year = parseInt(searchParams.get('year') ?? '0')
 
     const properties = await prisma.property.findMany({
-      where: { typeGestion: 'conciergerie' },
+      where: { typeGestion: 'conciergerie', status: 'active' },
       include: {
         owner: { select: { id: true, name: true } },
         revenues: month && year
