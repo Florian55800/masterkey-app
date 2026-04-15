@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Search, Users, Phone, Mail, Edit2, Bell, Star, Trash2, Download } from 'lucide-react'
+import { Plus, Search, Users, Phone, Mail, Edit2, Bell, Star, Trash2, Download, ClipboardList } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { formatCurrency } from '@/lib/utils'
 import { format, isPast, isWithinInterval, addDays } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import OnboardingPage from '../onboarding/page'
 
 interface SatisfactionScore {
   id: number
@@ -90,6 +91,7 @@ function exportOwnersXls(owners: Owner[]) {
 }
 
 export default function ProprietairesPage() {
+  const [mainTab, setMainTab] = useState<'clients' | 'onboarding'>('clients')
   const [owners, setOwners] = useState<Owner[]>([])
   const [loading, setLoading] = useState(true)
   const [typeGestionTab, setTypeGestionTab] = useState<'conciergerie' | 'sous-location'>('conciergerie')
@@ -234,17 +236,44 @@ export default function ProprietairesPage() {
             {owners.length} client(s) · {activeOwnersCount} actif(s)
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => exportOwnersXls(owners)} disabled={owners.length === 0}>
-            <Download className="w-4 h-4" />
-            Exporter XLS
-          </Button>
-          <Button onClick={openCreateModal}>
-            <Plus className="w-4 h-4" />
-            Ajouter
-          </Button>
-        </div>
+        {mainTab === 'clients' && (
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => exportOwnersXls(owners)} disabled={owners.length === 0}>
+              <Download className="w-4 h-4" />
+              Exporter XLS
+            </Button>
+            <Button onClick={openCreateModal}>
+              <Plus className="w-4 h-4" />
+              Ajouter
+            </Button>
+          </div>
+        )}
       </div>
+
+      {/* Main Tabs */}
+      <div className="flex gap-2 border-b border-white/[0.06] pb-0">
+        {([
+          { key: 'clients' as const, label: 'Clients', icon: Users },
+          { key: 'onboarding' as const, label: 'Onboarding', icon: ClipboardList },
+        ]).map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setMainTab(key)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px ${
+              mainTab === key
+                ? 'text-[#D4AF37] border-[#D4AF37]'
+                : 'text-white/40 border-transparent hover:text-white/70'
+            }`}
+          >
+            <Icon className="w-4 h-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mainTab === 'onboarding' && <OnboardingPage />}
+
+      {mainTab === 'clients' && (<>
 
       {/* TypeGestion Tabs */}
       <div className="flex items-center bg-[#1a1a1a] border border-[#2e2e2e] rounded-2xl p-1 w-fit">
@@ -536,6 +565,7 @@ export default function ProprietairesPage() {
           </div>
         </div>
       </Modal>
+      </>)}
     </div>
   )
 }

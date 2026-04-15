@@ -11,6 +11,7 @@ import { Modal } from '@/components/ui/Modal'
 import { LoadingPage } from '@/components/ui/LoadingSpinner'
 import { Badge } from '@/components/ui/Badge'
 import { formatCurrency } from '@/lib/utils'
+import RapportsInline from '../rapports/page'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,7 +59,7 @@ interface Property {
   subletExpenses: SubletExpense[]
 }
 
-type ActiveTab = 'conciergerie' | 'sous-location' | 'classement'
+type ActiveTab = 'conciergerie' | 'sous-location' | 'classement' | 'rapports'
 
 const PLATFORMS = ['airbnb', 'booking', 'direct', 'autre']
 const PLATFORM_COLORS: Record<string, string> = {
@@ -1226,6 +1227,7 @@ export default function FacturationPage() {
     { key: 'conciergerie', label: 'Conciergerie', count: conciergerieProps.length },
     { key: 'sous-location', label: 'Sous-location', count: sousLocationProps.length },
     { key: 'classement', label: 'Classement' },
+    { key: 'rapports', label: 'Rapports' },
   ]
 
   return (
@@ -1361,6 +1363,8 @@ export default function FacturationPage() {
           {tab === 'classement' && (
             <ClassementTab properties={conciergerieProps} month={month} year={year} />
           )}
+
+          {tab === 'rapports' && <RapportsInline />}
         </>
       )}
     </div>

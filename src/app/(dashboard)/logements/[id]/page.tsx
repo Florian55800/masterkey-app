@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import {
   ArrowLeft, TrendingUp, Trophy, Printer, Save, Check,
   Home, Building2, MapPin, User, Calendar, Percent,
+  BookOpen, Wifi, Key, Clock, FileText, Copy, Plus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -70,6 +71,219 @@ const RANK_COLORS = [
   { bg: 'bg-amber-700/10', text: 'text-amber-600',  border: 'border-amber-700/20', rank: '3e'  },
 ]
 
+// ─── Livret Tab ───────────────────────────────────────────────────────────────
+
+interface WelcomeGuide {
+  id: number
+  propertyId: number
+  shareToken: string
+  welcomeMessage: string | null
+  wifiName: string | null
+  wifiPassword: string | null
+  keyCode: string | null
+  checkIn: string | null
+  checkOut: string | null
+}
+
+function LivretTab({ propertyId }: { propertyId: number }) {
+  const [guide, setGuide] = useState<WelcomeGuide | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [creating, setCreating] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [draft, setDraft] = useState({
+    welcomeMessage: '',
+    wifiName: '',
+    wifiPassword: '',
+    keyCode: '',
+    checkIn: '',
+    checkOut: '',
+  })
+
+  useEffect(() => {
+    fetch('/api/welcome-guides')
+      .then(r => r.json())
+      .then((guides: WelcomeGuide[]) => {
+        const g = guides.find(g => g.propertyId === propertyId) ?? null
+        setGuide(g)
+        if (g) setDraft({
+          welcomeMessage: g.welcomeMessage ?? '',
+          wifiName: g.wifiName ?? '',
+          wifiPassword: g.wifiPassword ?? '',
+          keyCode: g.keyCode ?? '',
+          checkIn: g.checkIn ?? '',
+          checkOut: g.checkOut ?? '',
+        })
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [propertyId])
+
+  const createGuide = async () => {
+    setCreating(true)
+    try {
+      const res = await fetch('/api/welcome-guides', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ propertyId }),
+      })
+      const g = await res.json()
+      setGuide(g)
+      setDraft({ welcomeMessage: '', wifiName: '', wifiPassword: '', keyCode: '', checkIn: '', checkOut: '' })
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const saveGuide = async () => {
+    if (!guide) return
+    setSaving(true)
+    try {
+      await fetch(`/api/welcome-guides/${guide.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(draft),
+      })
+      setGuide(g => g ? { ...g, ...draft } : g)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const copyLink = () => {
+    if (!guide) return
+    navigator.clipboard.writeText(`${window.location.origin}/bienvenue/${guide.shareToken}`)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const inputCls = 'w-full px-3 py-2.5 rounded-xl text-sm text-white placeholder-white/30 bg-white/5 border border-white/10 focus:outline-none focus:border-[#D4AF37]/50 focus:ring-0'
+
+  if (loading) return (
+    <div className="flex justify-center py-12">
+      <div className="w-6 h-6 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+
+  if (!guide) return (
+    <div className="flex flex-col items-center justify-center py-16 gap-4">
+      <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(212,175,55,0.1)', border: '1px solid rgba(212,175,55,0.15)' }}>
+        <BookOpen className="w-8 h-8 text-[#D4AF37]" />
+      </div>
+      <div className="text-center">
+        <p className="text-white font-semibold text-lg">Aucun livret d&apos;accueil</p>
+        <p className="text-white/40 text-sm mt-1">Créez le livret pour ce logement</p>
+      </div>
+      <button
+        onClick={createGuide}
+        disabled={creating}
+        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-black disabled:opacity-50"
+        style={{ background: '#D4AF37' }}
+      >
+        <Plus className="w-4 h-4" />
+        {creating ? 'Création...' : 'Créer le livret'}
+      </button>
+    </div>
+  )
+
+  return (
+    <div className="space-y-5">
+      {/* Share link */}
+      <div className="flex items-center justify-between gap-3 p-4 rounded-2xl" style={{ background: 'rgba(212,175,55,0.06)', border: '1px solid rgba(212,175,55,0.15)' }}>
+        <div className="flex items-center gap-2 min-w-0">
+          <FileText className="w-4 h-4 text-[#D4AF37] flex-shrink-0" />
+          <span className="text-white/60 text-sm truncate">{typeof window !== 'undefined' ? `${window.location.origin}/bienvenue/${guide.shareToken}` : `…/bienvenue/${guide.shareToken}`}</span>
+        </div>
+        <button
+          onClick={copyLink}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium flex-shrink-0 transition-all"
+          style={copied ? { background: 'rgba(34,197,94,0.15)', color: '#22c55e' } : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)' }}
+        >
+          {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+          {copied ? 'Copié !' : 'Copier le lien'}
+        </button>
+      </div>
+
+      {/* Message de bienvenue */}
+      <div>
+        <label className="block text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-2">Message de bienvenue</label>
+        <textarea
+          className={`${inputCls} min-h-[80px] resize-none`}
+          value={draft.welcomeMessage}
+          onChange={e => setDraft(d => ({ ...d, welcomeMessage: e.target.value }))}
+          placeholder="Bienvenue dans notre logement..."
+        />
+      </div>
+
+      {/* Wifi */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-2 flex items-center gap-1.5">
+            <Wifi className="w-3.5 h-3.5" /> Nom du WiFi
+          </label>
+          <input className={inputCls} value={draft.wifiName} onChange={e => setDraft(d => ({ ...d, wifiName: e.target.value }))} placeholder="MonWifi_5G" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-2">Mot de passe WiFi</label>
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              className={`${inputCls} pr-10`}
+              value={draft.wifiPassword}
+              onChange={e => setDraft(d => ({ ...d, wifiPassword: e.target.value }))}
+              placeholder="••••••••"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(v => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors text-xs"
+            >
+              {showPassword ? 'Masquer' : 'Voir'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Accès */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-2 flex items-center gap-1.5">
+            <Key className="w-3.5 h-3.5" /> Code d&apos;accès
+          </label>
+          <input className={inputCls} value={draft.keyCode} onChange={e => setDraft(d => ({ ...d, keyCode: e.target.value }))} placeholder="1234" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-2 flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5" /> Check-in
+          </label>
+          <input className={inputCls} value={draft.checkIn} onChange={e => setDraft(d => ({ ...d, checkIn: e.target.value }))} placeholder="15h00" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-2">Check-out</label>
+          <input className={inputCls} value={draft.checkOut} onChange={e => setDraft(d => ({ ...d, checkOut: e.target.value }))} placeholder="11h00" />
+        </div>
+      </div>
+
+      {/* Save */}
+      <div className="flex justify-end">
+        <button
+          onClick={saveGuide}
+          disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
+          style={saved ? { background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' } : { background: '#D4AF37', color: '#000' }}
+        >
+          {saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+          {saving ? 'Enregistrement...' : saved ? 'Enregistré !' : 'Enregistrer'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PropertyDetailPage() {
@@ -77,6 +291,7 @@ export default function PropertyDetailPage() {
   const params = useParams()
   const id = params?.id as string
 
+  const [detailTab, setDetailTab] = useState<'fiche' | 'livret'>('fiche')
   const [property, setProperty] = useState<PropertyDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -312,6 +527,31 @@ export default function PropertyDetailPage() {
           </div>
         </Card>
       </div>
+
+      {/* ── Detail Tabs ─────────────────────────────────────────────────────── */}
+      <div className="flex gap-2 border-b border-white/[0.06] pb-0">
+        {([
+          { key: 'fiche' as const, label: 'Fiche logement', icon: Building2 },
+          { key: 'livret' as const, label: 'Livret d\'accueil', icon: BookOpen },
+        ]).map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setDetailTab(key)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px ${
+              detailTab === key
+                ? 'text-[#D4AF37] border-[#D4AF37]'
+                : 'text-white/40 border-transparent hover:text-white/70'
+            }`}
+          >
+            <Icon className="w-4 h-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {detailTab === 'livret' && <LivretTab propertyId={Number(id)} />}
+
+      {detailTab === 'fiche' && (<>
 
       {/* ── Description ────────────────────────────────────────────────────── */}
       <Card>
@@ -624,6 +864,8 @@ export default function PropertyDetailPage() {
           )}
         </Card>
       )}
+
+      </>)}
 
       {/* ── PDF Revenus mensuels ────────────────────────────────────────────── */}
       <Modal isOpen={printRevenuesOpen} onClose={() => setPrintRevenuesOpen(false)} title="Revenus mensuels — PDF" size="lg">

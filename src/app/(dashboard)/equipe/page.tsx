@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Users, Edit2, Plus, Crown, Medal, TrendingUp, Star, Calendar } from 'lucide-react'
+import { Users, Edit2, Plus, Crown, Medal, TrendingUp, Star, Calendar, Briefcase, Target } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Badge } from '@/components/ui/Badge'
 import { LoadingPage } from '@/components/ui/LoadingSpinner'
+import PersonnelPage from '../personnel/page'
+import ObjectifsPage from '../objectifs/page'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -184,7 +186,10 @@ function MemberModal({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+type EquipeTab = 'equipe' | 'personnel' | 'objectifs'
+
 export default function EquipePage() {
+  const [activeTab, setActiveTab] = useState<EquipeTab>('equipe')
   const [users, setUsers] = useState<TeamUser[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -236,13 +241,41 @@ export default function EquipePage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">Équipe</h1>
-          <p className="text-white/40 mt-1">{users.length} membre{users.length > 1 ? 's' : ''}</p>
+          <p className="text-white/40 mt-1">Gestion de l&apos;équipe, du personnel et des objectifs</p>
         </div>
-        <Button onClick={openAdd}>
-          <Plus className="w-4 h-4 mr-1.5" />
-          Ajouter un membre
-        </Button>
+        {activeTab === 'equipe' && (
+          <Button onClick={openAdd}>
+            <Plus className="w-4 h-4 mr-1.5" />
+            Ajouter un membre
+          </Button>
+        )}
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-white/[0.06] pb-0">
+        {([
+          { key: 'equipe' as EquipeTab, label: 'Équipe', icon: Users },
+          { key: 'personnel' as EquipeTab, label: 'Personnel', icon: Briefcase },
+          { key: 'objectifs' as EquipeTab, label: 'Objectifs', icon: Target },
+        ]).map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px ${
+              activeTab === key
+                ? 'text-[#D4AF37] border-[#D4AF37]'
+                : 'text-white/40 border-transparent hover:text-white/70'
+            }`}
+          >
+            <Icon className="w-4 h-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'personnel' && <PersonnelPage />}
+      {activeTab === 'objectifs' && <ObjectifsPage />}
+      {activeTab === 'equipe' && (<div className="space-y-6">
 
       {/* Members Grid */}
       {users.length === 0 ? (
@@ -348,6 +381,7 @@ export default function EquipePage() {
         initial={editingUser}
         onSave={handleSave}
       />
+      </div>)}
     </div>
   )
 }

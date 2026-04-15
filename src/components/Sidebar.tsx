@@ -5,10 +5,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import {
   LayoutDashboard,
-  FileBarChart,
   Building2,
   Users,
-  Target,
   TrendingUp,
   CreditCard,
   LogOut,
@@ -17,11 +15,8 @@ import {
   Menu,
   X,
   Receipt,
-  Briefcase,
-  ClipboardList,
   CalendarDays,
   GripVertical,
-  BookOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -36,23 +31,17 @@ const DEFAULT_NAV = [
   { href: '/', label: 'Tableau de bord', icon: 'LayoutDashboard' },
   { href: '/planning', label: 'Planning', icon: 'CalendarDays' },
   { href: '/facturation', label: 'Facturation', icon: 'Receipt' },
-  { href: '/rapports', label: 'Rapports', icon: 'FileBarChart' },
   { href: '/logements', label: 'Logements', icon: 'Building2' },
   { href: '/proprietaires', label: 'Clients', icon: 'Users' },
   { href: '/equipe', label: 'Équipe', icon: 'TrendingUp' },
-  { href: '/objectifs', label: 'Objectifs', icon: 'Target' },
   { href: '/depenses', label: 'Dépenses', icon: 'CreditCard' },
   { href: '/leads', label: 'Leads', icon: 'UserSearch' },
-  { href: '/onboarding', label: 'Onboarding', icon: 'ClipboardList' },
-  { href: '/personnel', label: 'Personnel', icon: 'Briefcase' },
-  { href: '/livrets', label: 'Livrets d\'accueil', icon: 'BookOpen' },
   { href: '/parametres', label: 'Paramètres', icon: 'Settings' },
 ]
 
 const ICON_MAP: Record<string, React.ElementType> = {
-  LayoutDashboard, CalendarDays, Receipt, FileBarChart, Building2,
-  Users, TrendingUp, Target, CreditCard, UserSearch, ClipboardList,
-  Briefcase, Settings, BookOpen,
+  LayoutDashboard, CalendarDays, Receipt, Building2,
+  Users, TrendingUp, CreditCard, UserSearch, Settings,
 }
 
 // Items shown directly in the bottom bar (most used)
