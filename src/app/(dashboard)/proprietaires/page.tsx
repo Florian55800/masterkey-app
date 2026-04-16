@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Search, Users, Phone, Mail, Edit2, Bell, Star, Trash2, Download, ClipboardList } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, Search, Users, Phone, Mail, Edit2, Bell, Star, Trash2, Download, ClipboardList, ChevronRight } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -436,16 +437,24 @@ export default function ProprietairesPage() {
                 )}
 
                 <div className="flex gap-2">
+                  <Link
+                    href={`/proprietaires/${owner.id}`}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/8 text-[#D4AF37] hover:bg-[#D4AF37]/15 transition-all text-sm font-medium"
+                  >
+                    Voir la fiche
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
                   <button
                     onClick={() => openEditModal(owner)}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-[#2e2e2e] text-gray-400 hover:text-white hover:border-[#D4AF37]/30 transition-all text-sm"
+                    className="px-3 py-2 rounded-lg border border-[#2e2e2e] text-gray-400 hover:text-white hover:border-[#D4AF37]/30 transition-all"
+                    title="Modifier"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
-                    Modifier
                   </button>
                   <button
                     onClick={() => handleDelete(owner.id, owner.name)}
                     className="px-3 py-2 rounded-lg border border-[#2e2e2e] text-gray-500 hover:text-red-400 hover:border-red-500/20 transition-all"
+                    title="Supprimer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>

@@ -34,8 +34,70 @@ model Owner {
   properties     Property[]
   satisfactions  SatisfactionScore[]
   advances       Advance[]
+  onboarding     OwnerOnboarding?
+  documents      OwnerDocument[]
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
+}
+
+model OwnerOnboarding {
+  id                    Int      @id @default(autoincrement())
+  ownerId               Int      @unique
+  owner                 Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  // Identité
+  nomPrenom             String?
+  adresseDomicile       String?
+  telephone             String?
+  // Logement
+  villeLogement         String?
+  adresseLogement       String?
+  typeBien              String?
+  arriveeAutonome       String?
+  codeBoiteACles        String?
+  surface               String?
+  nbChambres            String?
+  nbSallesBain          String?
+  etage                 String?
+  accessible            String?
+  equipements           String?
+  // Accès & pratique
+  wifiNom               String?
+  wifiMdp               String?
+  consignesPoubelles    String?
+  reglementInterieur    String?
+  instructionsAppareils String?
+  styleDecoration       String?
+  themeParticularite    String?
+  // Plateformes
+  dejaEnLocation        String?
+  lienAnnonce           String?
+  disponibiliteMois     String?
+  occupe                String?
+  // Sécurité
+  detecteurFumee        String?
+  emplacementElectrique String?
+  extincteur            String?
+  piscine               String?
+  // Financier
+  prixMoyenNuit         String?
+  tauxOccupation        String?
+  revenusMenuels        String?
+  fraisMensuels         String?
+  maximiserRevenus      String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model OwnerDocument {
+  id        Int      @id @default(autoincrement())
+  ownerId   Int
+  owner     Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name      String
+  url       String
+  mimeType  String?
+  size      Int?
+  category  String   @default("autre")
+  createdAt DateTime @default(now())
 }
 
 model Staff {
