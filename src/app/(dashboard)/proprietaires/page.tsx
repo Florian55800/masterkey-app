@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { Plus, Search, Users, Phone, Mail, Edit2, Bell, Star, Trash2, Download, ClipboardList, ChevronRight } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Plus, Search, Users, Phone, Mail, Edit2, Bell, Star, Trash2, Download, ClipboardList } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -92,6 +92,7 @@ function exportOwnersXls(owners: Owner[]) {
 }
 
 export default function ProprietairesPage() {
+  const router = useRouter()
   const [mainTab, setMainTab] = useState<'clients' | 'onboarding'>('clients')
   const [owners, setOwners] = useState<Owner[]>([])
   const [loading, setLoading] = useState(true)
@@ -352,10 +353,18 @@ export default function ProprietairesPage() {
             const activeProperties = owner.properties.filter((p) => p.status === 'active')
 
             return (
-              <Card key={owner.id} className={`relative ${
-                relanceStatus === 'overdue' ? 'border-red-500/20' :
-                relanceStatus === 'upcoming' ? 'border-amber-500/20' : ''
-              }`}>
+              <div
+                key={owner.id}
+                onClick={() => router.push(`/proprietaires/${owner.id}`)}
+                className={`relative rounded-2xl p-5 cursor-pointer transition-all hover:border-[#D4AF37]/30 hover:bg-[#D4AF37]/[0.02] ${
+                  relanceStatus === 'overdue'
+                    ? 'border border-red-500/20 bg-[#1a1a1a]'
+                    : relanceStatus === 'upcoming'
+                    ? 'border border-amber-500/20 bg-[#1a1a1a]'
+                    : 'border border-white/[0.06] bg-[#181818]'
+                }`}
+              >
+                {/* Relance badge */}
                 {relanceStatus === 'overdue' && (
                   <div className="absolute top-3 right-3">
                     <Badge variant="danger">Relance en retard</Badge>
@@ -367,36 +376,35 @@ export default function ProprietairesPage() {
                   </div>
                 )}
 
+                {/* Name + avatar */}
                 <div className="flex items-start gap-3 mb-4">
                   <div className="w-12 h-12 rounded-xl bg-[#D4AF37]/10 border border-[#D4AF37]/20 flex items-center justify-center flex-shrink-0">
-                    <span className="text-[#D4AF37] font-bold">{owner.name.charAt(0)}</span>
+                    <span className="text-[#D4AF37] font-bold text-lg">{owner.name.charAt(0)}</span>
                   </div>
                   <div className="flex-1 min-w-0 pr-20">
                     <h3 className="text-white font-semibold">{owner.name}</h3>
-                    {owner.source && (
-                      <p className="text-gray-500 text-xs mt-0.5">{owner.source}</p>
-                    )}
+                    {owner.source && <p className="text-gray-500 text-xs mt-0.5">{owner.source}</p>}
                   </div>
                 </div>
 
                 {/* Stats */}
                 <div className="flex flex-wrap gap-2 mb-3">
-                  <div className="flex items-center gap-1.5 bg-[#1b1b1b] rounded-lg px-2.5 py-1.5">
+                  <div className="flex items-center gap-1.5 bg-[#111] rounded-lg px-2.5 py-1.5">
                     <span className="text-[#D4AF37] font-bold text-sm">{activeProperties.length}</span>
                     <span className="text-gray-400 text-xs">logement(s)</span>
                   </div>
                   {avgScore && (
-                    <div className="flex items-center gap-1.5 bg-[#1b1b1b] rounded-lg px-2.5 py-1.5">
+                    <div className="flex items-center gap-1.5 bg-[#111] rounded-lg px-2.5 py-1.5">
                       <Star className="w-3 h-3 text-amber-400" />
                       <span className="text-white text-sm font-medium">{avgScore}/10</span>
                     </div>
                   )}
                 </div>
 
-                {/* Contact info */}
+                {/* Contact */}
                 <div className="space-y-1.5 mb-3">
                   {owner.phone && (
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-2 text-sm" onClick={e => e.stopPropagation()}>
                       <Phone className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
                       <a href={`tel:${owner.phone}`} className="text-gray-300 hover:text-white transition-colors">
                         {owner.phone}
@@ -404,7 +412,7 @@ export default function ProprietairesPage() {
                     </div>
                   )}
                   {owner.email && (
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-2 text-sm" onClick={e => e.stopPropagation()}>
                       <Mail className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
                       <a href={`mailto:${owner.email}`} className="text-gray-300 hover:text-white transition-colors truncate">
                         {owner.email}
@@ -413,22 +421,22 @@ export default function ProprietairesPage() {
                   )}
                 </div>
 
-                {/* Relance info */}
+                {/* Relance */}
                 {owner.relanceDate && (
                   <div className={`text-xs px-2.5 py-1.5 rounded-lg mb-3 ${
                     relanceStatus === 'overdue' ? 'bg-red-500/10 text-red-400' :
                     relanceStatus === 'upcoming' ? 'bg-amber-500/10 text-amber-400' :
-                    'bg-[#1b1b1b] text-gray-400'
+                    'bg-[#111] text-gray-400'
                   }`}>
                     <Bell className="w-3 h-3 inline mr-1" />
-                    Relance: {format(new Date(owner.relanceDate), 'd MMM yyyy', { locale: fr })}
+                    Relance : {format(new Date(owner.relanceDate), 'd MMM yyyy', { locale: fr })}
                     {owner.relanceNote && <span className="ml-1">— {owner.relanceNote}</span>}
                   </div>
                 )}
 
                 {owner.lastContact && (
                   <p className="text-gray-500 text-xs mb-3">
-                    Dernier contact: {format(new Date(owner.lastContact), 'd MMM yyyy', { locale: fr })}
+                    Dernier contact : {format(new Date(owner.lastContact), 'd MMM yyyy', { locale: fr })}
                   </p>
                 )}
 
@@ -436,30 +444,24 @@ export default function ProprietairesPage() {
                   <p className="text-gray-400 text-xs italic mb-3 line-clamp-2">"{owner.notes}"</p>
                 )}
 
-                <div className="flex gap-2">
-                  <Link
-                    href={`/proprietaires/${owner.id}`}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/8 text-[#D4AF37] hover:bg-[#D4AF37]/15 transition-all text-sm font-medium"
-                  >
-                    Voir la fiche
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </Link>
+                {/* Action buttons — stop propagation so card click doesn't fire */}
+                <div className="flex gap-2 mt-1" onClick={e => e.stopPropagation()}>
                   <button
                     onClick={() => openEditModal(owner)}
-                    className="px-3 py-2 rounded-lg border border-[#2e2e2e] text-gray-400 hover:text-white hover:border-[#D4AF37]/30 transition-all"
-                    title="Modifier"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-white/[0.06] text-gray-400 hover:text-white hover:border-white/20 transition-all text-sm"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
+                    Modifier
                   </button>
                   <button
                     onClick={() => handleDelete(owner.id, owner.name)}
-                    className="px-3 py-2 rounded-lg border border-[#2e2e2e] text-gray-500 hover:text-red-400 hover:border-red-500/20 transition-all"
+                    className="px-3 py-2 rounded-lg border border-white/[0.06] text-gray-500 hover:text-red-400 hover:border-red-500/20 transition-all"
                     title="Supprimer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
-              </Card>
+              </div>
             )
           })}
         </div>
