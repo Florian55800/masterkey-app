@@ -22,4 +22,12 @@ jobs:
             docker compose down
             docker compose build --no-cache app
             docker compose up -d
-            sudo systemctl restart nginx || true
+            echo "=== Docker status ==="
+            docker compose ps
+            echo "=== Proxy services ==="
+            sudo systemctl status nginx 2>&1 | head -5 || echo "nginx not found"
+            sudo systemctl status caddy 2>&1 | head -5 || echo "caddy not found"
+            echo "=== Restart proxy ==="
+            sudo systemctl restart nginx 2>&1 || sudo systemctl restart caddy 2>&1 || echo "no proxy service found"
+            echo "=== Listening ports ==="
+            sudo ss -tlnp | grep -E ':80|:443|:3000'
