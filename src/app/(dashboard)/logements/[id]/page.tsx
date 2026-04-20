@@ -6,6 +6,7 @@ import {
   ArrowLeft, TrendingUp, Trophy, Printer, Save, Check,
   Home, Building2, MapPin, User, Calendar, Percent,
   BookOpen, Wifi, Key, Clock, FileText, Copy, Plus,
+  ShoppingCart, Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -70,6 +71,274 @@ const RANK_COLORS = [
   { bg: 'bg-gray-400/10',  text: 'text-gray-300',  border: 'border-gray-400/20',  rank: '2e'  },
   { bg: 'bg-amber-700/10', text: 'text-amber-600',  border: 'border-amber-700/20', rank: '3e'  },
 ]
+
+// ─── Checklist Data ───────────────────────────────────────────────────────────
+
+const CONSOMMABLES_ITEMS = [
+  { id: 'draps',         label: 'Draps pour les lits' },
+  { id: 'serviettes',    label: 'Serviettes' },
+  { id: 'papier_wc',     label: 'Papier toilette' },
+  { id: 'shampoing',     label: 'Shampoing' },
+  { id: 'gel_douche',    label: 'Gel douche' },
+  { id: 'savon',         label: 'Savon' },
+  { id: 'liquide_vaisselle', label: 'Liquide vaisselle' },
+  { id: 'eponge_cuisine',    label: 'Éponge de cuisine' },
+  { id: 'essuie_tout',       label: 'Essuie-tout cuisine' },
+  { id: 'serviette_cuisine', label: 'Serviette en tissu cuisine' },
+  { id: 'eponge_sdb',        label: 'Éponge salle de bain' },
+  { id: 'produits_nettoyage', label: 'Produits de nettoyage' },
+  { id: 'sacs_poubelle',     label: 'Sacs poubelle' },
+  { id: 'cafe',          label: 'Café' },
+  { id: 'the',           label: 'Thé' },
+  { id: 'sucre',         label: 'Sucre' },
+  { id: 'sel',           label: 'Sel' },
+  { id: 'huile_olive',   label: "Huile d'olive" },
+  { id: 'vinaigre',      label: 'Vinaigre' },
+  { id: 'eau',           label: 'Eau' },
+  { id: 'chocolat',      label: 'Chocolat' },
+  { id: 'biscuits',      label: 'Biscuits' },
+  { id: 'sodas',         label: 'Sodas' },
+]
+
+const EQUIPEMENTS_CATEGORIES = [
+  {
+    label: 'Général & Électronique',
+    items: [
+      { id: 'wifi',          label: 'Wi-Fi' },
+      { id: 'tv',            label: 'TV' },
+      { id: 'clim',          label: 'Climatisation / ventilateur' },
+      { id: 'fer',           label: 'Fer à repasser' },
+      { id: 'table_rep',     label: 'Table de repassage' },
+      { id: 'seche_cheveux', label: 'Sèche-cheveux' },
+      { id: 'parapluie',     label: 'Parapluie' },
+      { id: 'cafetiere',     label: 'Machine à café' },
+      { id: 'bouilloire',    label: 'Bouilloire' },
+      { id: 'microondes',    label: 'Micro-ondes' },
+      { id: 'balai',         label: 'Balai et pelle' },
+      { id: 'aspirateur',    label: 'Aspirateur' },
+      { id: 'cintres',       label: 'Cintres' },
+      { id: 'poubelle_sdb',  label: 'Poubelle salle de bain' },
+    ],
+  },
+  {
+    label: 'Ustensiles de cuisine',
+    items: [
+      { id: 'poeles',        label: 'Poêles et casseroles' },
+      { id: 'couverts',      label: 'Fourchettes, couteaux, cuillères' },
+      { id: 'couteaux',      label: 'Grands couteaux de cuisine' },
+      { id: 'bols',          label: 'Bols' },
+      { id: 'tasses',        label: 'Tasses à thé/café' },
+      { id: 'verres',        label: 'Verres' },
+      { id: 'spatules',      label: 'Spatules, etc.' },
+      { id: 'ouvre_bouteille', label: 'Ouvre-bouteille (vin, bière)' },
+      { id: 'saladier',      label: 'Saladier' },
+      { id: 'passoire',      label: 'Passoire' },
+      { id: 'assiettes',     label: 'Assiettes petites, grandes, soupe' },
+    ],
+  },
+  {
+    label: 'Bonus',
+    items: [
+      { id: 'lave_vaisselle', label: 'Lave-vaisselle' },
+      { id: 'machine_laver',  label: 'Machine à laver' },
+      { id: 'seche_linge',    label: 'Sèche-linge' },
+      { id: 'four',           label: 'Four' },
+      { id: 'coffre',         label: 'Coffre' },
+      { id: 'grille_pain',    label: 'Grille-pain' },
+      { id: 'netflix',        label: 'Service TV (Netflix, etc.)' },
+      { id: 'premiers_secours', label: 'Kit de premiers secours' },
+      { id: 'support_bagages', label: 'Support à bagages' },
+      { id: 'eclairage_nuit', label: 'Éclairage faible toilette (nuit)' },
+      { id: 'adaptateur',     label: 'Prise internationale / adaptateur' },
+    ],
+  },
+]
+
+// ─── Checklist Tab ────────────────────────────────────────────────────────────
+
+function ChecklistTab({ propertyId, propertyName }: { propertyId: number; propertyName: string }) {
+  const [consommables, setConsommables] = useState<string[]>([])
+  const [equipements, setEquipements]   = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
+  const [saved,  setSaved]  = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/properties/${propertyId}/checklist`)
+      .then(r => r.json())
+      .then(data => {
+        try { setConsommables(JSON.parse(data.consommables ?? '[]')) } catch { setConsommables([]) }
+        try { setEquipements(JSON.parse(data.equipements   ?? '[]')) } catch { setEquipements([]) }
+      })
+      .catch(() => {})
+  }, [propertyId])
+
+  const toggle = (list: string[], setList: (v: string[]) => void, id: string) => {
+    setList(list.includes(id) ? list.filter(x => x !== id) : [...list, id])
+    setSaved(false)
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    await fetch(`/api/properties/${propertyId}/checklist`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ consommables, equipements }),
+    })
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const downloadPDF = (type: 'consommables' | 'equipements') => {
+    const date = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+
+    let rows = ''
+    if (type === 'consommables') {
+      rows = CONSOMMABLES_ITEMS.map(item => {
+        const checked = consommables.includes(item.id)
+        return `<tr style="border-bottom:1px solid #eee">
+          <td style="padding:8px 12px;font-size:14px">${item.label}</td>
+          <td style="padding:8px 12px;text-align:center;font-size:18px">${checked ? '✅' : '❌'}</td>
+        </tr>`
+      }).join('')
+    } else {
+      rows = EQUIPEMENTS_CATEGORIES.map(cat => `
+        <tr><td colspan="2" style="padding:10px 12px 4px;font-size:12px;font-weight:700;text-transform:uppercase;color:#666;letter-spacing:1px;background:#f9f9f9">${cat.label}</td></tr>
+        ${cat.items.map(item => {
+          const checked = equipements.includes(item.id)
+          return `<tr style="border-bottom:1px solid #eee">
+            <td style="padding:7px 12px;font-size:14px">${item.label}</td>
+            <td style="padding:7px 12px;text-align:center;font-size:16px">${checked ? '✅' : '❌'}</td>
+          </tr>`
+        }).join('')}
+      `).join('')
+    }
+
+    const title = type === 'consommables' ? 'Fiche Consommables — Femme de ménage' : 'Fiche Équipements — Propriétaire'
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>${title}</title>
+      <style>
+        body{font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px}
+        h1{font-size:20px;margin-bottom:4px}
+        p{color:#666;font-size:13px;margin-bottom:20px}
+        table{width:100%;border-collapse:collapse}
+        th{background:#222;color:#fff;padding:8px 12px;text-align:left;font-size:13px}
+        th:last-child{text-align:center;width:80px}
+        @media print{button{display:none}}
+      </style>
+    </head><body>
+      <h1>${title}</h1>
+      <p>${propertyName} — ${date}</p>
+      <table>
+        <tr><th>Article</th><th>État</th></tr>
+        ${rows}
+      </table>
+      <script>window.onload=()=>window.print()</script>
+    </body></html>`
+
+    const win = window.open('', '_blank')
+    if (win) { win.document.write(html); win.document.close() }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Save button */}
+      <div className="flex justify-end">
+        <button onClick={handleSave} disabled={saving}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+            saved ? 'bg-green-500/15 text-green-400 border border-green-500/20'
+                  : 'bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20 hover:bg-[#D4AF37]/20'
+          } disabled:opacity-50`}>
+          <Save className="w-4 h-4" />
+          {saved ? 'Enregistré' : saving ? 'Enregistrement…' : 'Enregistrer'}
+        </button>
+      </div>
+
+      {/* Consommables */}
+      <div className="bg-[#181818] border border-white/[0.06] rounded-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+              <ShoppingCart className="w-4 h-4 text-blue-400" />
+            </div>
+            <div>
+              <p className="text-white font-semibold">Consommables</p>
+              <p className="text-white/30 text-xs">{consommables.length} / {CONSOMMABLES_ITEMS.length} présents</p>
+            </div>
+          </div>
+          <button onClick={() => downloadPDF('consommables')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 transition-all">
+            <Download className="w-3.5 h-3.5" /> PDF femme de ménage
+          </button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-white/[0.03]">
+          {CONSOMMABLES_ITEMS.map(item => {
+            const checked = consommables.includes(item.id)
+            return (
+              <button key={item.id}
+                onClick={() => toggle(consommables, setConsommables, item.id)}
+                className={`flex items-center gap-2.5 px-4 py-3 text-sm transition-all text-left ${
+                  checked ? 'bg-green-500/10 text-green-300' : 'bg-[#181818] text-white/30 hover:bg-white/[0.03]'
+                }`}>
+                <span className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border ${
+                  checked ? 'bg-green-500 border-green-500' : 'border-white/20'
+                }`}>
+                  {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                </span>
+                {item.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Équipements */}
+      <div className="bg-[#181818] border border-white/[0.06] rounded-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#D4AF37]/10 border border-[#D4AF37]/20 flex items-center justify-center">
+              <Home className="w-4 h-4 text-[#D4AF37]" />
+            </div>
+            <div>
+              <p className="text-white font-semibold">Équipements</p>
+              <p className="text-white/30 text-xs">{equipements.length} / {EQUIPEMENTS_CATEGORIES.reduce((s, c) => s + c.items.length, 0)} présents</p>
+            </div>
+          </div>
+          <button onClick={() => downloadPDF('equipements')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-[#D4AF37] bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/20 transition-all">
+            <Download className="w-3.5 h-3.5" /> PDF propriétaire
+          </button>
+        </div>
+        {EQUIPEMENTS_CATEGORIES.map(cat => (
+          <div key={cat.label}>
+            <div className="px-5 py-2 bg-white/[0.02] border-y border-white/[0.04]">
+              <p className="text-white/30 text-[10px] font-semibold uppercase tracking-wider">{cat.label}</p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-white/[0.03]">
+              {cat.items.map(item => {
+                const checked = equipements.includes(item.id)
+                return (
+                  <button key={item.id}
+                    onClick={() => toggle(equipements, setEquipements, item.id)}
+                    className={`flex items-center gap-2.5 px-4 py-3 text-sm transition-all text-left ${
+                      checked ? 'bg-green-500/10 text-green-300' : 'bg-[#181818] text-white/30 hover:bg-white/[0.03]'
+                    }`}>
+                    <span className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border ${
+                      checked ? 'bg-green-500 border-green-500' : 'border-white/20'
+                    }`}>
+                      {checked && <Check className="w-2.5 h-2.5 text-white" />}
+                    </span>
+                    {item.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 // ─── Livret Tab ───────────────────────────────────────────────────────────────
 
@@ -291,7 +560,7 @@ export default function PropertyDetailPage() {
   const params = useParams()
   const id = params?.id as string
 
-  const [detailTab, setDetailTab] = useState<'fiche' | 'livret'>('fiche')
+  const [detailTab, setDetailTab] = useState<'fiche' | 'livret' | 'checklist'>('fiche')
   const [property, setProperty] = useState<PropertyDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -532,7 +801,8 @@ export default function PropertyDetailPage() {
       <div className="flex gap-2 border-b border-white/[0.06] pb-0">
         {([
           { key: 'fiche' as const, label: 'Fiche logement', icon: Building2 },
-          { key: 'livret' as const, label: 'Livret d\'accueil', icon: BookOpen },
+          { key: 'livret' as const, label: "Livret d'accueil", icon: BookOpen },
+          { key: 'checklist' as const, label: 'Équipements', icon: ShoppingCart },
         ]).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -550,6 +820,7 @@ export default function PropertyDetailPage() {
       </div>
 
       {detailTab === 'livret' && <LivretTab propertyId={Number(id)} />}
+      {detailTab === 'checklist' && <ChecklistTab propertyId={Number(id)} propertyName={property.name} />}
 
       {detailTab === 'fiche' && (<>
 
