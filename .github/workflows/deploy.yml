@@ -22,6 +22,7 @@ jobs:
             docker compose down
             docker compose build --no-cache app
             docker compose up -d
-            echo "=== Nginx error ==="
-            sudo nginx -t 2>&1
-            sudo journalctl -u nginx -n 20 --no-pager 2>&1
+            sudo rm -f /etc/nginx/sites-enabled/default.save
+            sudo nginx -t && sudo systemctl restart nginx
+            echo "=== Done ==="
+            sudo ss -tlnp | grep -E ':80|:443|:3000'
