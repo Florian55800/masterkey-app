@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   ChevronLeft, ChevronRight, Edit2, Trash2, Plus, Printer,
   Trophy, TrendingUp, Home, X, Check, AlertCircle, Euro,
-  Building2, Zap, Wifi, MoreHorizontal, Download
+  Building2, Zap, Wifi, MoreHorizontal, Download, EyeOff, Eye
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -829,9 +829,9 @@ function PrintModal({
 // ─── Property Revenue Card ────────────────────────────────────────────────────
 
 function PropertyRevenueCard({
-  property, month, year, onReload,
+  property, month, year, onReload, onHide,
 }: {
-  property: Property; month: number; year: number; onReload: () => void
+  property: Property; month: number; year: number; onReload: () => void; onHide: () => void
 }) {
   const [extraOpen, setExtraOpen] = useState(false)
   const [printOpen, setPrintOpen] = useState(false)
@@ -852,11 +852,20 @@ function PropertyRevenueCard({
             <Building2 className="w-4 h-4 text-[#D4AF37]" />
           </div>
           <div>
-            <p className="text-white font-semibold">{property.name}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-white font-semibold">{property.name}</p>
+              {property.status !== 'active' && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">Inactif</span>
+              )}
+            </div>
             <p className="text-white/30 text-xs">{property.owner.name} · {property.commissionRate}% comm.</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={onHide} title="Masquer ce logement ce mois-ci"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white/30 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.06] hover:text-white/60 transition-all">
+            <EyeOff className="w-3.5 h-3.5" />
+          </button>
           <button onClick={() => setPrintOpen(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-[#D4AF37] bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 border border-[#D4AF37]/20 transition-all">
             <Download className="w-3.5 h-3.5" /> PDF
@@ -942,9 +951,9 @@ function PropertyRevenueCard({
 // ─── Sublet Property Card ─────────────────────────────────────────────────────
 
 function SubletPropertyCard({
-  property, month, year, onReload,
+  property, month, year, onReload, onHide,
 }: {
-  property: Property; month: number; year: number; onReload: () => void
+  property: Property; month: number; year: number; onReload: () => void; onHide: () => void
 }) {
   const [expenseModalOpen, setExpenseModalOpen] = useState(false)
 
@@ -974,15 +983,26 @@ function SubletPropertyCard({
             <Home className="w-4 h-4 text-blue-400" />
           </div>
           <div>
-            <p className="text-white font-semibold">{property.name}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-white font-semibold">{property.name}</p>
+              {property.status !== 'active' && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">Inactif</span>
+              )}
+            </div>
             <p className="text-white/30 text-xs">{property.owner.name} · Sous-location</p>
           </div>
         </div>
-        <div className="text-right">
-          <p className={`font-bold text-lg leading-none ${netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {netProfit >= 0 ? '+' : ''}{formatCurrency(netProfit)}
-          </p>
-          <p className="text-white/30 text-[10px]">Résultat net</p>
+        <div className="flex items-center gap-2">
+          <button onClick={onHide} title="Masquer ce logement ce mois-ci"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white/30 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.06] hover:text-white/60 transition-all">
+            <EyeOff className="w-3.5 h-3.5" />
+          </button>
+          <div className="text-right">
+            <p className={`font-bold text-lg leading-none ${netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {netProfit >= 0 ? '+' : ''}{formatCurrency(netProfit)}
+            </p>
+            <p className="text-white/30 text-[10px]">Résultat net</p>
+          </div>
         </div>
       </div>
 
@@ -1161,6 +1181,28 @@ export default function FacturationPage() {
   const [loading, setLoading] = useState(true)
   const [seeding, setSeeding] = useState(false)
   const [seedMsg, setSeedMsg] = useState<string | null>(null)
+  const [hiddenProps, setHiddenProps] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try { return new Set<string>(JSON.parse(localStorage.getItem('facturation-hidden') ?? '[]')) } catch { return new Set<string>() }
+  })
+
+  const hideKey = (propertyId: number) => `${propertyId}-${month}-${year}`
+  const hideProperty = (propertyId: number) => {
+    setHiddenProps(prev => {
+      const next = new Set(prev)
+      next.add(hideKey(propertyId))
+      localStorage.setItem('facturation-hidden', JSON.stringify(Array.from(next)))
+      return next
+    })
+  }
+  const showProperty = (propertyId: number) => {
+    setHiddenProps(prev => {
+      const next = new Set(prev)
+      next.delete(hideKey(propertyId))
+      localStorage.setItem('facturation-hidden', JSON.stringify(Array.from(next)))
+      return next
+    })
+  }
 
   const load = useCallback(async () => {
     try {
@@ -1193,8 +1235,13 @@ export default function FacturationPage() {
     else setMonth(m => m + 1)
   }
 
-  const totalBrutConcierge = conciergerieProps.reduce((s, p) => s + propertyTotals(p.revenues).partMK, 0)
-  const totalBrutSousLoc = sousLocationProps.reduce((s, p) => {
+  const visibleConciergerie = conciergerieProps.filter(p => !hiddenProps.has(hideKey(p.id)))
+  const hiddenConciergerie  = conciergerieProps.filter(p => hiddenProps.has(hideKey(p.id)))
+  const visibleSousLoc      = sousLocationProps.filter(p => !hiddenProps.has(hideKey(p.id)))
+  const hiddenSousLoc       = sousLocationProps.filter(p => hiddenProps.has(hideKey(p.id)))
+
+  const totalBrutConcierge = visibleConciergerie.reduce((s, p) => s + propertyTotals(p.revenues).partMK, 0)
+  const totalBrutSousLoc = visibleSousLoc.reduce((s, p) => {
     const gross = p.revenues.reduce((sum, r) => sum + r.platformAmount, 0)
     const cleaning = p.revenues.reduce((sum, r) => sum + r.cleaningFees, 0)
     const exp = p.subletExpenses[0] ?? null
@@ -1224,8 +1271,8 @@ export default function FacturationPage() {
   }
 
   const TABS: { key: ActiveTab; label: string; count?: number }[] = [
-    { key: 'conciergerie', label: 'Conciergerie', count: conciergerieProps.length },
-    { key: 'sous-location', label: 'Sous-location', count: sousLocationProps.length },
+    { key: 'conciergerie', label: 'Conciergerie', count: visibleConciergerie.length },
+    { key: 'sous-location', label: 'Sous-location', count: visibleSousLoc.length },
     { key: 'classement', label: 'Classement' },
     { key: 'rapports', label: 'Rapports' },
   ]
@@ -1326,17 +1373,27 @@ export default function FacturationPage() {
         <>
           {tab === 'conciergerie' && (
             <div className="space-y-4">
-              {conciergerieProps.length === 0 ? (
+              {visibleConciergerie.length === 0 && hiddenConciergerie.length === 0 ? (
                 <div className="text-center py-16 text-white/30">
                   <Building2 className="w-12 h-12 mx-auto mb-3 opacity-20" />
                   <p>Aucun logement en conciergerie</p>
                 </div>
               ) : (
-                conciergerieProps.map(p => (
-                  <PropertyRevenueCard key={p.id} property={p} month={month} year={year} onReload={load} />
+                visibleConciergerie.map(p => (
+                  <PropertyRevenueCard key={p.id} property={p} month={month} year={year} onReload={load} onHide={() => hideProperty(p.id)} />
                 ))
               )}
-              {conciergerieProps.length > 0 && totalBrutConcierge > 0 && (
+              {hiddenConciergerie.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {hiddenConciergerie.map(p => (
+                    <button key={p.id} onClick={() => showProperty(p.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs text-white/30 bg-white/[0.03] border border-white/[0.06] hover:text-white/60 hover:border-white/10 transition-all">
+                      <Eye className="w-3 h-3" /> {p.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {visibleConciergerie.length > 0 && totalBrutConcierge > 0 && (
                 <div className="flex items-center justify-between bg-[#D4AF37]/5 border border-[#D4AF37]/15 rounded-2xl px-6 py-4">
                   <span className="text-white/50 font-medium">TOTAL BRUT MENSUEL — CONCIERGERIE</span>
                   <span className="text-[#D4AF37] font-bold text-2xl">{formatCurrency(totalBrutConcierge)}</span>
@@ -1347,21 +1404,31 @@ export default function FacturationPage() {
 
           {tab === 'sous-location' && (
             <div className="space-y-4">
-              {sousLocationProps.length === 0 ? (
+              {visibleSousLoc.length === 0 && hiddenSousLoc.length === 0 ? (
                 <div className="text-center py-16 text-white/30">
                   <Home className="w-12 h-12 mx-auto mb-3 opacity-20" />
                   <p>Aucun logement en sous-location</p>
                 </div>
               ) : (
-                sousLocationProps.map(p => (
-                  <SubletPropertyCard key={p.id} property={p} month={month} year={year} onReload={load} />
+                visibleSousLoc.map(p => (
+                  <SubletPropertyCard key={p.id} property={p} month={month} year={year} onReload={load} onHide={() => hideProperty(p.id)} />
                 ))
+              )}
+              {hiddenSousLoc.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {hiddenSousLoc.map(p => (
+                    <button key={p.id} onClick={() => showProperty(p.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs text-white/30 bg-white/[0.03] border border-white/[0.06] hover:text-white/60 hover:border-white/10 transition-all">
+                      <Eye className="w-3 h-3" /> {p.name}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
           )}
 
           {tab === 'classement' && (
-            <ClassementTab properties={conciergerieProps} month={month} year={year} />
+            <ClassementTab properties={visibleConciergerie} month={month} year={year} />
           )}
 
           {tab === 'rapports' && <RapportsInline />}
