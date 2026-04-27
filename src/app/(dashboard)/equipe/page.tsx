@@ -53,10 +53,10 @@ function MemberModal({
   isOpen: boolean
   onClose: () => void
   initial: TeamUser | null
-  onSave: (data: { name: string; color: string; pin: string; photo: string; role: string }) => Promise<void>
+  onSave: (data: { name: string; color: string; pin: string; photo: string; role: string; accessLevel: string }) => Promise<void>
 }) {
   const isEdit = !!initial
-  const [form, setForm] = useState({ name: '', color: '#D4AF37', pin: '', photo: '', role: '' })
+  const [form, setForm] = useState({ name: '', color: '#D4AF37', pin: '', photo: '', role: '', accessLevel: 'admin' })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -67,6 +67,7 @@ function MemberModal({
         pin: '',
         photo: initial?.photo ?? '',
         role: initial?.role ?? '',
+        accessLevel: (initial as any)?.accessLevel ?? 'admin',
       })
     }
   }, [isOpen, initial])
@@ -167,6 +168,30 @@ function MemberModal({
             <p className="text-amber-400 text-xs mt-1">{4 - form.pin.length} chiffre(s) restant(s)</p>
           )}
           {form.pin.length === 4 && <p className="text-green-400 text-xs mt-1">✓ PIN valide</p>}
+        </div>
+
+        <div>
+          <p className="text-sm text-white/40 font-medium mb-2">Niveau d'accès</p>
+          <div className="flex gap-2">
+            {[
+              { value: 'admin', label: 'Admin', desc: 'Accès complet' },
+              { value: 'co-gestionnaire', label: 'Co-gestionnaire', desc: 'Sans financier' },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setForm(f => ({ ...f, accessLevel: opt.value }))}
+                className={`flex-1 px-3 py-2.5 rounded-xl border text-sm text-left transition-all ${
+                  form.accessLevel === opt.value
+                    ? 'border-[#D4AF37]/40 bg-[#D4AF37]/10 text-[#D4AF37]'
+                    : 'border-white/[0.08] bg-white/[0.02] text-white/40 hover:text-white/60'
+                }`}
+              >
+                <p className="font-medium">{opt.label}</p>
+                <p className="text-[10px] opacity-60 mt-0.5">{opt.desc}</p>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex gap-3 justify-end pt-2">

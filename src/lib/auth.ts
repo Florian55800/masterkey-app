@@ -5,8 +5,8 @@ import { NextRequest } from 'next/server'
 const secretKey = process.env.JWT_SECRET || 'masterkey-dashboard-secret-2024-very-long-secret-key'
 const key = new TextEncoder().encode(secretKey)
 
-export async function createSession(userId: number) {
-  const token = await new SignJWT({ userId })
+export async function createSession(userId: number, accessLevel = 'admin') {
+  const token = await new SignJWT({ userId, accessLevel })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
@@ -36,7 +36,7 @@ export async function getSession(request?: NextRequest) {
     if (!token) return null
 
     const { payload } = await jwtVerify(token, key)
-    return payload as { userId: number }
+    return payload as { userId: number; accessLevel: string }
   } catch {
     return null
   }

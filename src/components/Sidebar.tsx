@@ -20,11 +20,14 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+const ADMIN_ONLY_HREFS = ['/', '/facturation', '/depenses', '/parametres']
+
 interface User {
   id: number
   name: string
   color: string
   photo?: string | null
+  accessLevel?: string
 }
 
 const DEFAULT_NAV = [
@@ -60,6 +63,7 @@ export function Sidebar() {
   const [user, setUser] = useState<User | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [navItems, setNavItems] = useState(DEFAULT_NAV)
+  const isCogestionnaire = user?.accessLevel === 'co-gestionnaire'
   const dragIndex = useRef<number | null>(null)
   const dragOverIndex = useRef<number | null>(null)
 
@@ -134,7 +138,7 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5">
-          {navItems.map((item, index) => {
+          {navItems.filter(item => !isCogestionnaire || !ADMIN_ONLY_HREFS.includes(item.href)).map((item, index) => {
             const Icon = ICON_MAP[item.icon]
             const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
             return (
@@ -258,7 +262,7 @@ export function Sidebar() {
 
           {/* Nav items */}
           <nav className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
-            {navItems.map((item) => {
+            {navItems.filter(item => !isCogestionnaire || !ADMIN_ONLY_HREFS.includes(item.href)).map((item) => {
               const Icon = ICON_MAP[item.icon]
               const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
               return (

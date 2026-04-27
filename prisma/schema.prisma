@@ -10,14 +10,15 @@ generator client {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  pin       String
-  color     String
-  photo     String?
-  role      String   @default("")
-  createdAt DateTime @default(now())
-  teamGoals TeamGoal[]
+  id          Int      @id @default(autoincrement())
+  name        String
+  pin         String
+  color       String
+  photo       String?
+  role        String   @default("")
+  accessLevel String   @default("admin") // "admin" | "co-gestionnaire"
+  createdAt   DateTime @default(now())
+  teamGoals   TeamGoal[]
 }
 
 model Owner {

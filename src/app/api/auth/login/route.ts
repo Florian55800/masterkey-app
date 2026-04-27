@@ -24,12 +24,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'PIN incorrect' }, { status: 401 })
     }
 
-    await createSession(user.id)
+    await createSession(user.id, (user as any).accessLevel ?? 'admin')
 
     return NextResponse.json({
       id: user.id,
       name: user.name,
       color: user.color,
+      accessLevel: (user as any).accessLevel ?? 'admin',
     })
   } catch (error) {
     console.error('Login error:', error)

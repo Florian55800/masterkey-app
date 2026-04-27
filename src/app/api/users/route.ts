@@ -6,7 +6,7 @@ import { hashPin } from '@/lib/hash'
 export async function GET() {
   try {
     const users = await prisma.user.findMany({
-      select: { id: true, name: true, color: true, photo: true, role: true },
+      select: { id: true, name: true, color: true, photo: true, role: true, accessLevel: true },
       orderBy: { id: 'asc' },
     })
     return NextResponse.json(users)
@@ -19,7 +19,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { name, color, pin, photo, role } = body
+    const { name, color, pin, photo, role, accessLevel } = body
     if (!name || !pin || pin.length !== 4) {
       return NextResponse.json({ error: 'Nom et PIN (4 chiffres) requis' }, { status: 400 })
     }
@@ -30,9 +30,10 @@ export async function POST(req: NextRequest) {
         pin: hashPin(pin),
         photo: photo || null,
         role: role || '',
+        accessLevel: accessLevel || 'admin',
       },
     })
-    return NextResponse.json({ id: user.id, name: user.name, color: user.color, role: user.role })
+    return NextResponse.json({ id: user.id, name: user.name, color: user.color, role: user.role, accessLevel: (user as any).accessLevel })
   } catch (error) {
     console.error('User POST error:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
