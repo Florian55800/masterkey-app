@@ -1373,6 +1373,32 @@ export default function FacturationPage() {
         <>
           {tab === 'conciergerie' && (
             <div className="space-y-4">
+              {/* Bannière logements masqués — très visible */}
+              {hiddenConciergerie.length > 0 && (
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-amber-400 font-semibold text-sm flex items-center gap-2">
+                      <EyeOff className="w-4 h-4" />
+                      {hiddenConciergerie.length} logement{hiddenConciergerie.length > 1 ? 's' : ''} masqué{hiddenConciergerie.length > 1 ? 's' : ''} ce mois-ci
+                    </p>
+                    <button
+                      onClick={() => hiddenConciergerie.forEach(p => showProperty(p.id))}
+                      className="text-xs font-semibold text-amber-400 hover:text-amber-300 underline underline-offset-2 transition-colors"
+                    >
+                      Tout afficher
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {hiddenConciergerie.map(p => (
+                      <button key={p.id} onClick={() => showProperty(p.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs text-amber-400/80 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-all">
+                        <Eye className="w-3 h-3" /> {p.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {visibleConciergerie.length === 0 && hiddenConciergerie.length === 0 ? (
                 <div className="text-center py-16 text-white/30">
                   <Building2 className="w-12 h-12 mx-auto mb-3 opacity-20" />
@@ -1383,16 +1409,7 @@ export default function FacturationPage() {
                   <PropertyRevenueCard key={p.id} property={p} month={month} year={year} onReload={load} onHide={() => hideProperty(p.id)} />
                 ))
               )}
-              {hiddenConciergerie.length > 0 && (
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {hiddenConciergerie.map(p => (
-                    <button key={p.id} onClick={() => showProperty(p.id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs text-white/30 bg-white/[0.03] border border-white/[0.06] hover:text-white/60 hover:border-white/10 transition-all">
-                      <Eye className="w-3 h-3" /> {p.name}
-                    </button>
-                  ))}
-                </div>
-              )}
+
               {visibleConciergerie.length > 0 && totalBrutConcierge > 0 && (
                 <div className="flex items-center justify-between bg-[#D4AF37]/5 border border-[#D4AF37]/15 rounded-2xl px-6 py-4">
                   <span className="text-white/50 font-medium">TOTAL BRUT MENSUEL — CONCIERGERIE</span>
@@ -1404,6 +1421,31 @@ export default function FacturationPage() {
 
           {tab === 'sous-location' && (
             <div className="space-y-4">
+              {hiddenSousLoc.length > 0 && (
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-amber-400 font-semibold text-sm flex items-center gap-2">
+                      <EyeOff className="w-4 h-4" />
+                      {hiddenSousLoc.length} logement{hiddenSousLoc.length > 1 ? 's' : ''} masqué{hiddenSousLoc.length > 1 ? 's' : ''} ce mois-ci
+                    </p>
+                    <button
+                      onClick={() => hiddenSousLoc.forEach(p => showProperty(p.id))}
+                      className="text-xs font-semibold text-amber-400 hover:text-amber-300 underline underline-offset-2 transition-colors"
+                    >
+                      Tout afficher
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {hiddenSousLoc.map(p => (
+                      <button key={p.id} onClick={() => showProperty(p.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs text-amber-400/80 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-all">
+                        <Eye className="w-3 h-3" /> {p.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {visibleSousLoc.length === 0 && hiddenSousLoc.length === 0 ? (
                 <div className="text-center py-16 text-white/30">
                   <Home className="w-12 h-12 mx-auto mb-3 opacity-20" />
@@ -1413,16 +1455,6 @@ export default function FacturationPage() {
                 visibleSousLoc.map(p => (
                   <SubletPropertyCard key={p.id} property={p} month={month} year={year} onReload={load} onHide={() => hideProperty(p.id)} />
                 ))
-              )}
-              {hiddenSousLoc.length > 0 && (
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {hiddenSousLoc.map(p => (
-                    <button key={p.id} onClick={() => showProperty(p.id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs text-white/30 bg-white/[0.03] border border-white/[0.06] hover:text-white/60 hover:border-white/10 transition-all">
-                      <Eye className="w-3 h-3" /> {p.name}
-                    </button>
-                  ))}
-                </div>
               )}
             </div>
           )}
