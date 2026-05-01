@@ -316,8 +316,11 @@ async function setup() {
     )`,
     // ── Colonnes ajoutées au fil des versions ────────────────────────────────
     `ALTER TABLE "User" ADD COLUMN "accessLevel" TEXT NOT NULL DEFAULT 'admin'`,
-    `ALTER TABLE "SubletExpense" ADD COLUMN "nbSejours" INTEGER NOT NULL DEFAULT 0`,
-    `ALTER TABLE "SubletExpense" ADD COLUMN "nbNuits"   INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE "Lead" ADD COLUMN "source" TEXT`,
+    `ALTER TABLE "SubletExpense"   ADD COLUMN "nbSejours" INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE "SubletExpense"   ADD COLUMN "nbNuits"   INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE "PropertyRevenue" ADD COLUMN "nbSejours" INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE "PropertyRevenue" ADD COLUMN "nbNuits"   INTEGER NOT NULL DEFAULT 0`,
     // ── Nouvelles tables ──────────────────────────────────────────────────────
     `CREATE TABLE IF NOT EXISTS "OwnerOnboarding" (
       "id"                    INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
