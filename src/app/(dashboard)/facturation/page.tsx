@@ -1181,27 +1181,14 @@ export default function FacturationPage() {
   const [loading, setLoading] = useState(true)
   const [seeding, setSeeding] = useState(false)
   const [seedMsg, setSeedMsg] = useState<string | null>(null)
-  const [hiddenProps, setHiddenProps] = useState<Set<string>>(() => {
-    if (typeof window === 'undefined') return new Set()
-    try { return new Set<string>(JSON.parse(localStorage.getItem('facturation-hidden') ?? '[]')) } catch { return new Set<string>() }
-  })
+  const [hiddenProps, setHiddenProps] = useState<Set<string>>(new Set())
 
   const hideKey = (propertyId: number) => `${propertyId}-${month}-${year}`
   const hideProperty = (propertyId: number) => {
-    setHiddenProps(prev => {
-      const next = new Set(prev)
-      next.add(hideKey(propertyId))
-      localStorage.setItem('facturation-hidden', JSON.stringify(Array.from(next)))
-      return next
-    })
+    setHiddenProps(prev => { const next = new Set(prev); next.add(hideKey(propertyId)); return next })
   }
   const showProperty = (propertyId: number) => {
-    setHiddenProps(prev => {
-      const next = new Set(prev)
-      next.delete(hideKey(propertyId))
-      localStorage.setItem('facturation-hidden', JSON.stringify(Array.from(next)))
-      return next
-    })
+    setHiddenProps(prev => { const next = new Set(prev); next.delete(hideKey(propertyId)); return next })
   }
 
   const load = useCallback(async () => {
