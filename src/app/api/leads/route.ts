@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
         lienAnnonce: body.lienAnnonce || null,
         statut: body.statut || 'À contacter',
         statuts: JSON.stringify(body.statuts ?? [body.statut || 'À contacter']),
+        source: body.source || null,
         commentaires: body.commentaires || null,
         dateContact: body.dateContact ? new Date(body.dateContact) : new Date(),
         relanceDate: body.relanceDate ? new Date(body.relanceDate) : null,

@@ -80,6 +80,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         lienAnnonce:  body.lienAnnonce  || null,
         statut:       newStatuts[0] ?? body.statut ?? 'À contacter',
         statuts:      JSON.stringify(newStatuts),
+        source:       body.source       || null,
         commentaires: body.commentaires || null,
         dateContact:  body.dateContact ? new Date(body.dateContact) : undefined,
         relanceDate:  body.relanceDate  ? new Date(body.relanceDate) : null,

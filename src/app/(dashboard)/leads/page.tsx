@@ -43,6 +43,7 @@ interface Lead {
   lienAnnonce: string | null
   statut: string
   statuts: string[]
+  source: string | null
   commentaires: string | null
   dateContact: string
   relanceDate: string | null
@@ -79,9 +80,27 @@ function getColorCls(color: string) {
 
 const TYPES_BIEN = ['Appartement', 'Studio', 'Maison', 'Villa', 'Loft', 'Chambre', 'Autre']
 
+const SOURCES = [
+  { value: 'leboncoin',       label: 'LeBonCoin',        emoji: '🟠' },
+  { value: 'seloger',         label: 'SeLoger',           emoji: '🏠' },
+  { value: 'site_web',        label: 'Site web',          emoji: '🌐' },
+  { value: 'appel',           label: 'Appel entrant',     emoji: '📞' },
+  { value: 'bouche_a_oreille',label: 'Bouche à oreille',  emoji: '🗣️' },
+  { value: 'facebook',        label: 'Facebook',          emoji: '👥' },
+  { value: 'instagram',       label: 'Instagram',         emoji: '📸' },
+  { value: 'pap',             label: 'PAP',               emoji: '📋' },
+  { value: 'autre',           label: 'Autre',             emoji: '✨' },
+]
+
+function getSourceLabel(value: string | null | undefined) {
+  if (!value) return null
+  return SOURCES.find(s => s.value === value) ?? null
+}
+
 const emptyForm = {
   nom: '', email: '', telephone: '', adresseBien: '', ville: '', typeBien: 'Appartement',
   nbChambres: '', surface: '', lienAnnonce: '', statut: 'À contacter', statuts: [] as string[],
+  source: '',
   commentaires: '', dateContact: new Date().toISOString().split('T')[0],
   relanceDate: '', relanceNote: '',
 }
@@ -181,6 +200,7 @@ export default function LeadsPage() {
       typeBien: lead.typeBien ?? 'Appartement', nbChambres: lead.nbChambres ?? '',
       surface: lead.surface ? String(lead.surface) : '', lienAnnonce: lead.lienAnnonce ?? '',
       statut: lead.statut, statuts: lead.statuts ?? [lead.statut],
+      source: lead.source ?? '',
       commentaires: lead.commentaires ?? '',
       dateContact: lead.dateContact.split('T')[0],
       relanceDate: lead.relanceDate ? lead.relanceDate.split('T')[0] : '',
@@ -442,7 +462,7 @@ export default function LeadsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/[0.06]">
-                {['Nom', 'Contact', 'Bien', 'Ville', 'Statut', 'Date contact', 'Relance', 'Actions'].map(h => (
+                {['Nom', 'Source', 'Contact', 'Bien', 'Ville', 'Statut', 'Date contact', 'Relance', 'Actions'].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-white/30 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -454,6 +474,13 @@ export default function LeadsPage() {
                     <td className="px-4 py-3">
                       <p className="text-white font-medium text-sm">{lead.nom}</p>
                       {lead.typeBien && <p className="text-white/30 text-xs">{lead.typeBien}{lead.nbChambres ? ` · T${lead.nbChambres}` : ''}{lead.surface ? ` · ${lead.surface}m²` : ''}</p>}
+                    </td>
+                    <td className="px-4 py-3">
+                      {(() => { const s = getSourceLabel(lead.source); return s ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-white/[0.05] border border-white/[0.08] text-white/60 whitespace-nowrap">
+                          <span>{s.emoji}</span>{s.label}
+                        </span>
+                      ) : <span className="text-white/20 text-xs">—</span> })()}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-0.5">
@@ -516,7 +543,7 @@ export default function LeadsPage() {
                   </tr>
                   {expandedId === lead.id && lead.commentaires && (
                     <tr key={`${lead.id}-expanded`} className="bg-white/[0.01]">
-                      <td colSpan={8} className="px-4 py-3">
+                      <td colSpan={9} className="px-4 py-3">
                         <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Commentaires</p>
                         <p className="text-white/70 text-sm">{lead.commentaires}</p>
                       </td>
@@ -574,6 +601,26 @@ export default function LeadsPage() {
                     }))}
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${active ? getColorCls(s.color) : 'border-white/[0.08] text-white/30 hover:text-white/60'}`}>
                     {active ? '✓ ' : ''}{s.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-white/60 mb-2">Source du lead</label>
+            <div className="flex flex-wrap gap-2">
+              {SOURCES.map(s => {
+                const active = form.source === s.value
+                return (
+                  <button key={s.value} type="button"
+                    onClick={() => setForm(f => ({ ...f, source: active ? '' : s.value }))}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                      active
+                        ? 'bg-[#D4AF37]/15 border-[#D4AF37]/40 text-[#D4AF37]'
+                        : 'border-white/[0.08] text-white/30 hover:text-white/60 hover:border-white/20'
+                    }`}>
+                    <span>{s.emoji}</span>{s.label}
                   </button>
                 )
               })}

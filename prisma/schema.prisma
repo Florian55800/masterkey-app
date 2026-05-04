@@ -346,6 +346,7 @@ model Lead {
   lienAnnonce  String?
   statut       String    @default("À contacter")
   statuts      String?   // JSON array e.g. '["Signé","Visite effectuée"]'
+  source       String?
   commentaires String?
   dateContact  DateTime  @default(now())
   relanceDate  DateTime?
