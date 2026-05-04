@@ -4,6 +4,24 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
 import { hashPin } from '@/lib/hash'
 
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const authUser = await getSession(req)
+  if (!authUser) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+
+  const id = parseInt(params.id)
+  if (id === authUser.userId) {
+    return NextResponse.json({ error: 'Impossible de supprimer votre propre compte' }, { status: 400 })
+  }
+
+  try {
+    await prisma.user.delete({ where: { id } })
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('User DELETE error:', error)
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+  }
+}
+
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const authUser = await getSession(req)
   if (!authUser) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })

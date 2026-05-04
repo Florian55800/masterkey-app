@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Users, Edit2, Plus, Crown, Medal, TrendingUp, Star, Calendar, Briefcase, Target } from 'lucide-react'
+import { Users, Edit2, Trash2, Plus, Crown, Medal, TrendingUp, Star, Calendar, Briefcase, Target } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
@@ -237,6 +237,12 @@ export default function EquipePage() {
   const openAdd = () => { setEditingUser(null); setModalOpen(true) }
   const openEdit = (user: TeamUser) => { setEditingUser(user); setModalOpen(true) }
 
+  const handleDelete = async (user: TeamUser) => {
+    if (!confirm(`Supprimer ${user.name} ? Cette action est irréversible.`)) return
+    await fetch(`/api/users/${user.id}`, { method: 'DELETE' })
+    await load()
+  }
+
   const handleSave = async (form: { name: string; color: string; pin: string; photo: string; role: string }) => {
     if (editingUser) {
       await fetch(`/api/users/${editingUser.id}`, {
@@ -337,12 +343,20 @@ export default function EquipePage() {
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={() => openEdit(user)}
-                  className="p-2 rounded-xl text-white/20 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all flex-shrink-0"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => openEdit(user)}
+                    className="p-2 rounded-xl text-white/20 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(user)}
+                    className="p-2 rounded-xl text-white/20 hover:text-red-400 hover:bg-red-400/10 transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               {/* Mini stats */}
