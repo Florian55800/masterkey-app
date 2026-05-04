@@ -33,29 +33,24 @@ export async function PUT(
   try {
     const body = await request.json()
     const {
-      name,
-      phone,
-      email,
-      notes,
-      lastContact,
-      relanceDate,
-      relanceNote,
-      source,
-      photo,
+      name, phone, isWhatsapp, email, adresseDomicile,
+      notes, lastContact, relanceDate, relanceNote, source, photo,
     } = body
 
     const owner = await prisma.owner.update({
       where: { id: Number(params.id) },
       data: {
-        name: name !== undefined ? name : undefined,
-        phone: phone !== undefined ? phone || null : undefined,
-        email: email !== undefined ? email || null : undefined,
-        notes: notes !== undefined ? notes || null : undefined,
-        lastContact: lastContact !== undefined ? (lastContact ? new Date(lastContact) : null) : undefined,
-        relanceDate: relanceDate !== undefined ? (relanceDate ? new Date(relanceDate) : null) : undefined,
-        relanceNote: relanceNote !== undefined ? relanceNote || null : undefined,
-        source: source !== undefined ? source || null : undefined,
-        photo: photo !== undefined ? photo || null : undefined,
+        name:            name            !== undefined ? name                                          : undefined,
+        phone:           phone           !== undefined ? phone || null                                 : undefined,
+        isWhatsapp:      isWhatsapp      !== undefined ? isWhatsapp === true                           : undefined,
+        email:           email           !== undefined ? email || null                                 : undefined,
+        adresseDomicile: adresseDomicile !== undefined ? adresseDomicile || null                       : undefined,
+        notes:           notes           !== undefined ? notes || null                                 : undefined,
+        lastContact:     lastContact     !== undefined ? (lastContact ? new Date(lastContact) : null)  : undefined,
+        relanceDate:     relanceDate     !== undefined ? (relanceDate  ? new Date(relanceDate)  : null) : undefined,
+        relanceNote:     relanceNote     !== undefined ? relanceNote || null                            : undefined,
+        source:          source          !== undefined ? source || null                                : undefined,
+        photo:           photo           !== undefined ? photo || null                                 : undefined,
       },
       include: { properties: true, satisfactions: true },
     })

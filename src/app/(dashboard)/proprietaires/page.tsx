@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Users, Phone, Mail, Edit2, Bell, Star, Trash2, Download, ClipboardList } from 'lucide-react'
+import { Plus, Search, Users, Phone, Mail, Edit2, Bell, Star, Trash2, Download, ClipboardList, MessageCircle, Home } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -35,7 +35,9 @@ interface Owner {
   id: number
   name: string
   phone: string | null
+  isWhatsapp: boolean
   email: string | null
+  adresseDomicile: string | null
   notes: string | null
   lastContact: string | null
   relanceDate: string | null
@@ -103,7 +105,9 @@ export default function ProprietairesPage() {
   const [form, setForm] = useState({
     name: '',
     phone: '',
+    isWhatsapp: false,
     email: '',
+    adresseDomicile: '',
     notes: '',
     lastContact: '',
     relanceDate: '',
@@ -169,7 +173,7 @@ export default function ProprietairesPage() {
 
   const openCreateModal = () => {
     setEditingOwner(null)
-    setForm({ name: '', phone: '', email: '', notes: '', lastContact: '', relanceDate: '', relanceNote: '', source: '', photo: '' })
+    setForm({ name: '', phone: '', isWhatsapp: false, email: '', adresseDomicile: '', notes: '', lastContact: '', relanceDate: '', relanceNote: '', source: '', photo: '' })
     setError('')
     setIsModalOpen(true)
   }
@@ -179,7 +183,9 @@ export default function ProprietairesPage() {
     setForm({
       name: owner.name,
       phone: owner.phone ?? '',
+      isWhatsapp: owner.isWhatsapp ?? false,
       email: owner.email ?? '',
+      adresseDomicile: owner.adresseDomicile ?? '',
       notes: owner.notes ?? '',
       lastContact: owner.lastContact ? format(new Date(owner.lastContact), 'yyyy-MM-dd') : '',
       relanceDate: owner.relanceDate ? format(new Date(owner.relanceDate), 'yyyy-MM-dd') : '',
@@ -409,6 +415,12 @@ export default function ProprietairesPage() {
                       <a href={`tel:${owner.phone}`} className="text-gray-300 hover:text-white transition-colors">
                         {owner.phone}
                       </a>
+                      {owner.isWhatsapp && (
+                        <a href={`https://wa.me/${owner.phone.replace(/\s/g, '').replace(/^0/, '33')}`} target="_blank"
+                          title="Ouvrir WhatsApp" className="text-green-400 hover:text-green-300 transition-colors ml-1">
+                          <MessageCircle className="w-3.5 h-3.5" />
+                        </a>
+                      )}
                     </div>
                   )}
                   {owner.email && (
@@ -417,6 +429,12 @@ export default function ProprietairesPage() {
                       <a href={`mailto:${owner.email}`} className="text-gray-300 hover:text-white transition-colors truncate">
                         {owner.email}
                       </a>
+                    </div>
+                  )}
+                  {owner.adresseDomicile && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Home className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+                      <span className="text-gray-400 text-xs truncate">{owner.adresseDomicile}</span>
                     </div>
                   )}
                 </div>
@@ -507,13 +525,20 @@ export default function ProprietairesPage() {
           />
 
           <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Téléphone"
-              type="tel"
-              value={form.phone}
-              onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              placeholder="06 12 34 56 78"
-            />
+            <div>
+              <Input
+                label="Téléphone"
+                type="tel"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                placeholder="06 12 34 56 78"
+              />
+              <label className="flex items-center gap-2 mt-1.5 cursor-pointer w-fit">
+                <input type="checkbox" checked={form.isWhatsapp} onChange={e => setForm(f => ({ ...f, isWhatsapp: e.target.checked }))}
+                  className="w-3.5 h-3.5 rounded accent-green-500" />
+                <span className="text-xs text-white/40 flex items-center gap-1"><MessageCircle className="w-3 h-3 text-green-400" />Sur WhatsApp</span>
+              </label>
+            </div>
             <Input
               label="Email"
               type="email"
@@ -522,6 +547,13 @@ export default function ProprietairesPage() {
               placeholder="jean@example.com"
             />
           </div>
+
+          <Input
+            label="Adresse domicile"
+            value={form.adresseDomicile}
+            onChange={(e) => setForm({ ...form, adresseDomicile: e.target.value })}
+            placeholder="Ex: 15 rue de la Paix, 75001 Paris"
+          />
 
           <Select
             label="Source"

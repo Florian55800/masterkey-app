@@ -19,7 +19,7 @@ export async function GET() {
     })
     try {
       const ownersRS = await client.execute(
-        `SELECT id, name, phone, email, notes, photo, lastContact, relanceDate, relanceNote, source, createdAt, updatedAt
+        `SELECT id, name, phone, isWhatsapp, email, adresseDomicile, notes, photo, lastContact, relanceDate, relanceNote, source, createdAt, updatedAt
          FROM Owner ORDER BY name ASC`
       )
       const propsRS = await client.execute(
@@ -82,13 +82,15 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, phone, email, notes, lastContact, relanceDate, relanceNote, source, photo } = body
+    const { name, phone, isWhatsapp, email, adresseDomicile, notes, lastContact, relanceDate, relanceNote, source, photo } = body
 
     const owner = await prisma.owner.create({
       data: {
         name,
         phone: phone || null,
+        isWhatsapp: isWhatsapp === true,
         email: email || null,
+        adresseDomicile: adresseDomicile || null,
         notes: notes || null,
         lastContact: lastContact ? new Date(lastContact) : null,
         relanceDate: relanceDate ? new Date(relanceDate) : null,

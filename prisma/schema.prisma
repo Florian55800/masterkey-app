@@ -22,16 +22,18 @@ model User {
 }
 
 model Owner {
-  id             Int                 @id @default(autoincrement())
-  name           String
-  phone          String?
-  email          String?
-  notes          String?
-  photo          String?
-  lastContact    DateTime?
-  relanceDate    DateTime?
-  relanceNote    String?
-  source         String?
+  id              Int                 @id @default(autoincrement())
+  name            String
+  phone           String?
+  isWhatsapp      Boolean             @default(false)
+  email           String?
+  adresseDomicile String?
+  notes           String?
+  photo           String?
+  lastContact     DateTime?
+  relanceDate     DateTime?
+  relanceNote     String?
+  source          String?
   properties     Property[]
   satisfactions  SatisfactionScore[]
   advances       Advance[]

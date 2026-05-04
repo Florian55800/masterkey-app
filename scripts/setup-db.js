@@ -317,8 +317,10 @@ async function setup() {
     // ── Colonnes ajoutées au fil des versions ────────────────────────────────
     `ALTER TABLE "User" ADD COLUMN "accessLevel" TEXT NOT NULL DEFAULT 'admin'`,
     `ALTER TABLE "Lead" ADD COLUMN "source" TEXT`,
-    `ALTER TABLE "Lead" ADD COLUMN "adresseDomicile" TEXT`,
-    `ALTER TABLE "Lead" ADD COLUMN "isWhatsapp" INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE "Lead"  ADD COLUMN "adresseDomicile" TEXT`,
+    `ALTER TABLE "Lead"  ADD COLUMN "isWhatsapp" INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE "Owner" ADD COLUMN "adresseDomicile" TEXT`,
+    `ALTER TABLE "Owner" ADD COLUMN "isWhatsapp" INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE "SubletExpense"   ADD COLUMN "nbSejours" INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE "SubletExpense"   ADD COLUMN "nbNuits"   INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE "PropertyRevenue" ADD COLUMN "nbSejours" INTEGER NOT NULL DEFAULT 0`,
