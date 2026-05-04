@@ -214,12 +214,74 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const id = Number(params.id)
   try {
     const body = await request.json()
     const { name, address, city, type, typeGestion, ownerId, commissionRate, dateSigned, status, photo, description, cleaningFee, staffId, lodgifyId } = body
 
+    // Production : raw SQL (Prisma unreliable with libsql driver in prod)
+    if (process.env.TURSO_DATABASE_URL) {
+      const { createClient } = require('@libsql/client')
+      const client = createClient({
+        url: process.env.TURSO_DATABASE_URL,
+        authToken: process.env.TURSO_AUTH_TOKEN,
+      })
+      try {
+        await client.execute({
+          sql: `UPDATE "Property" SET
+            name = COALESCE(?, name),
+            address = COALESCE(?, address),
+            city = COALESCE(?, city),
+            type = COALESCE(?, type),
+            typeGestion = COALESCE(?, typeGestion),
+            ownerId = COALESCE(?, ownerId),
+            commissionRate = COALESCE(?, commissionRate),
+            cleaningFee = COALESCE(?, cleaningFee),
+            staffId = ?,
+            lodgifyId = ?,
+            dateSigned = COALESCE(?, dateSigned),
+            status = COALESCE(?, status),
+            photo = ?,
+            description = ?,
+            updatedAt = CURRENT_TIMESTAMP
+          WHERE id = ?`,
+          args: [
+            name ?? null, address ?? null, city ?? null, type ?? null,
+            typeGestion ?? null, ownerId ? Number(ownerId) : null,
+            commissionRate !== undefined ? Number(commissionRate) : null,
+            cleaningFee !== undefined ? Number(cleaningFee) : null,
+            staffId !== undefined ? (staffId ? Number(staffId) : null) : undefined,
+            lodgifyId !== undefined ? (lodgifyId ? Number(lodgifyId) : null) : undefined,
+            dateSigned ?? null, status ?? null,
+            photo !== undefined ? (photo || null) : undefined,
+            description !== undefined ? (description || null) : undefined,
+            id,
+          ],
+        })
+        const propRS = await client.execute({
+          sql: `SELECT p.*, o.id as _oid, o.name as _oname, s.id as _sid, s.name as _sname, s.phone as _sphone
+                FROM Property p
+                LEFT JOIN Owner o ON o.id = p.ownerId
+                LEFT JOIN Staff s ON s.id = p.staffId
+                WHERE p.id = ?`,
+          args: [id],
+        })
+        const rows = toRows(propRS)
+        if (rows.length === 0) return NextResponse.json({ error: 'Introuvable' }, { status: 404 })
+        const r = rows[0]
+        return NextResponse.json({
+          ...r,
+          owner: { id: r._oid, name: r._oname ?? '—' },
+          staff: r._sid ? { id: r._sid, name: r._sname, phone: r._sphone } : null,
+        })
+      } finally {
+        client.close()
+      }
+    }
+
+    // Dev : Prisma
     const property = await prisma.property.update({
-      where: { id: Number(params.id) },
+      where: { id },
       data: {
         name: name !== undefined ? name : undefined,
         address: address !== undefined ? address : undefined,
@@ -238,7 +300,6 @@ export async function PUT(
       },
       include: { owner: true, staff: { select: { id: true, name: true, phone: true } } },
     })
-
     return NextResponse.json(property)
   } catch (error) {
     console.error('Property PUT error:', error)
@@ -247,15 +308,46 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const id = Number(params.id)
+  const { searchParams } = new URL(request.url)
+  const permanent = searchParams.get('permanent') === 'true'
+
   try {
-    const property = await prisma.property.update({
-      where: { id: Number(params.id) },
-      data: { status: 'inactive', dateLost: new Date() },
-    })
-    return NextResponse.json(property)
+    if (process.env.TURSO_DATABASE_URL) {
+      const { createClient } = require('@libsql/client')
+      const client = createClient({
+        url: process.env.TURSO_DATABASE_URL,
+        authToken: process.env.TURSO_AUTH_TOKEN,
+      })
+      try {
+        if (permanent) {
+          await client.execute({ sql: `DELETE FROM "Property" WHERE id = ?`, args: [id] })
+          return NextResponse.json({ deleted: true })
+        } else {
+          await client.execute({
+            sql: `UPDATE "Property" SET status = 'inactive', dateLost = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP WHERE id = ?`,
+            args: [id],
+          })
+          return NextResponse.json({ status: 'inactive' })
+        }
+      } finally {
+        client.close()
+      }
+    }
+
+    if (permanent) {
+      await prisma.property.delete({ where: { id } })
+      return NextResponse.json({ deleted: true })
+    } else {
+      const property = await prisma.property.update({
+        where: { id },
+        data: { status: 'inactive', dateLost: new Date() },
+      })
+      return NextResponse.json(property)
+    }
   } catch (error) {
     console.error('Property DELETE error:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })

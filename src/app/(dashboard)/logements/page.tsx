@@ -249,6 +249,12 @@ export default function LogementsPage() {
     await loadData()
   }
 
+  const handlePermanentDelete = async (id: number, name: string) => {
+    if (!confirm(`Supprimer définitivement "${name}" ? Toutes les données associées seront perdues. Cette action est irréversible.`)) return
+    await fetch(`/api/properties/${id}?permanent=true`, { method: 'DELETE' })
+    await loadData()
+  }
+
   const getTypeBadgeVariant = (type: string) => {
     switch (type.toLowerCase()) {
       case 'maison': case 'villa': return 'gold'
@@ -479,10 +485,19 @@ export default function LogementsPage() {
                   <Edit2 className="w-3.5 h-3.5" />
                   Modifier
                 </button>
-                {property.status === 'active' && (
+                {property.status === 'active' ? (
                   <button
                     onClick={() => handleDelete(property.id)}
+                    title="Désactiver"
                     className="px-3 py-2 rounded-xl border border-white/[0.07] text-gray-600 hover:text-red-400 hover:border-red-500/20 transition-all"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handlePermanentDelete(property.id, property.name)}
+                    title="Supprimer définitivement"
+                    className="px-3 py-2 rounded-xl border border-red-500/20 text-red-500/50 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/5 transition-all"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
