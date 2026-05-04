@@ -344,6 +344,8 @@ model Lead {
   nbChambres   String?
   surface      Float?
   lienAnnonce  String?
+  adresseDomicile String?
+  isWhatsapp      Boolean   @default(false)
   statut       String    @default("À contacter")
   statuts      String?   // JSON array e.g. '["Signé","Visite effectuée"]'
   source       String?

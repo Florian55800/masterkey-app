@@ -69,10 +69,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const lead = await prisma.lead.update({
       where: { id },
       data: {
-        nom:          body.nom,
-        email:        body.email        || null,
-        telephone:    body.telephone    || null,
-        adresseBien:  body.adresseBien  || null,
+        nom:             body.nom,
+        email:           body.email           || null,
+        telephone:       body.telephone       || null,
+        adresseDomicile: body.adresseDomicile || null,
+        isWhatsapp:      body.isWhatsapp === true,
+        adresseBien:     body.adresseBien     || null,
         ville:        body.ville        || null,
         typeBien:     body.typeBien     || null,
         nbChambres:   body.nbChambres   || null,

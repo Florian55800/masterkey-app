@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Plus, Edit2, Trash2, ExternalLink, Phone, Mail, Search, Settings, X, GripVertical, Calendar, MapPin, CalendarDays } from 'lucide-react'
+import { Plus, Edit2, Trash2, ExternalLink, Phone, Mail, Search, Settings, X, GripVertical, Calendar, MapPin, CalendarDays, MessageCircle, Home, BarChart2 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -35,6 +35,8 @@ interface Lead {
   nom: string
   email: string | null
   telephone: string | null
+  adresseDomicile: string | null
+  isWhatsapp: boolean
   adresseBien: string | null
   ville: string | null
   typeBien: string | null
@@ -98,7 +100,8 @@ function getSourceLabel(value: string | null | undefined) {
 }
 
 const emptyForm = {
-  nom: '', email: '', telephone: '', adresseBien: '', ville: '', typeBien: 'Appartement',
+  nom: '', email: '', telephone: '', adresseDomicile: '', isWhatsapp: false,
+  adresseBien: '', ville: '', typeBien: 'Appartement',
   nbChambres: '', surface: '', lienAnnonce: '', statut: 'À contacter', statuts: [] as string[],
   source: '',
   commentaires: '', dateContact: new Date().toISOString().split('T')[0],
@@ -120,6 +123,7 @@ export default function LeadsPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [openPopoverId, setOpenPopoverId] = useState<number | null>(null)
+  const [showSourceStats, setShowSourceStats] = useState(false)
 
   // Close popover on outside click
   useEffect(() => {
@@ -196,6 +200,7 @@ export default function LeadsPage() {
     setEditingLead(lead)
     setForm({
       nom: lead.nom, email: lead.email ?? '', telephone: lead.telephone ?? '',
+      adresseDomicile: lead.adresseDomicile ?? '', isWhatsapp: lead.isWhatsapp ?? false,
       adresseBien: lead.adresseBien ?? '', ville: lead.ville ?? '',
       typeBien: lead.typeBien ?? 'Appartement', nbChambres: lead.nbChambres ?? '',
       surface: lead.surface ? String(lead.surface) : '', lienAnnonce: lead.lienAnnonce ?? '',
@@ -313,6 +318,9 @@ export default function LeadsPage() {
         <div className="flex gap-2">
           {mainTab === 'leads' ? (
             <>
+              <button onClick={() => setShowSourceStats(s => !s)} className={`p-2 rounded-xl border transition-all ${showSourceStats ? 'border-[#D4AF37]/40 text-[#D4AF37] bg-[#D4AF37]/10' : 'border-white/[0.08] text-white/40 hover:text-white/70 hover:bg-white/5'}`} title="Statistiques par source">
+                <BarChart2 className="w-4 h-4" />
+              </button>
               <button onClick={openStatutsModal} className="p-2 rounded-xl border border-white/[0.08] text-white/40 hover:text-white/70 hover:bg-white/5 transition-all" title="Gérer les statuts">
                 <Settings className="w-4 h-4" />
               </button>
@@ -436,6 +444,58 @@ export default function LeadsPage() {
       {/* ═══════════════════════ ONGLET LEADS ═══════════════════════ */}
       {mainTab === 'leads' && <>
 
+      {/* Stats par source */}
+      {showSourceStats && (() => {
+        const withSource = leads.filter(l => l.source)
+        const total = leads.length
+        const sourceStats = SOURCES
+          .map(s => ({ ...s, count: leads.filter(l => l.source === s.value).length }))
+          .filter(s => s.count > 0)
+          .sort((a, b) => b.count - a.count)
+        const noSourceCount = leads.filter(l => !l.source).length
+        return (
+          <div className="bg-[#181818] border border-white/[0.06] rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <BarChart2 className="w-4 h-4 text-[#D4AF37]" />
+              <h3 className="text-white font-semibold text-sm">Acquisition par source</h3>
+              <span className="ml-auto text-white/30 text-xs">{withSource.length}/{total} leads avec source</span>
+            </div>
+            <div className="space-y-2.5">
+              {sourceStats.map(s => {
+                const pct = total > 0 ? Math.round((s.count / total) * 100) : 0
+                return (
+                  <div key={s.value}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-white/70 text-xs flex items-center gap-1.5">
+                        <span>{s.emoji}</span>{s.label}
+                      </span>
+                      <span className="text-white/50 text-xs">{s.count} lead{s.count > 1 ? 's' : ''} · <span className="text-[#D4AF37] font-semibold">{pct}%</span></span>
+                    </div>
+                    <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                      <div className="h-full bg-[#D4AF37] rounded-full transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+              {noSourceCount > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-white/30 text-xs">Non renseigné</span>
+                    <span className="text-white/30 text-xs">{noSourceCount} lead{noSourceCount > 1 ? 's' : ''} · {total > 0 ? Math.round((noSourceCount / total) * 100) : 0}%</span>
+                  </div>
+                  <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                    <div className="h-full bg-white/20 rounded-full" style={{ width: `${total > 0 ? Math.round((noSourceCount / total) * 100) : 0}%` }} />
+                  </div>
+                </div>
+              )}
+              {sourceStats.length === 0 && noSourceCount === leads.length && (
+                <p className="text-white/20 text-xs text-center py-2">Aucune source renseignée sur les leads</p>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Stats par statut */}
       <div className="flex flex-wrap gap-2">
         <button onClick={() => setFilterStatut('tous')} className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${filterStatut === 'tous' ? 'bg-white/10 text-white border-white/20' : 'border-white/[0.06] text-white/40 hover:text-white/60'}`}>
@@ -484,7 +544,16 @@ export default function LeadsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-0.5">
-                        {lead.telephone && <a href={`tel:${lead.telephone}`} onClick={e => e.stopPropagation()} className="text-white/60 text-xs hover:text-white flex items-center gap-1"><Phone className="w-3 h-3" />{lead.telephone}</a>}
+                        {lead.telephone && (
+                          <div className="flex items-center gap-1">
+                            <a href={`tel:${lead.telephone}`} onClick={e => e.stopPropagation()} className="text-white/60 text-xs hover:text-white flex items-center gap-1"><Phone className="w-3 h-3" />{lead.telephone}</a>
+                            {lead.isWhatsapp && (
+                              <a href={`https://wa.me/${lead.telephone.replace(/\s/g, '').replace(/^0/, '33')}`} target="_blank" onClick={e => e.stopPropagation()} title="Ouvrir WhatsApp" className="text-green-400 hover:text-green-300 transition-colors">
+                                <MessageCircle className="w-3 h-3" />
+                              </a>
+                            )}
+                          </div>
+                        )}
                         {lead.email && <a href={`mailto:${lead.email}`} onClick={e => e.stopPropagation()} className="text-white/60 text-xs hover:text-white flex items-center gap-1"><Mail className="w-3 h-3" />{lead.email}</a>}
                       </div>
                     </td>
@@ -541,11 +610,23 @@ export default function LeadsPage() {
                       </div>
                     </td>
                   </tr>
-                  {expandedId === lead.id && lead.commentaires && (
+                  {expandedId === lead.id && (lead.commentaires || lead.adresseDomicile) && (
                     <tr key={`${lead.id}-expanded`} className="bg-white/[0.01]">
                       <td colSpan={9} className="px-4 py-3">
-                        <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Commentaires</p>
-                        <p className="text-white/70 text-sm">{lead.commentaires}</p>
+                        <div className="flex flex-wrap gap-6">
+                          {lead.adresseDomicile && (
+                            <div>
+                              <p className="text-white/40 text-xs uppercase tracking-wider mb-1 flex items-center gap-1"><Home className="w-3 h-3" />Domicile</p>
+                              <p className="text-white/70 text-sm">{lead.adresseDomicile}</p>
+                            </div>
+                          )}
+                          {lead.commentaires && (
+                            <div>
+                              <p className="text-white/40 text-xs uppercase tracking-wider mb-1">Notes</p>
+                              <p className="text-white/70 text-sm">{lead.commentaires}</p>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )}
@@ -567,8 +648,16 @@ export default function LeadsPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2"><Input label="Nom complet *" value={form.nom} onChange={e => setForm(f => ({ ...f, nom: e.target.value }))} placeholder="Ex: Hakan NIZAM" /></div>
-            <Input label="Téléphone" value={form.telephone} onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))} placeholder="06 XX XX XX XX" />
+            <div>
+              <Input label="Téléphone" value={form.telephone} onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))} placeholder="06 XX XX XX XX" />
+              <label className="flex items-center gap-2 mt-1.5 cursor-pointer w-fit">
+                <input type="checkbox" checked={form.isWhatsapp} onChange={e => setForm(f => ({ ...f, isWhatsapp: e.target.checked }))}
+                  className="w-3.5 h-3.5 rounded accent-green-500" />
+                <span className="text-xs text-white/40 flex items-center gap-1"><MessageCircle className="w-3 h-3 text-green-400" />Sur WhatsApp</span>
+              </label>
+            </div>
             <Input label="Email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@exemple.com" />
+            <div className="col-span-2"><Input label="Adresse domicile du client" value={form.adresseDomicile} onChange={e => setForm(f => ({ ...f, adresseDomicile: e.target.value }))} placeholder="Ex: 15 rue de la Paix, 75001 Paris" /></div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

@@ -25,6 +25,8 @@ export async function POST(req: NextRequest) {
         nom: body.nom,
         email: body.email || null,
         telephone: body.telephone || null,
+        adresseDomicile: body.adresseDomicile || null,
+        isWhatsapp: body.isWhatsapp === true,
         adresseBien: body.adresseBien || null,
         ville: body.ville || null,
         typeBien: body.typeBien || null,
