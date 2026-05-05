@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Building2, TrendingUp, Euro, Star, Bell, Phone, Calculator, ChevronDown, Plus, Trash2, ClipboardList, MapPin } from 'lucide-react'
+import { Building2, TrendingUp, Euro, Star, Bell, Phone, Calculator, ChevronDown, Plus, Trash2, ClipboardList, MapPin, Sparkles, X, AlertCircle } from 'lucide-react'
 import { KPICard } from '@/components/dashboard/KPICard'
 import { MilestoneWidget } from '@/components/dashboard/MilestoneWidget'
 import { TeamChallengeWidget } from '@/components/dashboard/TeamChallengeWidget'
@@ -92,6 +92,12 @@ interface Task {
   year: number
 }
 
+interface Suggestion {
+  title: string
+  type: string
+  priority: 'high' | 'medium' | 'low'
+}
+
 interface Visit {
   id: number
   leadId: number | null
@@ -141,11 +147,33 @@ export default function DashboardPage() {
   const [taskType, setTaskType] = useState('autre')
   const [savingTask, setSavingTask] = useState(false)
 
+  // Suggestions state
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false)
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set())
+  const [autoSwitched, setAutoSwitched] = useState(false)
+
   useEffect(() => {
     setLoading(true)
     fetch(`/api/dashboard/summary?month=${selectedMonth}&year=${selectedYear}`)
       .then((r) => r.json())
-      .then((d) => { if (d?.currentMonth) { setData(d) } setLoading(false) })
+      .then((d) => {
+        if (d?.currentMonth) {
+          setData(d)
+          // Auto-switch to last month with data if current month is empty
+          if (!autoSwitched) {
+            const isNow = selectedMonth === now.getMonth() + 1 && selectedYear === now.getFullYear()
+            if (isNow && !d.currentMonth.report && d.availableMonths?.length > 0) {
+              const last = d.availableMonths[0]
+              setSelectedMonth(last.month)
+              setSelectedYear(last.year)
+              setAutoSwitched(true)
+              return
+            }
+          }
+        }
+        setLoading(false)
+      })
       .catch(() => setLoading(false))
   }, [selectedMonth, selectedYear])
 
@@ -183,6 +211,37 @@ export default function DashboardPage() {
   const handleDeleteTask = async (id: number) => {
     await fetch(`/api/tasks/${id}`, { method: 'DELETE' })
     setTasks(prev => prev.filter(t => t.id !== id))
+  }
+
+  const loadSuggestions = async () => {
+    setLoadingSuggestions(true)
+    setSuggestions([])
+    setDismissedSuggestions(new Set())
+    try {
+      const res = await fetch('/api/tasks/suggest')
+      const data = await res.json()
+      setSuggestions(Array.isArray(data) ? data : [])
+    } catch {}
+    setLoadingSuggestions(false)
+  }
+
+  const handleAddSuggestion = async (s: Suggestion) => {
+    setSavingTask(true)
+    const res = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: s.title, type: s.type, month: selectedMonth, year: selectedYear }),
+    })
+    if (res.ok) {
+      const t = await res.json()
+      setTasks(prev => [...prev, { id: t.id, title: s.title, type: s.type, month: selectedMonth, year: selectedYear }])
+      setDismissedSuggestions(prev => new Set(Array.from(prev).concat(s.title)))
+    }
+    setSavingTask(false)
+  }
+
+  const dismissSuggestion = (title: string) => {
+    setDismissedSuggestions(prev => new Set(Array.from(prev).concat(title)))
   }
 
   useEffect(() => {
@@ -292,32 +351,70 @@ export default function DashboardPage() {
 
       {/* ═══════════════════════ ONGLET TÂCHES ═══════════════════════ */}
       {dashTab === 'taches' && (
-        <div className="space-y-6">
-          {/* Visites du mois */}
+        <div className="space-y-5">
+
+          {/* ── Alertes urgentes ────────────────────────────────────────────── */}
+          {(overdueRelances.length > 0 || (overdueLeadRelances?.length ?? 0) > 0) && (
+            <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertCircle className="w-4 h-4 text-red-400" />
+                <h3 className="text-red-400 font-semibold text-sm">Relances en retard</h3>
+                <span className="ml-auto bg-red-500/20 text-red-400 text-xs font-bold px-2 py-0.5 rounded-full">
+                  {overdueRelances.length + (overdueLeadRelances?.length ?? 0)}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {overdueRelances.slice(0, 3).map(o => (
+                  <div key={`or-${o.id}`} className="flex items-center gap-3 p-2.5 rounded-xl bg-red-500/5">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-medium">{o.name}</p>
+                      {o.relanceNote && <p className="text-white/40 text-xs truncate">{o.relanceNote}</p>}
+                    </div>
+                    <span className="text-red-400 text-xs flex-shrink-0">{format(new Date(o.relanceDate), 'd MMM', { locale: fr })}</span>
+                    {o.phone && <a href={`tel:${o.phone}`} className="text-white/30 hover:text-white p-1 rounded-lg transition-colors flex-shrink-0"><Phone className="w-3.5 h-3.5" /></a>}
+                  </div>
+                ))}
+                {overdueLeadRelances?.slice(0, 3).map(l => (
+                  <div key={`lr-${l.id}`} className="flex items-center gap-3 p-2.5 rounded-xl bg-red-500/5">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-white text-sm font-medium">{l.nom}</p>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">Lead</span>
+                      </div>
+                      {l.relanceNote && <p className="text-white/40 text-xs truncate">{l.relanceNote}</p>}
+                    </div>
+                    <span className="text-red-400 text-xs flex-shrink-0">{format(new Date(l.relanceDate), 'd MMM', { locale: fr })}</span>
+                    {l.telephone && <a href={`tel:${l.telephone}`} className="text-white/30 hover:text-white p-1 rounded-lg transition-colors flex-shrink-0"><Phone className="w-3.5 h-3.5" /></a>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Visites du jour / à venir ────────────────────────────────────── */}
           {monthVisits.length > 0 && (
             <Card>
-              <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-2 mb-3">
                 <div className="w-7 h-7 rounded-lg bg-[#D4AF37]/20 flex items-center justify-center text-sm">🏠</div>
-                <h3 className="text-white font-semibold">Visites ce mois</h3>
+                <h3 className="text-white font-semibold text-sm">Visites ce mois</h3>
                 <span className="ml-auto bg-[#D4AF37]/20 text-[#D4AF37] text-xs font-medium px-2 py-0.5 rounded-full">{monthVisits.length}</span>
               </div>
               <div className="space-y-2">
                 {monthVisits.map(v => {
                   const d = new Date(v.date)
+                  const isToday = d.toDateString() === new Date().toDateString()
                   return (
-                    <div key={v.id} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.05]">
-                      <div className="w-10 text-center flex-shrink-0">
-                        <p className="text-[#D4AF37] font-bold text-base leading-none">{d.getDate()}</p>
+                    <div key={v.id} className={`flex items-center gap-3 p-2.5 rounded-xl border ${isToday ? 'border-[#D4AF37]/30 bg-[#D4AF37]/5' : 'border-white/[0.05] bg-white/[0.02]'}`}>
+                      <div className="w-9 text-center flex-shrink-0">
+                        <p className={`font-bold text-base leading-none ${isToday ? 'text-[#D4AF37]' : 'text-white/60'}`}>{d.getDate()}</p>
                         <p className="text-white/30 text-xs capitalize">{format(d, 'MMM', { locale: fr })}</p>
                       </div>
-                      <MapPin className="w-3.5 h-3.5 text-white/20 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-sm truncate">{v.address}</p>
                         {v.lead && <p className="text-[#D4AF37]/60 text-xs">{v.lead.nom}</p>}
                       </div>
-                      {d.getHours() > 0 && (
-                        <span className="text-white/30 text-xs flex-shrink-0">{format(d, 'HH:mm')}</span>
-                      )}
+                      {isToday && <span className="text-[#D4AF37] text-xs font-semibold flex-shrink-0">Aujourd'hui</span>}
+                      {!isToday && d.getHours() > 0 && <span className="text-white/30 text-xs flex-shrink-0">{format(d, 'HH:mm')}</span>}
                     </div>
                   )
                 })}
@@ -325,16 +422,70 @@ export default function DashboardPage() {
             </Card>
           )}
 
-          {/* Tâches */}
+          {/* ── Suggestions ──────────────────────────────────────────────────── */}
           <Card>
             <div className="flex items-center gap-2 mb-4">
               <div className="w-7 h-7 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                <ClipboardList className="w-4 h-4 text-purple-400" />
+                <Sparkles className="w-4 h-4 text-purple-400" />
               </div>
-              <h3 className="text-white font-semibold">Tâches — {currentMonthLabel}</h3>
+              <h3 className="text-white font-semibold text-sm">Suggestions du jour</h3>
+              <button
+                onClick={loadSuggestions}
+                disabled={loadingSuggestions}
+                className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 transition-all disabled:opacity-50"
+              >
+                <Sparkles className="w-3 h-3" />
+                {loadingSuggestions ? 'Analyse...' : 'Générer'}
+              </button>
             </div>
+            {suggestions.length === 0 && !loadingSuggestions && (
+              <p className="text-white/20 text-xs text-center py-4">Clique sur "Générer" pour obtenir des suggestions basées sur tes données</p>
+            )}
+            {loadingSuggestions && (
+              <div className="flex items-center justify-center py-6">
+                <div className="w-5 h-5 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
+              </div>
+            )}
+            {suggestions.length > 0 && (
+              <div className="space-y-2">
+                {suggestions.filter(s => !dismissedSuggestions.has(s.title)).map((s, i) => {
+                  const t = TASK_TYPES.find(x => x.value === s.type)
+                  const priorityColor = s.priority === 'high' ? 'border-red-500/20 bg-red-500/5' : s.priority === 'medium' ? 'border-amber-500/20 bg-amber-500/5' : 'border-white/[0.06] bg-white/[0.02]'
+                  return (
+                    <div key={i} className={`flex items-start gap-3 p-3 rounded-xl border ${priorityColor}`}>
+                      <span className="text-sm flex-shrink-0 mt-0.5">{t?.icon ?? '📌'}</span>
+                      <p className="text-white/80 text-sm flex-1 leading-snug">{s.title}</p>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => handleAddSuggestion(s)}
+                          title="Ajouter aux tâches"
+                          className="p-1.5 rounded-lg bg-[#D4AF37]/10 text-[#D4AF37] hover:bg-[#D4AF37]/20 transition-all"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => dismissSuggestion(s.title)}
+                          title="Ignorer"
+                          className="p-1.5 rounded-lg text-white/20 hover:text-white/50 hover:bg-white/5 transition-all"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </Card>
 
-            {/* Add task */}
+          {/* ── Tâches manuelles ─────────────────────────────────────────────── */}
+          <Card>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-7 h-7 rounded-lg bg-[#D4AF37]/20 flex items-center justify-center">
+                <ClipboardList className="w-4 h-4 text-[#D4AF37]" />
+              </div>
+              <h3 className="text-white font-semibold text-sm">Mes tâches — {currentMonthLabel}</h3>
+            </div>
             <div className="flex gap-2 mb-4">
               <select value={taskType} onChange={e => setTaskType(e.target.value)}
                 className="bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40 flex-shrink-0">
@@ -352,10 +503,8 @@ export default function DashboardPage() {
                 <Plus className="w-4 h-4" />
               </button>
             </div>
-
-            {/* Task list */}
             {tasks.length === 0 ? (
-              <p className="text-white/20 text-sm text-center py-8">Aucune tâche pour ce mois</p>
+              <p className="text-white/20 text-sm text-center py-6">Aucune tâche pour ce mois</p>
             ) : (
               <div className="space-y-2">
                 {tasks.map(task => {
