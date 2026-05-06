@@ -227,37 +227,31 @@ export async function PUT(
         authToken: process.env.TURSO_AUTH_TOKEN,
       })
       try {
-        await client.execute({
-          sql: `UPDATE "Property" SET
-            name = COALESCE(?, name),
-            address = COALESCE(?, address),
-            city = COALESCE(?, city),
-            type = COALESCE(?, type),
-            typeGestion = COALESCE(?, typeGestion),
-            ownerId = COALESCE(?, ownerId),
-            commissionRate = COALESCE(?, commissionRate),
-            cleaningFee = COALESCE(?, cleaningFee),
-            staffId = ?,
-            lodgifyId = ?,
-            dateSigned = COALESCE(?, dateSigned),
-            status = COALESCE(?, status),
-            photo = ?,
-            description = ?,
-            updatedAt = CURRENT_TIMESTAMP
-          WHERE id = ?`,
-          args: [
-            name ?? null, address ?? null, city ?? null, type ?? null,
-            typeGestion ?? null, ownerId ? Number(ownerId) : null,
-            commissionRate !== undefined ? Number(commissionRate) : null,
-            cleaningFee !== undefined ? Number(cleaningFee) : null,
-            staffId !== undefined ? (staffId ? Number(staffId) : null) : undefined,
-            lodgifyId !== undefined ? (lodgifyId ? Number(lodgifyId) : null) : undefined,
-            dateSigned ?? null, status ?? null,
-            photo !== undefined ? (photo || null) : undefined,
-            description !== undefined ? (description || null) : undefined,
-            id,
-          ],
-        })
+        // Build SET clause dynamically — only update fields that are present in the body
+        const sets: string[] = []
+        const args: unknown[] = []
+        if (name !== undefined)           { sets.push('name = ?');           args.push(name) }
+        if (address !== undefined)        { sets.push('address = ?');        args.push(address) }
+        if (city !== undefined)           { sets.push('city = ?');           args.push(city) }
+        if (type !== undefined)           { sets.push('type = ?');           args.push(type) }
+        if (typeGestion !== undefined)    { sets.push('typeGestion = ?');    args.push(typeGestion) }
+        if (ownerId !== undefined)        { sets.push('ownerId = ?');        args.push(Number(ownerId)) }
+        if (commissionRate !== undefined) { sets.push('commissionRate = ?'); args.push(Number(commissionRate)) }
+        if (cleaningFee !== undefined)    { sets.push('cleaningFee = ?');    args.push(Number(cleaningFee)) }
+        if (staffId !== undefined)        { sets.push('staffId = ?');        args.push(staffId ? Number(staffId) : null) }
+        if (lodgifyId !== undefined)      { sets.push('lodgifyId = ?');      args.push(lodgifyId ? Number(lodgifyId) : null) }
+        if (dateSigned !== undefined)     { sets.push('dateSigned = ?');     args.push(dateSigned) }
+        if (status !== undefined)         { sets.push('status = ?');         args.push(status) }
+        if (photo !== undefined)          { sets.push('photo = ?');          args.push(photo || null) }
+        if (description !== undefined)    { sets.push('description = ?');    args.push(description || null) }
+
+        if (sets.length > 0) {
+          args.push(id)
+          await client.execute({
+            sql: `UPDATE "Property" SET ${sets.join(', ')}, updatedAt = CURRENT_TIMESTAMP WHERE id = ?`,
+            args,
+          })
+        }
         const propRS = await client.execute({
           sql: `SELECT p.*, o.id as _oid, o.name as _oname, s.id as _sid, s.name as _sname, s.phone as _sphone
                 FROM Property p
