@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Building2, Edit2, Trash2, Home, Star, Eye, Sparkles, User } from 'lucide-react'
+import { Plus, Building2, Edit2, Trash2, Home, Star, Eye, Sparkles, User, Key } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -45,6 +45,7 @@ interface Property {
   dateLost: string | null
   status: string
   photo?: string | null
+  keyboxCode?: string | null
 }
 
 const PROPERTY_MILESTONES = [
@@ -467,6 +468,15 @@ export default function LogementsPage() {
                   <Home className="w-3 h-3 text-gray-700 flex-shrink-0" />
                   <span className="truncate">{property.address}</span>
                 </div>
+                {property.keyboxCode && (
+                  <div className="flex items-center justify-between text-xs bg-[#D4AF37]/5 border border-[#D4AF37]/15 rounded-lg px-2.5 py-1.5">
+                    <div className="flex items-center gap-1.5 text-[#D4AF37]/70">
+                      <Key className="w-3 h-3 flex-shrink-0" />
+                      <span>Boîte à clés</span>
+                    </div>
+                    <span className="text-[#D4AF37] font-bold font-mono tracking-widest">{property.keyboxCode}</span>
+                  </div>
+                )}
               </div>
 
               {/* ── Actions ───────────────────────────────────────────── */}

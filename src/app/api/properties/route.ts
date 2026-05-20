@@ -29,7 +29,7 @@ export async function GET() {
       const propsRS = await client.execute(
         `SELECT p.id, p.name, p.address, p.city, p.type, p.typeGestion, p.ownerId,
                 p.commissionRate, p.cleaningFee, p.staffId, p.lodgifyId,
-                p.dateSigned, p.dateLost, p.status, p.photo, p.createdAt,
+                p.dateSigned, p.dateLost, p.status, p.photo, p.keyboxCode, p.createdAt,
                 o.id as _ownerId, o.name as _ownerName,
                 s.id as _staffId, s.name as _staffName, s.phone as _staffPhone
          FROM Property p
