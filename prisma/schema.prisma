@@ -132,6 +132,7 @@ model Property {
   lodgifyId      Int?
   photo          String?
   description    String?
+  keyboxCode     String?
   dateSigned     DateTime
   dateLost       DateTime?
   status         String            @default("active")

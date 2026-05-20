@@ -37,7 +37,7 @@ export async function GET(
       const propRS = await client.execute({
         sql: `SELECT p.id, p.name, p.address, p.city, p.type, p.typeGestion,
                      p.commissionRate, p.cleaningFee, p.staffId, p.lodgifyId,
-                     p.description, p.photo, p.dateSigned,
+                     p.description, p.photo, p.dateSigned, p.keyboxCode,
                      p.status, p.ownerId,
                      o.id as ownerId_val, o.name as ownerName,
                      s.id as _staffId, s.name as _staffName, s.phone as _staffPhone
@@ -121,6 +121,7 @@ export async function GET(
         lodgifyId: row.lodgifyId ?? null,
         staff: row._staffId ? { id: row._staffId, name: row._staffName, phone: row._staffPhone } : null,
         description: row.description ?? '',
+        keyboxCode: row.keyboxCode ?? null,
         photo: row.photo,
         dateSigned: row.dateSigned,
         status: row.status,
@@ -217,7 +218,7 @@ export async function PUT(
   const id = Number(params.id)
   try {
     const body = await request.json()
-    const { name, address, city, type, typeGestion, ownerId, commissionRate, dateSigned, status, photo, description, cleaningFee, staffId, lodgifyId } = body
+    const { name, address, city, type, typeGestion, ownerId, commissionRate, dateSigned, status, photo, description, cleaningFee, staffId, lodgifyId, keyboxCode } = body
 
     // Production : raw SQL (Prisma unreliable with libsql driver in prod)
     if (process.env.TURSO_DATABASE_URL) {
@@ -244,6 +245,7 @@ export async function PUT(
         if (status !== undefined)         { sets.push('status = ?');         args.push(status) }
         if (photo !== undefined)          { sets.push('photo = ?');          args.push(photo || null) }
         if (description !== undefined)    { sets.push('description = ?');    args.push(description || null) }
+        if (keyboxCode !== undefined)     { sets.push('keyboxCode = ?');     args.push(keyboxCode || null) }
 
         if (sets.length > 0) {
           args.push(id)
@@ -291,6 +293,7 @@ export async function PUT(
         status: status !== undefined ? status : undefined,
         photo: photo !== undefined ? photo || null : undefined,
         description: description !== undefined ? description || null : undefined,
+        keyboxCode: keyboxCode !== undefined ? keyboxCode || null : undefined,
       },
       include: { owner: true, staff: { select: { id: true, name: true, phone: true } } },
     })

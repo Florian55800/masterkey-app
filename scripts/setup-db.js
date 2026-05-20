@@ -294,6 +294,7 @@ async function setup() {
     `ALTER TABLE "Property" ADD COLUMN "cleaningFee" REAL NOT NULL DEFAULT 0`,
     `ALTER TABLE "Property" ADD COLUMN "staffId"     INTEGER`,
     `ALTER TABLE "Property" ADD COLUMN "lodgifyId"   INTEGER`,
+    `ALTER TABLE "Property" ADD COLUMN "keyboxCode"  TEXT`,
     `ALTER TABLE "Lead"     ADD COLUMN "statuts"     TEXT`,
     `CREATE TABLE IF NOT EXISTS "WelcomeGuide" (
       "id"             INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,

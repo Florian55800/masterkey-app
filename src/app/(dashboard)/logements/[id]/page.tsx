@@ -47,6 +47,7 @@ interface PropertyDetail {
   typeGestion: string
   commissionRate: number
   description: string
+  keyboxCode: string | null
   photo: string | null
   dateSigned: string
   status: string
@@ -571,6 +572,12 @@ export default function PropertyDetailPage() {
   const [savedDesc, setSavedDesc] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // Keybox code
+  const [keyboxCode, setKeyboxCode] = useState('')
+  const [savingKeybox, setSavingKeybox] = useState(false)
+  const [savedKeybox, setSavedKeybox] = useState(false)
+  const [showKeybox, setShowKeybox] = useState(false)
+
   // Print modal (rapport propriétaire)
   const [printModalOpen, setPrintModalOpen] = useState(false)
   const [selectedMonthKey, setSelectedMonthKey] = useState('')
@@ -592,6 +599,7 @@ export default function PropertyDetailPage() {
       const data: PropertyDetail = await res.json()
       setProperty(data)
       setDescription(data.description ?? '')
+      setKeyboxCode(data.keyboxCode ?? '')
 
       // Default selected month for print = last month with data
       const activeMonths = data.monthlyStats.filter((m) => m.totalGross > 0)
@@ -634,6 +642,22 @@ export default function PropertyDetailPage() {
       setTimeout(() => setSavedDesc(false), 2000)
     } finally {
       setSavingDesc(false)
+    }
+  }
+
+  const handleSaveKeybox = async () => {
+    if (!property) return
+    setSavingKeybox(true)
+    try {
+      await fetch(`/api/properties/${property.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyboxCode }),
+      })
+      setSavedKeybox(true)
+      setTimeout(() => setSavedKeybox(false), 2000)
+    } finally {
+      setSavingKeybox(false)
     }
   }
 
@@ -860,6 +884,57 @@ export default function PropertyDetailPage() {
             focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/20 transition-colors
             text-sm leading-relaxed min-h-[100px] overflow-hidden"
         />
+      </Card>
+
+      {/* ── Boîte à clés ───────────────────────────────────────────────────── */}
+      <Card>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Key className="w-4 h-4 text-[#D4AF37]" />
+            <h2 className="text-white font-semibold">Code boîte à clés</h2>
+          </div>
+          <button
+            onClick={handleSaveKeybox}
+            disabled={savingKeybox}
+            className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition-all font-medium ${
+              savedKeybox
+                ? 'bg-green-500/15 text-green-400 border border-green-500/20'
+                : 'bg-[#D4AF37]/10 text-[#D4AF37] border border-[#D4AF37]/20 hover:bg-[#D4AF37]/20'
+            } disabled:opacity-50`}
+          >
+            {savedKeybox ? (
+              <><Check className="w-3.5 h-3.5" />Enregistré</>
+            ) : (
+              <><Save className="w-3.5 h-3.5" />Enregistrer</>
+            )}
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type={showKeybox ? 'text' : 'password'}
+            value={keyboxCode}
+            onChange={(e) => setKeyboxCode(e.target.value)}
+            placeholder="Ex : 4821"
+            className="flex-1 bg-[#141414] border border-[#2e2e2e] rounded-xl px-4 py-3 text-white placeholder-gray-600
+              focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/20 transition-colors text-sm tracking-widest font-mono"
+          />
+          <button
+            onClick={() => setShowKeybox(v => !v)}
+            className="px-3 py-3 rounded-xl border border-white/10 text-white/40 hover:text-white/70 hover:bg-white/5 transition-all text-xs"
+            title={showKeybox ? 'Masquer' : 'Afficher'}
+          >
+            {showKeybox ? '🙈' : '👁️'}
+          </button>
+          {keyboxCode && (
+            <button
+              onClick={() => { navigator.clipboard.writeText(keyboxCode) }}
+              className="px-3 py-3 rounded-xl border border-white/10 text-white/40 hover:text-white/70 hover:bg-white/5 transition-all"
+              title="Copier"
+            >
+              <Copy className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </Card>
 
       {/* ── Monthly Stats ───────────────────────────────────────────────────── */}
