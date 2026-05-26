@@ -233,6 +233,20 @@ async function setup() {
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
 
+    `CREATE TABLE IF NOT EXISTS "Simulation" (
+      "id"            INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
+      "name"          TEXT     NOT NULL DEFAULT 'Ma simulation',
+      "revenues"      TEXT     NOT NULL DEFAULT '[]',
+      "expenses"      TEXT     NOT NULL DEFAULT '[]',
+      "salary"        REAL     NOT NULL DEFAULT 0,
+      "loanTotal"     REAL     NOT NULL DEFAULT 10000,
+      "loanRemaining" REAL     NOT NULL DEFAULT 10000,
+      "loanMonthly"   REAL     NOT NULL DEFAULT 0,
+      "notes"         TEXT,
+      "createdAt"     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt"     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+
     `CREATE TABLE IF NOT EXISTS "Staff" (
       "id"        INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
       "name"      TEXT     NOT NULL,

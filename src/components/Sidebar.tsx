@@ -17,10 +17,11 @@ import {
   Receipt,
   CalendarDays,
   GripVertical,
+  Calculator,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const ADMIN_ONLY_HREFS = ['/', '/facturation', '/depenses', '/parametres']
+const ADMIN_ONLY_HREFS = ['/', '/facturation', '/depenses', '/parametres', '/finance']
 
 interface User {
   id: number
@@ -39,12 +40,13 @@ const DEFAULT_NAV = [
   { href: '/equipe', label: 'Équipe', icon: 'TrendingUp' },
   { href: '/depenses', label: 'Dépenses', icon: 'CreditCard' },
   { href: '/leads', label: 'Leads', icon: 'UserSearch' },
+  { href: '/finance', label: 'Finance', icon: 'Calculator' },
   { href: '/parametres', label: 'Paramètres', icon: 'Settings' },
 ]
 
 const ICON_MAP: Record<string, React.ElementType> = {
   LayoutDashboard, CalendarDays, Receipt, Building2,
-  Users, TrendingUp, CreditCard, UserSearch, Settings,
+  Users, TrendingUp, CreditCard, UserSearch, Settings, Calculator,
 }
 
 // Items shown directly in the bottom bar (most used)

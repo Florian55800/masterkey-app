@@ -379,3 +379,17 @@ model Task {
   year      Int
   createdAt DateTime @default(now())
 }
+
+model Simulation {
+  id           Int      @id @default(autoincrement())
+  name         String   @default("Ma simulation")
+  revenues     String   @default("[]")
+  expenses     String   @default("[]")
+  salary       Float    @default(0)
+  loanTotal    Float    @default(10000)
+  loanRemaining Float   @default(10000)
+  loanMonthly  Float    @default(0)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
