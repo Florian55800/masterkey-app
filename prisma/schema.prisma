@@ -393,3 +393,18 @@ model Simulation {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+model Prestataire {
+  id         Int      @id @default(autoincrement())
+  name       String
+  phone      String?
+  email      String?
+  city       String?
+  categories String   @default("[]")
+  services   String?
+  source     String?
+  notes      String?
+  isWhatsapp Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

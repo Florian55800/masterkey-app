@@ -18,6 +18,7 @@ import {
   CalendarDays,
   GripVertical,
   Calculator,
+  BookUser,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -41,12 +42,13 @@ const DEFAULT_NAV = [
   { href: '/depenses', label: 'Dépenses', icon: 'CreditCard' },
   { href: '/leads', label: 'Leads', icon: 'UserSearch' },
   { href: '/finance', label: 'Finance', icon: 'Calculator' },
+  { href: '/annuaire', label: 'Annuaire', icon: 'BookUser' },
   { href: '/parametres', label: 'Paramètres', icon: 'Settings' },
 ]
 
 const ICON_MAP: Record<string, React.ElementType> = {
   LayoutDashboard, CalendarDays, Receipt, Building2,
-  Users, TrendingUp, CreditCard, UserSearch, Settings, Calculator,
+  Users, TrendingUp, CreditCard, UserSearch, Settings, Calculator, BookUser,
 }
 
 // Items shown directly in the bottom bar (most used)

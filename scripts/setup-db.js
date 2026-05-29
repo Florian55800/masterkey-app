@@ -233,6 +233,21 @@ async function setup() {
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
 
+    `CREATE TABLE IF NOT EXISTS "Prestataire" (
+      "id"         INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
+      "name"       TEXT     NOT NULL,
+      "phone"      TEXT,
+      "email"      TEXT,
+      "city"       TEXT,
+      "categories" TEXT     NOT NULL DEFAULT '[]',
+      "services"   TEXT,
+      "source"     TEXT,
+      "notes"      TEXT,
+      "isWhatsapp" INTEGER  NOT NULL DEFAULT 0,
+      "createdAt"  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt"  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+
     `CREATE TABLE IF NOT EXISTS "Simulation" (
       "id"            INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
       "name"          TEXT     NOT NULL DEFAULT 'Ma simulation',
