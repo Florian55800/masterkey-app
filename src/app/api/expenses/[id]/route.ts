@@ -6,13 +6,20 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    await prisma.expense.delete({
-      where: { id: Number(params.id) },
+  const id = Number(params.id)
+  if (process.env.TURSO_DATABASE_URL) {
+    const { createClient } = require('@libsql/client')
+    const client = createClient({
+      url: process.env.TURSO_DATABASE_URL,
+      authToken: process.env.TURSO_AUTH_TOKEN,
     })
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('Expense DELETE error:', error)
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    try {
+      await client.execute({ sql: `DELETE FROM "Expense" WHERE id = ?`, args: [id] })
+      return NextResponse.json({ success: true })
+    } finally {
+      client.close()
+    }
   }
+  await prisma.expense.delete({ where: { id } })
+  return NextResponse.json({ success: true })
 }

@@ -221,6 +221,8 @@ model Expense {
   description String?
   amount      Float
   isRecurring Boolean       @default(false)
+  payDate     DateTime?
+  paymentDay  Int?
   createdAt   DateTime      @default(now())
 }
 

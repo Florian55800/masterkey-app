@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, CreditCard, RefreshCw, Home, TrendingDown, Check, Clock } from 'lucide-react'
+import { Plus, Trash2, CreditCard, RefreshCw, Home, TrendingDown, Check, Clock, BarChart2, CalendarDays, Repeat, AlertCircle } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -26,7 +26,12 @@ interface Expense {
   description: string | null
   amount: number
   isRecurring: boolean
+  payDate: string | null
+  paymentDay: number | null
   reportId: number
+  month?: number
+  year?: number
+  caBrut?: number
 }
 
 interface SubletExpense {
@@ -62,7 +67,7 @@ interface Advance {
 }
 
 export default function DepensesPage() {
-  const [mainTab, setMainTab] = useState<'conciergerie' | 'sous-location' | 'avances'>('conciergerie')
+  const [mainTab, setMainTab] = useState<'conciergerie' | 'sous-location' | 'avances' | 'global'>('conciergerie')
 
   // ── Conciergerie state ─────────────────────────────────────────────────────
   const [reports, setReports] = useState<Report[]>([])
@@ -71,7 +76,8 @@ export default function DepensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [form, setForm] = useState({ category: 'logiciel', description: '', amount: '', isRecurring: false })
+  const [form, setForm] = useState({ category: 'logiciel', description: '', amount: '', isRecurring: false, payDate: new Date().toISOString().split('T')[0], paymentDay: '' })
+  const [allExpenses, setAllExpenses] = useState<Expense[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -105,6 +111,7 @@ export default function DepensesPage() {
     loadSousLoc()
     loadAdvances()
     loadOwnersAndProperties()
+    fetch('/api/expenses').then(r => r.json()).then(d => setAllExpenses(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
   const loadReports = async () => {
@@ -163,8 +170,9 @@ export default function DepensesPage() {
       })
       if (!res.ok) { const d = await res.json(); setError(d.error || 'Erreur'); return }
       await loadExpenses(selectedReportId)
+      fetch('/api/expenses').then(r => r.json()).then(d => setAllExpenses(Array.isArray(d) ? d : [])).catch(() => {})
       setIsModalOpen(false)
-      setForm({ category: 'logiciel', description: '', amount: '', isRecurring: false })
+      setForm({ category: 'logiciel', description: '', amount: '', isRecurring: false, payDate: new Date().toISOString().split('T')[0], paymentDay: '' })
     } catch { setError('Erreur de connexion') }
     finally { setSaving(false) }
   }
@@ -312,10 +320,11 @@ export default function DepensesPage() {
       </div>
 
       {/* Main tabs */}
-      <div className="flex items-center bg-[#1a1a1a] border border-[#2e2e2e] rounded-2xl p-1 w-fit">
-        {([['conciergerie', 'Conciergerie'], ['sous-location', 'Sous-location'], ['avances', 'Avances']] as const).map(([tab, label]) => (
+      <div className="flex items-center bg-[#1a1a1a] border border-[#2e2e2e] rounded-2xl p-1 w-fit flex-wrap gap-1">
+        {([['conciergerie', 'Conciergerie'], ['sous-location', 'Sous-location'], ['avances', 'Avances'], ['global', 'Vue globale']] as const).map(([tab, label]) => (
           <button key={tab} onClick={() => setMainTab(tab)}
-            className={`px-5 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${mainTab === tab ? 'bg-[#D4AF37] text-black' : 'text-gray-400 hover:text-white'}`}>
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${mainTab === tab ? 'bg-[#D4AF37] text-black' : 'text-gray-400 hover:text-white'}`}>
+            {tab === 'global' && <BarChart2 className="w-3.5 h-3.5" />}
             {label}
             {tab === 'avances' && advances.filter(a => a.status === 'en_attente').length > 0 && (
               <span className={`text-xs px-1.5 py-0.5 rounded-md font-bold ${mainTab === tab ? 'bg-black/20 text-black/70' : 'bg-red-500/20 text-red-400'}`}>
@@ -400,6 +409,7 @@ export default function DepensesPage() {
                               <th className="text-left pb-3 pr-4">Catégorie</th>
                               <th className="text-left pb-3 pr-4">Description</th>
                               <th className="text-left pb-3 pr-4">Type</th>
+                              <th className="text-left pb-3 pr-4">Date paiement</th>
                               <th className="text-right pb-3 pr-4">Montant</th>
                               <th className="pb-3 w-8"></th>
                             </tr>
@@ -416,9 +426,19 @@ export default function DepensesPage() {
                                 </td>
                                 <td className="py-3 pr-4 text-gray-400 text-sm">{expense.description || '—'}</td>
                                 <td className="py-3 pr-4">
-                                  {expense.isRecurring
-                                    ? <Badge variant="info" className="flex items-center gap-1 w-fit"><RefreshCw className="w-2.5 h-2.5" />Récurrent</Badge>
-                                    : <Badge variant="default">Ponctuel</Badge>}
+                                  <div className="flex flex-col gap-1">
+                                    {expense.isRecurring
+                                      ? <Badge variant="info" className="flex items-center gap-1 w-fit"><RefreshCw className="w-2.5 h-2.5" />Récurrent</Badge>
+                                      : <Badge variant="default">Ponctuel</Badge>}
+                                    {expense.isRecurring && expense.paymentDay && (
+                                      <span className="text-[10px] text-white/30">le {expense.paymentDay} du mois</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-3 pr-4 text-gray-400 text-sm">
+                                  {expense.payDate
+                                    ? new Date(expense.payDate).toLocaleDateString('fr-FR')
+                                    : <span className="text-white/20">—</span>}
                                 </td>
                                 <td className="py-3 pr-4 text-right text-white font-medium text-sm">{formatCurrency(expense.amount)}</td>
                                 <td className="py-3">
@@ -432,7 +452,7 @@ export default function DepensesPage() {
                           </tbody>
                           <tfoot>
                             <tr className="border-t-2 border-[#2e2e2e]">
-                              <td colSpan={3} className="py-3 text-gray-400 text-sm font-medium">Total</td>
+                              <td colSpan={4} className="py-3 text-gray-400 text-sm font-medium">Total</td>
                               <td className="py-3 text-right text-[#D4AF37] font-bold">{formatCurrency(totalExpenses)}</td>
                               <td></td>
                             </tr>
@@ -811,17 +831,26 @@ export default function DepensesPage() {
             {EXPENSE_CATEGORIES.map((cat) => <option key={cat.value} value={cat.value}>{cat.label}</option>)}
           </Select>
           <Input label="Description (optionnel)" value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Ex: Abonnement Airbnb Pro" />
-          <Input label="Montant (€)" type="number" min="0" step="0.01" value={form.amount}
-            onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="150" />
+            onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Ex: Abonnement Lodgify" />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Montant (€)" type="number" min="0" step="0.01" value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="150" />
+            <Input label="Date de paiement" type="date" value={form.payDate}
+              onChange={(e) => setForm({ ...form, payDate: e.target.value })} />
+          </div>
           <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-[#1b1b1b] border border-[#2e2e2e] hover:border-[#D4AF37]/30 transition-colors">
             <input type="checkbox" checked={form.isRecurring}
               onChange={(e) => setForm({ ...form, isRecurring: e.target.checked })} className="w-4 h-4 rounded" />
             <div>
-              <p className="text-white text-sm font-medium">Dépense récurrente</p>
-              <p className="text-gray-500 text-xs">Se répète chaque mois</p>
+              <p className="text-white text-sm font-medium flex items-center gap-2"><Repeat className="w-3.5 h-3.5 text-blue-400" />Dépense récurrente</p>
+              <p className="text-gray-500 text-xs">Se prélève chaque mois automatiquement</p>
             </div>
           </label>
+          {form.isRecurring && (
+            <Input label="Jour de prélèvement (1–31)" type="number" min="1" max="31" value={form.paymentDay}
+              onChange={(e) => setForm({ ...form, paymentDay: e.target.value })}
+              placeholder="Ex: 1 (= prélevé le 1er du mois)" />
+          )}
           {error && <p className="text-red-400 text-sm bg-red-400/10 px-3 py-2 rounded-lg">{error}</p>}
           <div className="flex gap-3 justify-end">
             <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Annuler</Button>
@@ -829,6 +858,258 @@ export default function DepensesPage() {
           </div>
         </div>
       </Modal>
+
+      {/* ═══════════════════ ONGLET VUE GLOBALE ═══════════════════ */}
+      {mainTab === 'global' && (() => {
+        // Agréger par mois
+        const byMonth = new Map<string, { month: number; year: number; caBrut: number; total: number; recurring: number; oneTime: number }>()
+        for (const e of allExpenses) {
+          if (!e.month || !e.year) continue
+          const key = `${e.year}-${String(e.month).padStart(2,'0')}`
+          if (!byMonth.has(key)) byMonth.set(key, { month: e.month, year: e.year, caBrut: e.caBrut ?? 0, total: 0, recurring: 0, oneTime: 0 })
+          const m = byMonth.get(key)!
+          m.total += e.amount
+          if (e.isRecurring) m.recurring += e.amount; else m.oneTime += e.amount
+        }
+        const months = Array.from(byMonth.values()).sort((a, b) => b.year !== a.year ? b.year - a.year : b.month - a.month)
+
+        // Récurrentes : prendre les plus récentes occurrences groupées par description+catégorie
+        const latestMonth = months[0]
+        const latestRecurring = latestMonth
+          ? allExpenses.filter(e => e.isRecurring && e.month === latestMonth.month && e.year === latestMonth.year)
+          : allExpenses.filter(e => e.isRecurring)
+        const monthlyRecurringTotal = latestRecurring.reduce((s, e) => s + e.amount, 0)
+
+        // Calendrier prélèvements ce mois (récurrentes avec paymentDay)
+        const withDay = latestRecurring.filter(e => e.paymentDay).sort((a, b) => (a.paymentDay ?? 0) - (b.paymentDay ?? 0))
+        const withoutDay = latestRecurring.filter(e => !e.paymentDay)
+
+        // Répartition par catégorie (tous mois)
+        const byCat = new Map<string, number>()
+        for (const e of allExpenses) {
+          byCat.set(e.category, (byCat.get(e.category) ?? 0) + e.amount)
+        }
+        const catList = Array.from(byCat.entries()).map(([cat, amt]) => ({ cat, amt })).sort((a,b) => b.amt - a.amt)
+        const totalAllTime = allExpenses.reduce((s,e) => s + e.amount, 0)
+
+        const avgMonthly = months.length > 0 ? months.reduce((s, m) => s + m.total, 0) / months.length : 0
+
+        const ordinal = (n: number) => n === 1 ? '1er' : `${n}`
+
+        return (
+          <div className="space-y-6">
+            {/* KPIs */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <Card padding="sm" className="text-center">
+                <p className="text-gray-400 text-xs mb-1">Total historique</p>
+                <p className="text-red-400 font-bold text-xl">{formatCurrency(totalAllTime)}</p>
+                <p className="text-gray-500 text-xs">{allExpenses.length} dépense(s)</p>
+              </Card>
+              <Card padding="sm" className="text-center">
+                <p className="text-gray-400 text-xs mb-1">Moy. mensuelle</p>
+                <p className="text-amber-400 font-bold text-xl">{formatCurrency(avgMonthly)}</p>
+                <p className="text-gray-500 text-xs">sur {months.length} mois</p>
+              </Card>
+              <Card padding="sm" className="text-center">
+                <p className="text-gray-400 text-xs mb-1">Récurrentes / mois</p>
+                <p className="text-blue-400 font-bold text-xl">{formatCurrency(monthlyRecurringTotal)}</p>
+                <p className="text-gray-500 text-xs">{latestRecurring.length} poste(s) fixes</p>
+              </Card>
+              <Card padding="sm" className="text-center">
+                <p className="text-gray-400 text-xs mb-1">Charge annuelle est.</p>
+                <p className="text-purple-400 font-bold text-xl">{formatCurrency(monthlyRecurringTotal * 12)}</p>
+                <p className="text-gray-500 text-xs">récurrentes × 12</p>
+              </Card>
+            </div>
+
+            {/* Tableau multi-mois CA vs Dépenses vs Bénéfice */}
+            {months.length > 0 && (
+              <Card>
+                <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                  <BarChart2 className="w-4 h-4 text-[#D4AF37]" />
+                  Évolution mensuelle — CA, Dépenses &amp; Bénéfice
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-gray-400 text-xs border-b border-[#2e2e2e]">
+                        <th className="text-left pb-3 pr-4">Mois</th>
+                        <th className="text-right pb-3 pr-4">CA brut</th>
+                        <th className="text-right pb-3 pr-4">Dépenses</th>
+                        <th className="text-right pb-3 pr-4">Récurrentes</th>
+                        <th className="text-right pb-3 pr-4">Ponctuelles</th>
+                        <th className="text-right pb-3 pr-4">Bénéfice brut</th>
+                        <th className="text-right pb-3">% dép./CA</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#2e2e2e]">
+                      {months.map(m => {
+                        const benef = m.caBrut - m.total
+                        const pct = m.caBrut > 0 ? (m.total / m.caBrut) * 100 : 0
+                        return (
+                          <tr key={`${m.year}-${m.month}`} className="hover:bg-white/[0.02] transition-colors group">
+                            <td className="py-3 pr-4">
+                              <button
+                                onClick={() => { setMainTab('conciergerie'); handleSelectReport(reports.find(r => r.month === m.month && r.year === m.year)?.id ?? 0) }}
+                                className="text-white font-medium hover:text-[#D4AF37] transition-colors"
+                              >
+                                {getMonthName(m.month)} {m.year}
+                              </button>
+                            </td>
+                            <td className="py-3 pr-4 text-right text-green-400 font-medium">{m.caBrut > 0 ? formatCurrency(m.caBrut) : <span className="text-white/20">—</span>}</td>
+                            <td className="py-3 pr-4 text-right text-red-400 font-medium">{formatCurrency(m.total)}</td>
+                            <td className="py-3 pr-4 text-right text-blue-300/70">{formatCurrency(m.recurring)}</td>
+                            <td className="py-3 pr-4 text-right text-gray-400">{formatCurrency(m.oneTime)}</td>
+                            <td className={`py-3 pr-4 text-right font-semibold ${benef >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {m.caBrut > 0 ? formatCurrency(benef) : <span className="text-white/20">—</span>}
+                            </td>
+                            <td className="py-3 text-right">
+                              {m.caBrut > 0 ? (
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${pct > 40 ? 'bg-red-500/15 text-red-400' : pct > 25 ? 'bg-amber-500/15 text-amber-400' : 'bg-green-500/15 text-green-400'}`}>
+                                  {pct.toFixed(0)}%
+                                </span>
+                              ) : <span className="text-white/20">—</span>}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            )}
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {/* Calendrier des prélèvements */}
+              <Card>
+                <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                  <CalendarDays className="w-4 h-4 text-blue-400" />
+                  Calendrier des prélèvements
+                  {latestMonth && <span className="text-gray-500 font-normal text-sm">— {getMonthName(latestMonth.month)} {latestMonth.year}</span>}
+                </h3>
+                {latestRecurring.length === 0 ? (
+                  <p className="text-gray-500 text-sm text-center py-6">Aucune charge récurrente enregistrée</p>
+                ) : (
+                  <div className="space-y-2">
+                    {withDay.map(e => (
+                      <div key={e.id} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                        <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+                          <span className="text-blue-400 font-bold text-xs">{ordinal(e.paymentDay!)}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-sm font-medium truncate">{e.description || getCategoryLabel(e.category)}</p>
+                          <p className="text-gray-500 text-xs">{getCategoryLabel(e.category)}</p>
+                        </div>
+                        <span className="text-red-400 font-semibold text-sm">{formatCurrency(e.amount)}</span>
+                      </div>
+                    ))}
+                    {withoutDay.length > 0 && (
+                      <>
+                        {withDay.length > 0 && <p className="text-xs text-white/20 pt-1">Sans date de prélèvement</p>}
+                        {withoutDay.map(e => (
+                          <div key={e.id} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] opacity-60">
+                            <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+                              <AlertCircle className="w-4 h-4 text-white/30" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white/60 text-sm truncate">{e.description || getCategoryLabel(e.category)}</p>
+                              <p className="text-gray-600 text-xs">Jour non renseigné</p>
+                            </div>
+                            <span className="text-gray-400 font-semibold text-sm">{formatCurrency(e.amount)}</span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                    <div className="flex justify-between items-center pt-2 border-t border-white/[0.06] mt-1">
+                      <span className="text-gray-400 text-sm font-medium">Total mensuel fixe</span>
+                      <span className="text-[#D4AF37] font-bold">{formatCurrency(monthlyRecurringTotal)}</span>
+                    </div>
+                  </div>
+                )}
+              </Card>
+
+              {/* Répartition par catégorie (tous mois) */}
+              <Card>
+                <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                  <TrendingDown className="w-4 h-4 text-red-400" />
+                  Répartition par catégorie (historique)
+                </h3>
+                {catList.length === 0 ? (
+                  <p className="text-gray-500 text-sm text-center py-6">Aucune donnée</p>
+                ) : (
+                  <div className="space-y-3">
+                    {catList.map(({ cat, amt }) => {
+                      const pct = totalAllTime > 0 ? (amt / totalAllTime) * 100 : 0
+                      const color = EXPENSE_CATEGORIES.find(c => c.value === cat)?.color ?? '#6B7280'
+                      return (
+                        <div key={cat}>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                              <span className="text-gray-300 text-sm">{getCategoryLabel(cat)}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-gray-500 text-xs">{pct.toFixed(1)}%</span>
+                              <span className="text-white font-semibold text-sm w-20 text-right">{formatCurrency(amt)}</span>
+                            </div>
+                          </div>
+                          <div className="h-1.5 bg-white/[0.04] rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: color }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div className="flex justify-between items-center pt-2 border-t border-white/[0.06]">
+                      <span className="text-gray-400 text-sm">Total toutes catégories</span>
+                      <span className="text-white font-bold">{formatCurrency(totalAllTime)}</span>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            </div>
+
+            {/* Impact sur bénéfice — analyse */}
+            {months.length > 0 && (() => {
+              const withCA = months.filter(m => m.caBrut > 0)
+              if (withCA.length === 0) return null
+              const avgBenef = withCA.reduce((s, m) => s + (m.caBrut - m.total), 0) / withCA.length
+              const avgPct = withCA.reduce((s, m) => s + (m.total / m.caBrut) * 100, 0) / withCA.length
+              const best = [...withCA].sort((a, b) => (b.caBrut - b.total) - (a.caBrut - a.total))[0]
+              const worst = [...withCA].sort((a, b) => (a.caBrut - a.total) - (b.caBrut - b.total))[0]
+              return (
+                <Card>
+                  <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+                    <BarChart2 className="w-4 h-4 text-[#D4AF37]" />
+                    Impact sur le bénéfice
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/15 text-center">
+                      <p className="text-xs text-emerald-400/60 mb-1">Bénéfice moy./mois</p>
+                      <p className="text-emerald-400 font-bold text-lg">{formatCurrency(avgBenef)}</p>
+                      <p className="text-xs text-white/20 mt-0.5">après dépenses</p>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-red-500/5 border border-red-500/15 text-center">
+                      <p className="text-xs text-red-400/60 mb-1">Dépenses moy./CA</p>
+                      <p className="text-red-400 font-bold text-lg">{avgPct.toFixed(1)}%</p>
+                      <p className="text-xs text-white/20 mt-0.5">du CA consommé</p>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.07] text-center">
+                      <p className="text-xs text-white/40 mb-1">Meilleur mois</p>
+                      <p className="text-white font-bold text-lg">{formatCurrency(best.caBrut - best.total)}</p>
+                      <p className="text-xs text-white/20 mt-0.5">{getMonthName(best.month)} {best.year}</p>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.07] text-center">
+                      <p className="text-xs text-white/40 mb-1">Mois le + chargé</p>
+                      <p className="text-amber-400 font-bold text-lg">{formatCurrency(worst.total)}</p>
+                      <p className="text-xs text-white/20 mt-0.5">{getMonthName(worst.month)} {worst.year}</p>
+                    </div>
+                  </div>
+                </Card>
+              )
+            })()}
+          </div>
+        )
+      })()}
     </div>
   )
 }
