@@ -76,10 +76,15 @@ export default function DepensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [form, setForm] = useState({ category: 'logiciel', description: '', amount: '', isRecurring: false, payDate: new Date().toISOString().split('T')[0], paymentDay: '' })
   const [allExpenses, setAllExpenses] = useState<Expense[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [isNewReportModalOpen, setIsNewReportModalOpen] = useState(false)
+  const [newReportForm, setNewReportForm] = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear() })
+  const [newReportSaving, setNewReportSaving] = useState(false)
+  const [newReportError, setNewReportError] = useState('')
 
   // ── Sous-location state ────────────────────────────────────────────────────
   const [sousLocProps, setSousLocProps] = useState<SousLocProperty[]>([])
@@ -130,6 +135,26 @@ export default function DepensesPage() {
     finally { setLoading(false) }
   }
 
+  const handleCreateReport = async () => {
+    setNewReportSaving(true)
+    setNewReportError('')
+    try {
+      const res = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ month: newReportForm.month, year: newReportForm.year, caBrut: 0, commissions: 0, activeProperties: 0, totalNights: 0, newSignatures: 0, lostProperties: 0, netProfit: 0 }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setNewReportError(data.error || 'Erreur'); return }
+      setIsNewReportModalOpen(false)
+      await loadReports()
+      setSelectedReportId(data.id)
+      setSelectedReport(data)
+      await loadExpenses(data.id)
+    } catch { setNewReportError('Erreur de connexion') }
+    finally { setNewReportSaving(false) }
+  }
+
   const loadSousLoc = async () => {
     setLoadingSousLoc(true)
     try {
@@ -158,20 +183,47 @@ export default function DepensesPage() {
     await loadExpenses(reportId)
   }
 
+  const openEditExpense = (expense: Expense) => {
+    setEditingExpense(expense)
+    setForm({
+      category: expense.category,
+      description: expense.description ?? '',
+      amount: String(expense.amount),
+      isRecurring: expense.isRecurring,
+      payDate: expense.payDate ? expense.payDate.split('T')[0] : new Date().toISOString().split('T')[0],
+      paymentDay: expense.paymentDay ? String(expense.paymentDay) : '',
+    })
+    setError('')
+    setIsModalOpen(true)
+  }
+
   const handleAddExpense = async () => {
-    if (!selectedReportId) return
+    if (!selectedReportId && !editingExpense) return
     setSaving(true)
     setError('')
+    const refreshAll = () => fetch('/api/expenses').then(r => r.json()).then(d => setAllExpenses(Array.isArray(d) ? d : [])).catch(() => {})
     try {
-      const res = await fetch('/api/expenses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, reportId: selectedReportId }),
-      })
-      if (!res.ok) { const d = await res.json(); setError(d.error || 'Erreur'); return }
-      await loadExpenses(selectedReportId)
-      fetch('/api/expenses').then(r => r.json()).then(d => setAllExpenses(Array.isArray(d) ? d : [])).catch(() => {})
+      if (editingExpense) {
+        const res = await fetch(`/api/expenses/${editingExpense.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        })
+        if (!res.ok) { const d = await res.json(); setError(d.error || 'Erreur'); return }
+        if (selectedReportId) await loadExpenses(selectedReportId)
+        await refreshAll()
+      } else {
+        const res = await fetch('/api/expenses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...form, reportId: selectedReportId }),
+        })
+        if (!res.ok) { const d = await res.json(); setError(d.error || 'Erreur'); return }
+        if (selectedReportId) await loadExpenses(selectedReportId)
+        await refreshAll()
+      }
       setIsModalOpen(false)
+      setEditingExpense(null)
       setForm({ category: 'logiciel', description: '', amount: '', isRecurring: false, payDate: new Date().toISOString().split('T')[0], paymentDay: '' })
     } catch { setError('Erreur de connexion') }
     finally { setSaving(false) }
@@ -339,19 +391,23 @@ export default function DepensesPage() {
       {mainTab === 'conciergerie' && (
         <>
           {/* Report Selector */}
-          {reports.length > 0 && (
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-gray-400 text-sm">Rapport :</span>
-              {reports.slice(0, 8).map((r) => (
-                <button key={r.id} onClick={() => handleSelectReport(r.id)}
-                  className={`px-3 py-1.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
-                    selectedReportId === r.id ? 'bg-[#D4AF37] text-black' : 'bg-[#242424] border border-[#2e2e2e] text-gray-400 hover:text-white'
-                  }`}>
-                  {getMonthName(r.month).substring(0, 3)} {r.year}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-gray-400 text-sm">Rapport :</span>
+            {reports.map((r) => (
+              <button key={r.id} onClick={() => handleSelectReport(r.id)}
+                className={`px-3 py-1.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
+                  selectedReportId === r.id ? 'bg-[#D4AF37] text-black' : 'bg-[#242424] border border-[#2e2e2e] text-gray-400 hover:text-white'
+                }`}>
+                {getMonthName(r.month).substring(0, 3)} {r.year}
+              </button>
+            ))}
+            <button
+              onClick={() => { setNewReportForm({ month: new Date().getMonth() + 1, year: new Date().getFullYear() }); setNewReportError(''); setIsNewReportModalOpen(true) }}
+              className="px-3 py-1.5 rounded-xl text-sm font-medium whitespace-nowrap border border-dashed border-[#2e2e2e] text-gray-500 hover:text-white hover:border-[#D4AF37]/40 transition-all flex items-center gap-1"
+              title="Ouvrir un nouveau mois">
+              <Plus className="w-3.5 h-3.5" /> Nouveau mois
+            </button>
+          </div>
 
           {reports.length === 0 ? (
             <EmptyState icon={CreditCard} title="Aucun rapport disponible"
@@ -752,6 +808,40 @@ export default function DepensesPage() {
           )}
         </>
       )}
+
+      {/* New Report Modal */}
+      <Modal isOpen={isNewReportModalOpen} onClose={() => setIsNewReportModalOpen(false)} title="Ouvrir un nouveau mois">
+        <div className="space-y-4">
+          <p className="text-gray-400 text-sm">Crée un rapport vide pour le mois choisi. Tu pourras ensuite y ajouter des dépenses.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-400 block mb-1.5">Mois</label>
+              <select
+                value={newReportForm.month}
+                onChange={e => setNewReportForm(f => ({ ...f, month: Number(e.target.value) }))}
+                className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40">
+                {['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'].map((m, i) => (
+                  <option key={i+1} value={i+1}>{m}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1.5">Année</label>
+              <input
+                type="number" min="2024" max="2030"
+                value={newReportForm.year}
+                onChange={e => setNewReportForm(f => ({ ...f, year: Number(e.target.value) }))}
+                className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40"
+              />
+            </div>
+          </div>
+          {newReportError && <p className="text-red-400 text-sm">{newReportError}</p>}
+          <div className="flex gap-3 justify-end">
+            <Button variant="ghost" onClick={() => setIsNewReportModalOpen(false)}>Annuler</Button>
+            <Button isLoading={newReportSaving} onClick={handleCreateReport}>Créer</Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Add Advance Modal */}
       <Modal isOpen={isAdvanceModalOpen} onClose={() => setIsAdvanceModalOpen(false)} title="Ajouter une avance">
