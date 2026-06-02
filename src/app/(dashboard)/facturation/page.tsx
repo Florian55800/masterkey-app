@@ -645,7 +645,10 @@ function SubletModal({
 // ─── PDF Generation ───────────────────────────────────────────────────────────
 
 function fmt(n: number) {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n)
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' })
+    .format(n)
+    .replace(/ /g, ' ')
+    .replace(/ /g, ' ')
 }
 
 async function downloadPDF(property: Property, revenues: PropertyRevenue[], month: number, year: number) {
@@ -693,13 +696,15 @@ async function downloadPDF(property: Property, revenues: PropertyRevenue[], mont
   })
   y += 25
 
-  // ── Taux d'occupation global ──────────────────────────────────────────────
+  // ── Taux d'occupation global (affiché seulement si des nuits sont renseignées) ──
   const daysInMonth = new Date(year, month, 0).getDate()
   const totalNuits = revenues.reduce((s, r) => s + (r.nbNuits ?? 0), 0)
-  const tauxOcc = daysInMonth > 0 ? Math.round((totalNuits / daysInMonth) * 100) : 0
-  font('normal', 9); color(80,80,80)
-  text(`Taux d'occupation : ${tauxOcc} %`, mg, y + 6)
-  y += 14
+  if (totalNuits > 0) {
+    const tauxOcc = daysInMonth > 0 ? Math.round((totalNuits / daysInMonth) * 100) : 0
+    font('normal', 9); color(80,80,80)
+    text(`Taux d'occupation : ${tauxOcc} %`, mg, y + 6)
+    y += 14
+  }
 
   // tableau header
   const cols = ['Plateforme','Montant brut','Frais ménage','Com. %','Base calcul','Part MasterKey','Part propriétaire']
