@@ -126,14 +126,11 @@ export default function DepensesPage() {
       const arr = Array.isArray(data) ? data : []
       setReports(arr)
       if (arr.length > 0) {
-        // Préférer le rapport le plus récent avec des dépenses, sinon le deuxième plus récent,
-        // sinon le premier (évite de tomber sur un rapport vide créé manuellement)
+        const nowM = new Date().getMonth() + 1
+        const nowY = new Date().getFullYear()
+        // Ignorer les rapports du mois courant qui sont vides (créés sans données)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const withExpenses = arr.find((r: any) => Array.isArray(r.expenses) && r.expenses.length > 0)
-        // S'il n'y a pas de rapport avec dépenses, prendre le premier qui a un caBrut > 0
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const withCA = arr.find((r: any) => r.caBrut > 0)
-        const best = withExpenses ?? withCA ?? arr[0]
+        const best = arr.find((r: any) => !(r.month === nowM && r.year === nowY && r.caBrut === 0 && (!r.expenses || r.expenses.length === 0))) ?? arr[0]
         setSelectedReportId(best.id)
         setSelectedReport(best)
         loadExpenses(best.id)
@@ -151,13 +148,17 @@ export default function DepensesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ month: newReportForm.month, year: newReportForm.year, caBrut: 0, commissions: 0, activeProperties: 0, totalNights: 0, newSignatures: 0, lostProperties: 0, netProfit: 0 }),
       })
-      const data = await res.json()
-      if (!res.ok) { setNewReportError(data.error || 'Erreur'); return }
+      const created = await res.json()
+      if (!res.ok) { setNewReportError(created.error || 'Erreur'); return }
       setIsNewReportModalOpen(false)
-      await loadReports()
-      setSelectedReportId(data.id)
-      setSelectedReport(data)
-      await loadExpenses(data.id)
+      // Recharger la liste puis sélectionner le nouveau rapport
+      const listRes = await fetch('/api/reports')
+      const listData = await listRes.json()
+      const arr = Array.isArray(listData) ? listData : []
+      setReports(arr)
+      setSelectedReportId(created.id)
+      setSelectedReport(created)
+      setExpenses([])
     } catch { setNewReportError('Erreur de connexion') }
     finally { setNewReportSaving(false) }
   }
@@ -409,7 +410,19 @@ export default function DepensesPage() {
               </button>
             ))}
             <button
-              onClick={() => { setNewReportForm({ month: new Date().getMonth() + 1, year: new Date().getFullYear() }); setNewReportError(''); setIsNewReportModalOpen(true) }}
+              onClick={() => {
+                // Trouver le premier mois non encore créé, en remontant depuis le mois courant
+                const existing = new Set(reports.map((r: Report) => `${r.year}-${r.month}`))
+                let m = new Date().getMonth() + 1
+                let y = new Date().getFullYear()
+                for (let i = 0; i < 24; i++) {
+                  if (!existing.has(`${y}-${m}`)) break
+                  m--; if (m < 1) { m = 12; y-- }
+                }
+                setNewReportForm({ month: m, year: y })
+                setNewReportError('')
+                setIsNewReportModalOpen(true)
+              }}
               className="px-3 py-1.5 rounded-xl text-sm font-medium whitespace-nowrap border border-dashed border-[#2e2e2e] text-gray-500 hover:text-white hover:border-[#D4AF37]/40 transition-all flex items-center gap-1"
               title="Ouvrir un nouveau mois">
               <Plus className="w-3.5 h-3.5" /> Nouveau mois
