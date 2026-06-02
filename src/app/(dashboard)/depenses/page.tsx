@@ -126,9 +126,14 @@ export default function DepensesPage() {
       const arr = Array.isArray(data) ? data : []
       setReports(arr)
       if (arr.length > 0) {
-        // Préférer le rapport le plus récent qui a des dépenses, sinon le premier
-        const withExpenses = arr.find((r: Report & { expenses?: unknown[] }) => (r as { expenses?: unknown[] }).expenses?.length)
-        const best = withExpenses ?? arr[0]
+        // Préférer le rapport le plus récent avec des dépenses, sinon le deuxième plus récent,
+        // sinon le premier (évite de tomber sur un rapport vide créé manuellement)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const withExpenses = arr.find((r: any) => Array.isArray(r.expenses) && r.expenses.length > 0)
+        // S'il n'y a pas de rapport avec dépenses, prendre le premier qui a un caBrut > 0
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const withCA = arr.find((r: any) => r.caBrut > 0)
+        const best = withExpenses ?? withCA ?? arr[0]
         setSelectedReportId(best.id)
         setSelectedReport(best)
         loadExpenses(best.id)

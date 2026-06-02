@@ -166,11 +166,16 @@ export default function DashboardPage() {
             const rep = d.currentMonth.report
             const isEmpty = !rep || (rep.caBrut === 0 && rep.commissions === 0 && (!rep.expenses || rep.expenses.length === 0))
             if (isNow && isEmpty && d.availableMonths?.length > 0) {
-              const last = d.availableMonths[0]
-              setSelectedMonth(last.month)
-              setSelectedYear(last.year)
-              setAutoSwitched(true)
-              return
+              // Chercher un mois différent du mois actuel qui a des données
+              const other = d.availableMonths.find(
+                (m: { month: number; year: number }) => !(m.month === now.getMonth() + 1 && m.year === now.getFullYear())
+              )
+              if (other) {
+                setSelectedMonth(other.month)
+                setSelectedYear(other.year)
+                setAutoSwitched(true)
+                return
+              }
             }
           }
         }
