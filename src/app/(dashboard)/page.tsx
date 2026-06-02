@@ -163,7 +163,9 @@ export default function DashboardPage() {
           // Auto-switch to last month with data if current month is empty
           if (!autoSwitched) {
             const isNow = selectedMonth === now.getMonth() + 1 && selectedYear === now.getFullYear()
-            if (isNow && !d.currentMonth.report && d.availableMonths?.length > 0) {
+            const rep = d.currentMonth.report
+            const isEmpty = !rep || (rep.caBrut === 0 && rep.commissions === 0 && (!rep.expenses || rep.expenses.length === 0))
+            if (isNow && isEmpty && d.availableMonths?.length > 0) {
               const last = d.availableMonths[0]
               setSelectedMonth(last.month)
               setSelectedYear(last.year)

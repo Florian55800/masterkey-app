@@ -126,10 +126,12 @@ export default function DepensesPage() {
       const arr = Array.isArray(data) ? data : []
       setReports(arr)
       if (arr.length > 0) {
-        const latest = arr[0]
-        setSelectedReportId(latest.id)
-        setSelectedReport(latest)
-        loadExpenses(latest.id)
+        // Préférer le rapport le plus récent qui a des dépenses, sinon le premier
+        const withExpenses = arr.find((r: Report & { expenses?: unknown[] }) => (r as { expenses?: unknown[] }).expenses?.length)
+        const best = withExpenses ?? arr[0]
+        setSelectedReportId(best.id)
+        setSelectedReport(best)
+        loadExpenses(best.id)
       }
     } catch { setReports([]) }
     finally { setLoading(false) }
