@@ -147,90 +147,83 @@ export function Sidebar() {
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 overflow-y-auto flex flex-col">
-          <div className="space-y-0.5 flex-1">
-            {navItems.filter(item => !isCogestionnaire || !ADMIN_ONLY_HREFS.includes(item.href)).map((item, index) => {
-              const Icon = ICON_MAP[item.icon]
-              const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
-              return (
-                <div
-                  key={item.href}
-                  draggable
-                  onDragStart={() => onDragStart(index)}
-                  onDragEnter={() => onDragEnter(index)}
-                  onDragEnd={onDragEnd}
-                  onDragOver={e => e.preventDefault()}
-                  className="group/item flex items-center"
-                >
-                  <div className="opacity-0 group-hover/item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing p-1 text-white/20 hover:text-white/50 flex-shrink-0">
-                    <GripVertical className="w-3 h-3" />
-                  </div>
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      'flex-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative',
-                      isActive ? 'text-[#D4AF37]' : 'text-white/40 hover:text-white/80'
-                    )}
-                    style={isActive ? {
-                      background: 'rgba(212,175,55,0.1)',
-                      border: '1px solid rgba(212,175,55,0.15)',
-                    } : {
-                      background: 'transparent',
-                      border: '1px solid transparent',
-                    }}
-                  >
-                    <Icon className={cn('w-4 h-4 flex-shrink-0 transition-all', isActive ? 'text-[#D4AF37]' : 'text-white/30 group-hover:text-white/60')} />
-                    {item.label}
-                    {isActive && (
-                      <div
-                        className="w-1 h-1 rounded-full ml-auto"
-                        style={{ background: '#D4AF37', boxShadow: '0 0 6px rgba(212,175,55,0.8)' }}
-                      />
-                    )}
-                  </Link>
+        {/* Navigation — scrollable */}
+        <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5 min-h-0">
+          {navItems.filter(item => !isCogestionnaire || !ADMIN_ONLY_HREFS.includes(item.href)).map((item, index) => {
+            const Icon = ICON_MAP[item.icon]
+            const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+            return (
+              <div
+                key={item.href}
+                draggable
+                onDragStart={() => onDragStart(index)}
+                onDragEnter={() => onDragEnter(index)}
+                onDragEnd={onDragEnd}
+                onDragOver={e => e.preventDefault()}
+                className="group/item flex items-center"
+              >
+                <div className="opacity-0 group-hover/item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing p-1 text-white/20 hover:text-white/50 flex-shrink-0">
+                  <GripVertical className="w-3 h-3" />
                 </div>
-              )
-            })}
-          </div>
-
-          {/* Section Outils */}
-          <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-            <p className="px-4 text-[10px] font-semibold uppercase tracking-widest text-white/20 mb-1.5">Outils</p>
-            <div className="space-y-0.5">
-              {TOOLS_NAV.map(item => {
-                const Icon = ICON_MAP[item.icon]
-                const isActive = pathname === item.href || pathname.startsWith(item.href)
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group',
-                      isActive ? 'text-[#D4AF37]' : 'text-white/40 hover:text-white/80'
-                    )}
-                    style={isActive ? {
-                      background: 'rgba(212,175,55,0.1)',
-                      border: '1px solid rgba(212,175,55,0.15)',
-                    } : {
-                      background: 'transparent',
-                      border: '1px solid transparent',
-                    }}
-                  >
-                    <Icon className={cn('w-4 h-4 flex-shrink-0 transition-all', isActive ? 'text-[#D4AF37]' : 'text-white/30 group-hover:text-white/60')} />
-                    {item.label}
-                    {isActive && (
-                      <div className="w-1 h-1 rounded-full ml-auto" style={{ background: '#D4AF37', boxShadow: '0 0 6px rgba(212,175,55,0.8)' }} />
-                    )}
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
+                <Link
+                  href={item.href}
+                  className={cn(
+                    'flex-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative',
+                    isActive ? 'text-[#D4AF37]' : 'text-white/40 hover:text-white/80'
+                  )}
+                  style={isActive ? {
+                    background: 'rgba(212,175,55,0.1)',
+                    border: '1px solid rgba(212,175,55,0.15)',
+                  } : {
+                    background: 'transparent',
+                    border: '1px solid transparent',
+                  }}
+                >
+                  <Icon className={cn('w-4 h-4 flex-shrink-0 transition-all', isActive ? 'text-[#D4AF37]' : 'text-white/30 group-hover:text-white/60')} />
+                  {item.label}
+                  {isActive && (
+                    <div className="w-1 h-1 rounded-full ml-auto" style={{ background: '#D4AF37', boxShadow: '0 0 6px rgba(212,175,55,0.8)' }} />
+                  )}
+                </Link>
+              </div>
+            )
+          })}
         </nav>
 
+        {/* Section Outils — FIXE, toujours visible */}
+        <div className="px-3 pb-2 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+          <p className="px-3 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/25">Outils</p>
+          {TOOLS_NAV.map(item => {
+            const Icon = ICON_MAP[item.icon]
+            const isActive = pathname === item.href || pathname.startsWith(item.href)
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group',
+                  isActive ? 'text-[#D4AF37]' : 'text-white/40 hover:text-white/80'
+                )}
+                style={isActive ? {
+                  background: 'rgba(212,175,55,0.1)',
+                  border: '1px solid rgba(212,175,55,0.15)',
+                } : {
+                  background: 'transparent',
+                  border: '1px solid transparent',
+                }}
+              >
+                <Icon className={cn('w-4 h-4 flex-shrink-0 transition-all', isActive ? 'text-[#D4AF37]' : 'text-white/30 group-hover:text-white/60')} />
+                {item.label}
+                {isActive && (
+                  <div className="w-1 h-1 rounded-full ml-auto" style={{ background: '#D4AF37', boxShadow: '0 0 6px rgba(212,175,55,0.8)' }} />
+                )}
+              </Link>
+            )
+          })}
+        </div>
+
         {/* User section */}
-        <div className="px-3 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="px-3 py-3 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
           {user && (
             <div
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl mb-2"
