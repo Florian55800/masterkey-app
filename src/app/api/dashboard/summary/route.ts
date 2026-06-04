@@ -95,7 +95,10 @@ export async function GET(req: NextRequest) {
 
       const currentReport = toRows(rsCurrentReport)[0] ?? null
       const expenses = toRows(rsExpenses)
-      if (currentReport) currentReport.expenses = expenses
+      if (currentReport) {
+        currentReport.expenses = expenses
+        currentReport.teamGoals = []
+      }
 
       const historicalReports = toRows(rsHistorical)
       const historicalData = last6Months.map((m) => {
