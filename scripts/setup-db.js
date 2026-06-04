@@ -353,6 +353,8 @@ async function setup() {
     `ALTER TABLE "Lead"  ADD COLUMN "isWhatsapp" INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE "Owner" ADD COLUMN "adresseDomicile" TEXT`,
     `ALTER TABLE "Owner" ADD COLUMN "isWhatsapp" INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE "Property" ADD COLUMN "latitude"  REAL`,
+    `ALTER TABLE "Property" ADD COLUMN "longitude" REAL`,
     `ALTER TABLE "SubletExpense"   ADD COLUMN "nbSejours" INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE "SubletExpense"   ADD COLUMN "nbNuits"   INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE "PropertyRevenue" ADD COLUMN "nbSejours" INTEGER NOT NULL DEFAULT 0`,
@@ -415,6 +417,19 @@ async function setup() {
       "equipements"  TEXT     NOT NULL DEFAULT '[]',
       "createdAt"    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt"    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS "Contract" (
+      "id"             INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
+      "name"           TEXT     NOT NULL,
+      "contrepartie"   TEXT,
+      "type"           TEXT     NOT NULL DEFAULT 'autre',
+      "dateSigne"      DATETIME,
+      "dateExpiration" DATETIME,
+      "dureePreavis"   INTEGER,
+      "statut"         TEXT     NOT NULL DEFAULT 'actif',
+      "notes"          TEXT,
+      "createdAt"      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt"      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
   ]
   for (const sql of migrations) {

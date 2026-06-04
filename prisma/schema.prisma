@@ -133,6 +133,8 @@ model Property {
   photo          String?
   description    String?
   keyboxCode     String?
+  latitude       Float?
+  longitude      Float?
   dateSigned     DateTime
   dateLost       DateTime?
   status         String            @default("active")
@@ -336,6 +338,20 @@ model OnboardingSession {
   checks    String   @default("{}") // JSON Record<taskId, boolean>
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Contract {
+  id             Int       @id @default(autoincrement())
+  name           String
+  contrepartie   String?
+  type           String    @default("autre")
+  dateSigne      DateTime?
+  dateExpiration DateTime?
+  dureePreavis   Int?      // jours avant expiration pour alerte
+  statut         String    @default("actif") // "actif" | "expire" | "resilie"
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 model Lead {
