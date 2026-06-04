@@ -58,7 +58,7 @@ export default function CartePage() {
   const leafletLoaded = useRef(false)
 
   useEffect(() => {
-    fetch('/api/logements')
+    fetch('/api/properties')
       .then(r => r.json())
       .then(data => {
         setProperties(Array.isArray(data) ? data : [])

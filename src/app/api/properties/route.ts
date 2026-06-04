@@ -30,6 +30,7 @@ export async function GET() {
         `SELECT p.id, p.name, p.address, p.city, p.type, p.typeGestion, p.ownerId,
                 p.commissionRate, p.cleaningFee, p.staffId, p.lodgifyId,
                 p.dateSigned, p.dateLost, p.status, p.photo, p.keyboxCode, p.createdAt,
+                p.latitude, p.longitude,
                 o.id as _ownerId, o.name as _ownerName,
                 s.id as _staffId, s.name as _staffName, s.phone as _staffPhone
          FROM Property p
@@ -60,7 +61,7 @@ export async function GET() {
       select: {
         id: true, name: true, address: true, city: true, type: true,
         typeGestion: true, ownerId: true, commissionRate: true, cleaningFee: true,
-        lodgifyId: true,
+        lodgifyId: true, latitude: true, longitude: true,
         dateSigned: true, dateLost: true, status: true, photo: true, createdAt: true,
         staffId: true,
         owner: { select: { id: true, name: true } },
