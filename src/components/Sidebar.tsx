@@ -45,12 +45,9 @@ const DEFAULT_NAV = [
   { href: '/leads', label: 'Leads', icon: 'UserSearch' },
   { href: '/finance', label: 'Finance', icon: 'Calculator' },
   { href: '/annuaire', label: 'Annuaire', icon: 'BookUser' },
-  { href: '/parametres', label: 'Paramètres', icon: 'Settings' },
-]
-
-const TOOLS_NAV = [
   { href: '/carte', label: 'Carte', icon: 'Map' },
   { href: '/administratif', label: 'Administratif', icon: 'FileText' },
+  { href: '/parametres', label: 'Paramètres', icon: 'Settings' },
 ]
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -78,15 +75,20 @@ export function Sidebar() {
   const dragIndex = useRef<number | null>(null)
   const dragOverIndex = useRef<number | null>(null)
 
-  // Load saved order
+  // Load saved order — new items not in saved order go to the end
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) {
         const order: string[] = JSON.parse(saved)
-        const sorted = [...DEFAULT_NAV].sort(
-          (a, b) => order.indexOf(a.href) - order.indexOf(b.href)
-        )
+        const sorted = [...DEFAULT_NAV].sort((a, b) => {
+          const ai = order.indexOf(a.href)
+          const bi = order.indexOf(b.href)
+          if (ai === -1 && bi === -1) return 0
+          if (ai === -1) return 1
+          if (bi === -1) return -1
+          return ai - bi
+        })
         setNavItems(sorted)
       }
     } catch { /* ignore */ }
@@ -147,8 +149,8 @@ export function Sidebar() {
           </div>
         </div>
 
-        {/* Navigation — scrollable */}
-        <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5 min-h-0">
+        {/* Navigation */}
+        <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5">
           {navItems.filter(item => !isCogestionnaire || !ADMIN_ONLY_HREFS.includes(item.href)).map((item, index) => {
             const Icon = ICON_MAP[item.icon]
             const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
@@ -190,40 +192,8 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Section Outils — FIXE, toujours visible */}
-        <div className="px-3 pb-2 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-          <p className="px-3 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/25">Outils</p>
-          {TOOLS_NAV.map(item => {
-            const Icon = ICON_MAP[item.icon]
-            const isActive = pathname === item.href || pathname.startsWith(item.href)
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group',
-                  isActive ? 'text-[#D4AF37]' : 'text-white/40 hover:text-white/80'
-                )}
-                style={isActive ? {
-                  background: 'rgba(212,175,55,0.1)',
-                  border: '1px solid rgba(212,175,55,0.15)',
-                } : {
-                  background: 'transparent',
-                  border: '1px solid transparent',
-                }}
-              >
-                <Icon className={cn('w-4 h-4 flex-shrink-0 transition-all', isActive ? 'text-[#D4AF37]' : 'text-white/30 group-hover:text-white/60')} />
-                {item.label}
-                {isActive && (
-                  <div className="w-1 h-1 rounded-full ml-auto" style={{ background: '#D4AF37', boxShadow: '0 0 6px rgba(212,175,55,0.8)' }} />
-                )}
-              </Link>
-            )
-          })}
-        </div>
-
         {/* User section */}
-        <div className="px-3 py-3 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="px-3 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
           {user && (
             <div
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl mb-2"
@@ -329,37 +299,6 @@ export function Sidebar() {
               )
             })}
 
-            {/* Section Outils mobile */}
-            <div className="pt-3 mt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-              <p className="px-4 text-[10px] font-semibold uppercase tracking-widest text-white/20 mb-2">Outils</p>
-              {TOOLS_NAV.map(item => {
-                const Icon = ICON_MAP[item.icon]
-                const isActive = pathname === item.href || pathname.startsWith(item.href)
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      'flex items-center gap-4 px-4 py-3.5 rounded-2xl text-base font-medium transition-all',
-                      isActive ? 'text-[#D4AF37]' : 'text-white/50 hover:text-white'
-                    )}
-                    style={isActive ? {
-                      background: 'rgba(212,175,55,0.1)',
-                      border: '1px solid rgba(212,175,55,0.2)',
-                    } : {
-                      background: 'rgba(255,255,255,0.02)',
-                      border: '1px solid transparent',
-                    }}
-                  >
-                    <Icon className={cn('w-5 h-5 flex-shrink-0', isActive ? 'text-[#D4AF37]' : 'text-white/30')} />
-                    {item.label}
-                    {isActive && (
-                      <div className="w-2 h-2 rounded-full ml-auto" style={{ background: '#D4AF37', boxShadow: '0 0 8px rgba(212,175,55,0.8)' }} />
-                    )}
-                  </Link>
-                )
-              })}
-            </div>
           </nav>
 
           {/* User + logout */}
