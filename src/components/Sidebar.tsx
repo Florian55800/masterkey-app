@@ -75,20 +75,19 @@ export function Sidebar() {
   const dragIndex = useRef<number | null>(null)
   const dragOverIndex = useRef<number | null>(null)
 
-  // Load saved order — new items not in saved order go to the end
+  // Load saved order — reset if nav items were added since last save
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) {
         const order: string[] = JSON.parse(saved)
-        const sorted = [...DEFAULT_NAV].sort((a, b) => {
-          const ai = order.indexOf(a.href)
-          const bi = order.indexOf(b.href)
-          if (ai === -1 && bi === -1) return 0
-          if (ai === -1) return 1
-          if (bi === -1) return -1
-          return ai - bi
-        })
+        const allHrefs = DEFAULT_NAV.map(i => i.href)
+        // Si un item est absent de l'ordre sauvegardé, on repart du défaut
+        if (!allHrefs.every(h => order.includes(h))) {
+          localStorage.removeItem(STORAGE_KEY)
+          return
+        }
+        const sorted = [...DEFAULT_NAV].sort((a, b) => order.indexOf(a.href) - order.indexOf(b.href))
         setNavItems(sorted)
       }
     } catch { /* ignore */ }
