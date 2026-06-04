@@ -45,9 +45,12 @@ const DEFAULT_NAV = [
   { href: '/leads', label: 'Leads', icon: 'UserSearch' },
   { href: '/finance', label: 'Finance', icon: 'Calculator' },
   { href: '/annuaire', label: 'Annuaire', icon: 'BookUser' },
-  { href: '/administratif', label: 'Administratif', icon: 'FileText' },
-  { href: '/carte', label: 'Carte', icon: 'Map' },
   { href: '/parametres', label: 'Paramètres', icon: 'Settings' },
+]
+
+const TOOLS_NAV = [
+  { href: '/carte', label: 'Carte', icon: 'Map' },
+  { href: '/administratif', label: 'Administratif', icon: 'FileText' },
 ]
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -145,50 +148,85 @@ export function Sidebar() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5">
-          {navItems.filter(item => !isCogestionnaire || !ADMIN_ONLY_HREFS.includes(item.href)).map((item, index) => {
-            const Icon = ICON_MAP[item.icon]
-            const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
-            return (
-              <div
-                key={item.href}
-                draggable
-                onDragStart={() => onDragStart(index)}
-                onDragEnter={() => onDragEnter(index)}
-                onDragEnd={onDragEnd}
-                onDragOver={e => e.preventDefault()}
-                className="group/item flex items-center"
-              >
-                {/* Drag handle */}
-                <div className="opacity-0 group-hover/item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing p-1 text-white/20 hover:text-white/50 flex-shrink-0">
-                  <GripVertical className="w-3 h-3" />
-                </div>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    'flex-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative',
-                    isActive ? 'text-[#D4AF37]' : 'text-white/40 hover:text-white/80'
-                  )}
-                  style={isActive ? {
-                    background: 'rgba(212,175,55,0.1)',
-                    border: '1px solid rgba(212,175,55,0.15)',
-                  } : {
-                    background: 'transparent',
-                    border: '1px solid transparent',
-                  }}
+        <nav className="flex-1 px-3 py-4 overflow-y-auto flex flex-col">
+          <div className="space-y-0.5 flex-1">
+            {navItems.filter(item => !isCogestionnaire || !ADMIN_ONLY_HREFS.includes(item.href)).map((item, index) => {
+              const Icon = ICON_MAP[item.icon]
+              const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+              return (
+                <div
+                  key={item.href}
+                  draggable
+                  onDragStart={() => onDragStart(index)}
+                  onDragEnter={() => onDragEnter(index)}
+                  onDragEnd={onDragEnd}
+                  onDragOver={e => e.preventDefault()}
+                  className="group/item flex items-center"
                 >
-                  <Icon className={cn('w-4 h-4 flex-shrink-0 transition-all', isActive ? 'text-[#D4AF37]' : 'text-white/30 group-hover:text-white/60')} />
-                  {item.label}
-                  {isActive && (
-                    <div
-                      className="w-1 h-1 rounded-full ml-auto"
-                      style={{ background: '#D4AF37', boxShadow: '0 0 6px rgba(212,175,55,0.8)' }}
-                    />
-                  )}
-                </Link>
-              </div>
-            )
-          })}
+                  <div className="opacity-0 group-hover/item:opacity-100 transition-opacity cursor-grab active:cursor-grabbing p-1 text-white/20 hover:text-white/50 flex-shrink-0">
+                    <GripVertical className="w-3 h-3" />
+                  </div>
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      'flex-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative',
+                      isActive ? 'text-[#D4AF37]' : 'text-white/40 hover:text-white/80'
+                    )}
+                    style={isActive ? {
+                      background: 'rgba(212,175,55,0.1)',
+                      border: '1px solid rgba(212,175,55,0.15)',
+                    } : {
+                      background: 'transparent',
+                      border: '1px solid transparent',
+                    }}
+                  >
+                    <Icon className={cn('w-4 h-4 flex-shrink-0 transition-all', isActive ? 'text-[#D4AF37]' : 'text-white/30 group-hover:text-white/60')} />
+                    {item.label}
+                    {isActive && (
+                      <div
+                        className="w-1 h-1 rounded-full ml-auto"
+                        style={{ background: '#D4AF37', boxShadow: '0 0 6px rgba(212,175,55,0.8)' }}
+                      />
+                    )}
+                  </Link>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Section Outils */}
+          <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+            <p className="px-4 text-[10px] font-semibold uppercase tracking-widest text-white/20 mb-1.5">Outils</p>
+            <div className="space-y-0.5">
+              {TOOLS_NAV.map(item => {
+                const Icon = ICON_MAP[item.icon]
+                const isActive = pathname === item.href || pathname.startsWith(item.href)
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group',
+                      isActive ? 'text-[#D4AF37]' : 'text-white/40 hover:text-white/80'
+                    )}
+                    style={isActive ? {
+                      background: 'rgba(212,175,55,0.1)',
+                      border: '1px solid rgba(212,175,55,0.15)',
+                    } : {
+                      background: 'transparent',
+                      border: '1px solid transparent',
+                    }}
+                  >
+                    <Icon className={cn('w-4 h-4 flex-shrink-0 transition-all', isActive ? 'text-[#D4AF37]' : 'text-white/30 group-hover:text-white/60')} />
+                    {item.label}
+                    {isActive && (
+                      <div className="w-1 h-1 rounded-full ml-auto" style={{ background: '#D4AF37', boxShadow: '0 0 6px rgba(212,175,55,0.8)' }} />
+                    )}
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
         </nav>
 
         {/* User section */}
@@ -292,14 +330,43 @@ export function Sidebar() {
                   <Icon className={cn('w-5 h-5 flex-shrink-0', isActive ? 'text-[#D4AF37]' : 'text-white/30')} />
                   {item.label}
                   {isActive && (
-                    <div
-                      className="w-2 h-2 rounded-full ml-auto"
-                      style={{ background: '#D4AF37', boxShadow: '0 0 8px rgba(212,175,55,0.8)' }}
-                    />
+                    <div className="w-2 h-2 rounded-full ml-auto" style={{ background: '#D4AF37', boxShadow: '0 0 8px rgba(212,175,55,0.8)' }} />
                   )}
                 </Link>
               )
             })}
+
+            {/* Section Outils mobile */}
+            <div className="pt-3 mt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <p className="px-4 text-[10px] font-semibold uppercase tracking-widest text-white/20 mb-2">Outils</p>
+              {TOOLS_NAV.map(item => {
+                const Icon = ICON_MAP[item.icon]
+                const isActive = pathname === item.href || pathname.startsWith(item.href)
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      'flex items-center gap-4 px-4 py-3.5 rounded-2xl text-base font-medium transition-all',
+                      isActive ? 'text-[#D4AF37]' : 'text-white/50 hover:text-white'
+                    )}
+                    style={isActive ? {
+                      background: 'rgba(212,175,55,0.1)',
+                      border: '1px solid rgba(212,175,55,0.2)',
+                    } : {
+                      background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid transparent',
+                    }}
+                  >
+                    <Icon className={cn('w-5 h-5 flex-shrink-0', isActive ? 'text-[#D4AF37]' : 'text-white/30')} />
+                    {item.label}
+                    {isActive && (
+                      <div className="w-2 h-2 rounded-full ml-auto" style={{ background: '#D4AF37', boxShadow: '0 0 8px rgba(212,175,55,0.8)' }} />
+                    )}
+                  </Link>
+                )
+              })}
+            </div>
           </nav>
 
           {/* User + logout */}
