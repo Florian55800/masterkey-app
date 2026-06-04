@@ -63,7 +63,7 @@ const bottomBarItems = [
   { href: '/leads', label: 'Leads', icon: UserSearch },
 ]
 
-const STORAGE_KEY = 'mk_nav_order'
+const STORAGE_KEY = 'mk_nav_order_v2'
 
 export function Sidebar() {
   const pathname = usePathname()
