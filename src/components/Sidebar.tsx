@@ -45,8 +45,6 @@ const DEFAULT_NAV = [
   { href: '/leads', label: 'Leads', icon: 'UserSearch' },
   { href: '/finance', label: 'Finance', icon: 'Calculator' },
   { href: '/annuaire', label: 'Annuaire', icon: 'BookUser' },
-  { href: '/carte', label: 'Carte', icon: 'Map' },
-  { href: '/administratif', label: 'Administratif', icon: 'FileText' },
   { href: '/parametres', label: 'Paramètres', icon: 'Settings' },
 ]
 
@@ -190,6 +188,28 @@ export function Sidebar() {
             )
           })}
         </nav>
+
+        {/* Carte + Administratif — toujours visibles, hors localStorage */}
+        <div className="px-3 pb-2" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+          {[
+            { href: '/carte', label: 'Carte', Icon: Map },
+            { href: '/administratif', label: 'Administratif', Icon: FileText },
+          ].map(({ href, label, Icon }) => {
+            const isActive = pathname === href || pathname.startsWith(href)
+            return (
+              <Link key={href} href={href}
+                className={cn('flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mt-0.5',
+                  isActive ? 'text-[#D4AF37]' : 'text-white/40 hover:text-white/80')}
+                style={isActive
+                  ? { background: 'rgba(212,175,55,0.1)', border: '1px solid rgba(212,175,55,0.15)' }
+                  : { background: 'transparent', border: '1px solid transparent' }}>
+                <Icon className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-[#D4AF37]' : 'text-white/30')} />
+                {label}
+                {isActive && <div className="w-1 h-1 rounded-full ml-auto" style={{ background: '#D4AF37' }} />}
+              </Link>
+            )
+          })}
+        </div>
 
         {/* User section */}
         <div className="px-3 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
