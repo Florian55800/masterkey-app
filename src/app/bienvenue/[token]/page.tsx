@@ -378,12 +378,7 @@ export default function BienvenuePage() {
                 borderRadius: '20px',
                 padding: '24px',
               }}>
-                <p style={{
-                  color: 'rgba(255,255,255,0.8)', fontSize: '15px',
-                  lineHeight: 1.7, fontStyle: 'italic',
-                }}>
-                  &ldquo;{guide.welcomeMessage}&rdquo;
-                </p>
+                <MarkdownBlock content={guide.welcomeMessage} />
               </div>
             </div>
           )}
@@ -529,9 +524,7 @@ export default function BienvenuePage() {
                 borderRadius: '20px',
                 padding: '20px',
               }}>
-                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
-                  {sec.content}
-                </p>
+                <MarkdownBlock content={sec.content} />
               </div>
             </div>
           ))}
@@ -628,6 +621,151 @@ export default function BienvenuePage() {
       )}
     </>
   )
+}
+
+// ─── Markdown renderer ────────────────────────────────────────────────────────
+
+function renderInline(text: string): React.ReactNode {
+  // **bold**, *italic*
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g)
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**'))
+      return <strong key={i} style={{ color: 'white', fontWeight: 700 }}>{part.slice(2, -2)}</strong>
+    if (part.startsWith('*') && part.endsWith('*'))
+      return <em key={i}>{part.slice(1, -1)}</em>
+    return part
+  })
+}
+
+function MarkdownBlock({ content }: { content: string }) {
+  const lines = content.split('\n')
+  const nodes: React.ReactNode[] = []
+  let i = 0
+
+  while (i < lines.length) {
+    const line = lines[i]
+    const trimmed = line.trim()
+
+    // Blank line → skip
+    if (!trimmed) { i++; continue }
+
+    // Divider ---
+    if (/^---+$/.test(trimmed) || /^\*\*\*+$/.test(trimmed)) {
+      nodes.push(
+        <div key={i} style={{ margin: '20px 0', height: '1px', background: 'rgba(212,175,55,0.2)' }} />
+      )
+      i++; continue
+    }
+
+    // Heading #
+    const hMatch = trimmed.match(/^(#{1,3})\s+(.+)/)
+    if (hMatch) {
+      const level = hMatch[1].length
+      const sizes = ['22px', '18px', '15px']
+      nodes.push(
+        <div key={i} style={{ marginTop: level === 1 ? '28px' : '20px', marginBottom: '10px' }}>
+          <span style={{
+            color: level === 1 ? '#D4AF37' : 'white',
+            fontSize: sizes[level - 1],
+            fontWeight: 700,
+            borderBottom: level === 1 ? '1px solid rgba(212,175,55,0.3)' : 'none',
+            paddingBottom: level === 1 ? '6px' : '0',
+            display: 'inline-block',
+          }}>
+            {renderInline(hMatch[2])}
+          </span>
+        </div>
+      )
+      i++; continue
+    }
+
+    // Table — collect all | lines
+    if (trimmed.startsWith('|')) {
+      const tableLines: string[] = []
+      while (i < lines.length && lines[i].trim().startsWith('|')) {
+        tableLines.push(lines[i].trim()); i++
+      }
+      // Filter out separator rows |---|---|
+      const dataRows = tableLines.filter(l => !/^\|[\s\-:|]+\|/.test(l))
+      if (dataRows.length > 0) {
+        const parseRow = (row: string) => row.replace(/^\||\|$/g, '').split('|').map(c => c.trim())
+        const [headerRow, ...bodyRows] = dataRows
+        const headers = parseRow(headerRow)
+        nodes.push(
+          <div key={i} style={{
+            overflowX: 'auto', margin: '12px 0',
+            borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)',
+          }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              {headers[0] && (
+                <thead>
+                  <tr style={{ background: 'rgba(212,175,55,0.08)' }}>
+                    {headers.map((h, ci) => (
+                      <th key={ci} style={{
+                        padding: '10px 14px', textAlign: 'left',
+                        color: '#D4AF37', fontWeight: 600, fontSize: '12px',
+                        borderBottom: '1px solid rgba(255,255,255,0.08)',
+                        whiteSpace: 'nowrap',
+                      }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+              )}
+              <tbody>
+                {bodyRows.map((row, ri) => (
+                  <tr key={ri} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    {parseRow(row).map((cell, ci) => (
+                      <td key={ci} style={{
+                        padding: '10px 14px', color: 'rgba(255,255,255,0.7)',
+                        verticalAlign: 'top',
+                      }}>{renderInline(cell)}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      }
+      continue
+    }
+
+    // List item - or *
+    if (/^[-*]\s/.test(trimmed)) {
+      const items: string[] = []
+      while (i < lines.length && /^[-*]\s/.test(lines[i].trim())) {
+        items.push(lines[i].trim().replace(/^[-*]\s/, '')); i++
+      }
+      nodes.push(
+        <div key={i} style={{ margin: '8px 0', paddingLeft: '4px' }}>
+          {items.map((item, ii) => (
+            <div key={ii} style={{
+              display: 'flex', alignItems: 'flex-start', gap: '10px',
+              padding: '4px 0',
+            }}>
+              <span style={{ color: '#D4AF37', flexShrink: 0, marginTop: '2px', fontSize: '12px' }}>✦</span>
+              <span style={{ color: 'rgba(255,255,255,0.75)', fontSize: '14px', lineHeight: 1.6 }}>
+                {renderInline(item)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )
+      continue
+    }
+
+    // Regular paragraph
+    nodes.push(
+      <p key={i} style={{
+        color: 'rgba(255,255,255,0.75)', fontSize: '14px', lineHeight: 1.7, margin: '6px 0',
+      }}>
+        {renderInline(trimmed)}
+      </p>
+    )
+    i++
+  }
+
+  return <div style={{ padding: '4px 0' }}>{nodes}</div>
 }
 
 // ─── Sub components ───────────────────────────────────────────────────────────
