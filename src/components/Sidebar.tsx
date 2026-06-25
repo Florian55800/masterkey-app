@@ -21,6 +21,7 @@ import {
   BookUser,
   FileText,
   Map,
+  BookOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -194,6 +195,7 @@ export function Sidebar() {
           {[
             { href: '/carte', label: 'Carte', Icon: Map },
             { href: '/administratif', label: 'Administratif', Icon: FileText },
+            { href: '/fiches-livrets', label: 'Fiches & Livrets', Icon: BookOpen },
           ].map(({ href, label, Icon }) => {
             const isActive = pathname === href || pathname.startsWith(href)
             return (
@@ -314,6 +316,27 @@ export function Sidebar() {
                   {isActive && (
                     <div className="w-2 h-2 rounded-full ml-auto" style={{ background: '#D4AF37', boxShadow: '0 0 8px rgba(212,175,55,0.8)' }} />
                   )}
+                </Link>
+              )
+            })}
+
+            {/* Carte, Administratif, Fiches & Livrets — hors localStorage */}
+            {[
+              { href: '/carte', label: 'Carte', Icon: Map },
+              { href: '/administratif', label: 'Administratif', Icon: FileText },
+              { href: '/fiches-livrets', label: 'Fiches & Livrets', Icon: BookOpen },
+            ].map(({ href, label, Icon }) => {
+              const isActive = pathname === href || pathname.startsWith(href)
+              return (
+                <Link key={href} href={href}
+                  className={cn('flex items-center gap-4 px-4 py-3.5 rounded-2xl text-base font-medium transition-all',
+                    isActive ? 'text-[#D4AF37]' : 'text-white/50 hover:text-white')}
+                  style={isActive
+                    ? { background: 'rgba(212,175,55,0.1)', border: '1px solid rgba(212,175,55,0.2)' }
+                    : { background: 'rgba(255,255,255,0.02)', border: '1px solid transparent' }}>
+                  <Icon className={cn('w-5 h-5 flex-shrink-0', isActive ? 'text-[#D4AF37]' : 'text-white/30')} />
+                  {label}
+                  {isActive && <div className="w-2 h-2 rounded-full ml-auto" style={{ background: '#D4AF37', boxShadow: '0 0 8px rgba(212,175,55,0.8)' }} />}
                 </Link>
               )
             })}
