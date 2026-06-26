@@ -1,7 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { BookOpen, ClipboardList, ExternalLink, Plus, RefreshCw, Copy, Check } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import {
+  BookOpen, ClipboardList, ExternalLink, Plus, RefreshCw, Copy, Check,
+  Edit2, X, Trash2, Upload, Eye, EyeOff, Wifi, Key,
+} from 'lucide-react'
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface Property {
   id: number
@@ -11,14 +16,82 @@ interface Property {
   photo: string | null
 }
 
+interface ChecklistItem {
+  id: string
+  label: string
+  isDefault?: boolean
+}
+
+interface Restaurant {
+  name: string
+  category: string
+  description: string
+  address?: string
+}
+
+interface Activity {
+  name: string
+  category: string
+  description: string
+}
+
+interface CustomSection {
+  title: string
+  content: string
+}
+
 interface Sheet {
+  id: number
   propertyId: number
   shareToken: string
+  instructions: string
+  checklist: ChecklistItem[]
+  mediaUrls: string[]
 }
 
 interface Guide {
+  id: number
   propertyId: number
   shareToken: string
+  welcomeMessage: string | null
+  wifiName: string | null
+  wifiPassword: string | null
+  keyCode: string | null
+  checkIn: string | null
+  checkOut: string | null
+  houseRules: string[]
+  restaurants: Restaurant[]
+  activities: Activity[]
+  customSections: CustomSection[]
+  mediaUrls: string[]
+}
+
+const RESTAURANT_CATEGORIES = ['Français', 'Brasserie', 'Italien', 'Pizza', 'Sushi', 'Burgers', 'Tapas', 'Bar/Café', 'Autre']
+const ACTIVITY_CATEGORIES = ['Plage', 'Randonnée', 'Musée', 'Culture', 'Shopping', 'Sport', 'Nature', 'Soirée', 'Famille', 'Autre']
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+async function compressImage(file: File): Promise<File> {
+  if (!file.type.startsWith('image/')) return file
+  return new Promise((resolve) => {
+    const img = new window.Image()
+    img.onload = () => {
+      const MAX = 1600
+      let { width, height } = img
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round(height * MAX / width); width = MAX }
+        else { width = Math.round(width * MAX / height); height = MAX }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width; canvas.height = height
+      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
+      canvas.toBlob(blob => {
+        resolve(blob ? new File([blob], file.name, { type: 'image/jpeg' }) : file)
+      }, 'image/jpeg', 0.82)
+    }
+    img.onerror = () => resolve(file)
+    img.src = URL.createObjectURL(file)
+  })
 }
 
 function CopyButton({ url }: { url: string }) {
@@ -42,13 +115,30 @@ function CopyButton({ url }: { url: string }) {
   )
 }
 
+// ─── Main ────────────────────────────────────────────────────────────────────
+
 export default function FichesLivretsPage() {
-  const [properties, setProperties]   = useState<Property[]>([])
-  const [sheets, setSheets]           = useState<Sheet[]>([])
-  const [guides, setGuides]           = useState<Guide[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [creating, setCreating]       = useState<string | null>(null) // 'fiche-{id}' | 'livret-{id}'
-  const [filter, setFilter]           = useState<'all' | 'active'>('active')
+  const [properties, setProperties] = useState<Property[]>([])
+  const [sheets, setSheets]         = useState<Sheet[]>([])
+  const [guides, setGuides]         = useState<Guide[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [creating, setCreating]     = useState<string | null>(null)
+  const [filter, setFilter]         = useState<'all' | 'active'>('active')
+
+  // Sheet edit panel
+  const [editSheet, setEditSheet]   = useState<Sheet | null>(null)
+  const [sheetDraft, setSheetDraft] = useState<{ instructions: string; checklist: ChecklistItem[] }>({ instructions: '', checklist: [] })
+  const [savingSheet, setSavingSheet] = useState(false)
+
+  // Guide edit panel
+  const [editGuide, setEditGuide]   = useState<Guide | null>(null)
+  const [guideDraft, setGuideDraft] = useState<Partial<Guide>>({})
+  const [guideTab, setGuideTab]     = useState<'general' | 'acces' | 'lieux' | 'photos'>('general')
+  const [savingGuide, setSavingGuide] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function load() {
     const [pRes, sRes, gRes] = await Promise.all([
@@ -67,30 +157,135 @@ export default function FichesLivretsPage() {
 
   async function createSheet(propertyId: number) {
     setCreating(`fiche-${propertyId}`)
-    await fetch('/api/cleaning-sheets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ propertyId }),
-    })
+    await fetch('/api/cleaning-sheets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ propertyId }) })
     await load()
     setCreating(null)
   }
 
   async function createGuide(propertyId: number) {
     setCreating(`livret-${propertyId}`)
-    await fetch('/api/welcome-guides', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ propertyId }),
-    })
+    await fetch('/api/welcome-guides', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ propertyId }) })
     await load()
     setCreating(null)
   }
 
-  const sheetMap  = new Map(sheets.map(s => [s.propertyId, s.shareToken]))
-  const guideMap  = new Map(guides.map(g => [g.propertyId, g.shareToken]))
+  // ─── Sheet editing ──────────────────────────────────────────────────────────
+
+  function openSheetEdit(sheet: Sheet) {
+    setEditSheet(sheet)
+    setSheetDraft({ instructions: sheet.instructions ?? '', checklist: [...(sheet.checklist ?? [])] })
+    setEditGuide(null)
+  }
+
+  async function saveSheet() {
+    if (!editSheet) return
+    setSavingSheet(true)
+    try {
+      await fetch(`/api/cleaning-sheets/${editSheet.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...sheetDraft, mediaUrls: editSheet.mediaUrls }),
+      })
+      setSheets(prev => prev.map(s => s.id === editSheet.id ? { ...s, ...sheetDraft } : s))
+      setEditSheet(null)
+    } catch (e) { console.error(e) }
+    finally { setSavingSheet(false) }
+  }
+
+  function addChecklistItem() {
+    setSheetDraft(p => ({ ...p, checklist: [...p.checklist, { id: `custom-${Date.now()}`, label: '', isDefault: false }] }))
+  }
+  function updateChecklistItem(idx: number, val: string) {
+    const u = [...sheetDraft.checklist]; u[idx] = { ...u[idx], label: val }
+    setSheetDraft(p => ({ ...p, checklist: u }))
+  }
+  function removeChecklistItem(idx: number) {
+    setSheetDraft(p => ({ ...p, checklist: p.checklist.filter((_, i) => i !== idx) }))
+  }
+
+  // ─── Guide editing ──────────────────────────────────────────────────────────
+
+  function openGuideEdit(guide: Guide) {
+    setEditGuide(guide)
+    setGuideDraft({
+      welcomeMessage: guide.welcomeMessage ?? '',
+      wifiName: guide.wifiName ?? '',
+      wifiPassword: guide.wifiPassword ?? '',
+      keyCode: guide.keyCode ?? '',
+      checkIn: guide.checkIn ?? '',
+      checkOut: guide.checkOut ?? '',
+      houseRules: [...(guide.houseRules ?? [])],
+      restaurants: [...(guide.restaurants ?? [])],
+      activities: [...(guide.activities ?? [])],
+      customSections: [...(guide.customSections ?? [])],
+      mediaUrls: [...(guide.mediaUrls ?? [])],
+    })
+    setGuideTab('general')
+    setShowPassword(false)
+    setUploadError(null)
+    setEditSheet(null)
+  }
+
+  async function saveGuide() {
+    if (!editGuide) return
+    setSavingGuide(true)
+    try {
+      await fetch(`/api/welcome-guides/${editGuide.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(guideDraft),
+      })
+      setGuides(prev => prev.map(g => g.id === editGuide.id ? { ...g, ...guideDraft } as Guide : g))
+      setEditGuide(null)
+    } catch (e) { console.error(e) }
+    finally { setSavingGuide(false) }
+  }
+
+  async function uploadGuidePhoto(file: File) {
+    if (!editGuide) return
+    setUploadingPhoto(true); setUploadError(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', await compressImage(file))
+      const res = await fetch(`/api/welcome-guides/${editGuide.id}`, { method: 'POST', body: fd })
+      const data = await res.json()
+      if (data.url) setGuideDraft(p => ({ ...p, mediaUrls: [...(p.mediaUrls ?? []), data.url] }))
+      else setUploadError(data.error ?? `Erreur ${res.status}`)
+    } catch (e) { setUploadError(String(e)) }
+    finally { setUploadingPhoto(false) }
+  }
+
+  async function removeGuidePhoto(url: string) {
+    if (!editGuide) return
+    await fetch(`/api/welcome-guides/${editGuide.id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) })
+    setGuideDraft(p => ({ ...p, mediaUrls: (p.mediaUrls ?? []).filter(u => u !== url) }))
+  }
+
+  const addRule    = () => setGuideDraft(p => ({ ...p, houseRules: [...(p.houseRules ?? []), ''] }))
+  const updateRule = (i: number, v: string) => { const u = [...(guideDraft.houseRules ?? [])]; u[i] = v; setGuideDraft(p => ({ ...p, houseRules: u })) }
+  const removeRule = (i: number) => setGuideDraft(p => ({ ...p, houseRules: (p.houseRules ?? []).filter((_, j) => j !== i) }))
+
+  const addRestaurant    = () => setGuideDraft(p => ({ ...p, restaurants: [...(p.restaurants ?? []), { name: '', category: 'Français', description: '', address: '' }] }))
+  const updateRestaurant = (i: number, f: keyof Restaurant, v: string) => { const u = [...(guideDraft.restaurants ?? [])]; u[i] = { ...u[i], [f]: v }; setGuideDraft(p => ({ ...p, restaurants: u })) }
+  const removeRestaurant = (i: number) => setGuideDraft(p => ({ ...p, restaurants: (p.restaurants ?? []).filter((_, j) => j !== i) }))
+
+  const addActivity    = () => setGuideDraft(p => ({ ...p, activities: [...(p.activities ?? []), { name: '', category: 'Plage', description: '' }] }))
+  const updateActivity = (i: number, f: keyof Activity, v: string) => { const u = [...(guideDraft.activities ?? [])]; u[i] = { ...u[i], [f]: v }; setGuideDraft(p => ({ ...p, activities: u })) }
+  const removeActivity = (i: number) => setGuideDraft(p => ({ ...p, activities: (p.activities ?? []).filter((_, j) => j !== i) }))
+
+  const addSection    = () => setGuideDraft(p => ({ ...p, customSections: [...(p.customSections ?? []), { title: '', content: '' }] }))
+  const updateSection = (i: number, f: keyof CustomSection, v: string) => { const u = [...(guideDraft.customSections ?? [])]; u[i] = { ...u[i], [f]: v }; setGuideDraft(p => ({ ...p, customSections: u })) }
+  const removeSection = (i: number) => setGuideDraft(p => ({ ...p, customSections: (p.customSections ?? []).filter((_, j) => j !== i) }))
+
+  // ─── Derived ────────────────────────────────────────────────────────────────
+
+  const sheetMap = new Map(sheets.map(s => [s.propertyId, s]))
+  const guideMap = new Map(guides.map(g => [g.propertyId, g]))
   const displayed = properties.filter(p => filter === 'all' || p.status === 'active')
   const baseUrl   = typeof window !== 'undefined' ? window.location.origin : ''
+
+  const inputCls = 'w-full px-3 py-2 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-[#D4AF37]'
+  const inputBg  = { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#0a0a0a' }}>
@@ -129,45 +324,36 @@ export default function FichesLivretsPage() {
 
         {/* Légende */}
         <div className="flex items-center gap-4 mb-6 text-xs text-white/30">
-          <span className="flex items-center gap-1.5">
-            <ClipboardList className="w-3.5 h-3.5 text-amber-400" /> Fiche ménage
-          </span>
-          <span className="flex items-center gap-1.5">
-            <BookOpen className="w-3.5 h-3.5 text-sky-400" /> Livret voyageur
-          </span>
+          <span className="flex items-center gap-1.5"><ClipboardList className="w-3.5 h-3.5 text-amber-400" /> Fiche ménage</span>
+          <span className="flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5 text-sky-400" /> Livret voyageur</span>
         </div>
 
-        {/* Grille logements */}
+        {/* Grille */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {displayed.map(prop => {
-            const sheetToken = sheetMap.get(prop.id)
-            const guideToken = guideMap.get(prop.id)
-            const sheetUrl   = sheetToken ? `${baseUrl}/fiche/${sheetToken}` : null
-            const guideUrl   = guideToken ? `${baseUrl}/bienvenue/${guideToken}` : null
-            const isActive   = prop.status === 'active'
+            const sheet    = sheetMap.get(prop.id)
+            const guide    = guideMap.get(prop.id)
+            const sheetUrl = sheet ? `${baseUrl}/fiche/${sheet.shareToken}` : null
+            const guideUrl = guide ? `${baseUrl}/bienvenue/${guide.shareToken}` : null
+            const isActive = prop.status === 'active'
 
             return (
               <div key={prop.id} className="rounded-2xl overflow-hidden"
                 style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
 
-                {/* Top — nom logement */}
+                {/* Top */}
                 <div className="flex items-center gap-3 p-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                  {prop.photo ? (
-                    <img src={prop.photo} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />
-                  ) : (
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-lg"
-                      style={{ background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.12)' }}>
-                      🏠
-                    </div>
-                  )}
+                  {prop.photo
+                    ? <img src={prop.photo} alt="" className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />
+                    : <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-lg"
+                        style={{ background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.12)' }}>🏠</div>
+                  }
                   <div className="flex-1 min-w-0">
                     <p className="text-white font-semibold text-sm truncate">{prop.name}</p>
                     <p className="text-white/40 text-xs">{prop.city}</p>
                   </div>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0"
-                    style={isActive
-                      ? { background: 'rgba(34,197,94,0.12)', color: '#22c55e' }
-                      : { background: 'rgba(107,114,128,0.12)', color: '#6b7280' }}>
+                    style={isActive ? { background: 'rgba(34,197,94,0.12)', color: '#22c55e' } : { background: 'rgba(107,114,128,0.12)', color: '#6b7280' }}>
                     {isActive ? 'Actif' : 'Inactif'}
                   </span>
                 </div>
@@ -180,28 +366,29 @@ export default function FichesLivretsPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-white/80 text-sm font-medium">Fiche ménage</p>
-                    {sheetUrl
-                      ? <p className="text-white/25 text-xs truncate">/fiche/{sheetToken?.slice(0, 12)}…</p>
+                    {sheet
+                      ? <p className="text-white/25 text-xs truncate">/fiche/{sheet.shareToken.slice(0, 12)}…</p>
                       : <p className="text-white/25 text-xs">Non créée</p>}
                   </div>
-                  {sheetUrl ? (
+                  {sheet ? (
                     <div className="flex items-center gap-1.5">
-                      <CopyButton url={sheetUrl} />
-                      <a href={sheetUrl} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                        style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.2)', textDecoration: 'none' }}>
-                        Ouvrir <ExternalLink className="w-3 h-3" />
+                      <CopyButton url={sheetUrl!} />
+                      <button onClick={() => openSheetEdit(sheet)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all"
+                        style={{ background: editSheet?.id === sheet.id ? 'rgba(245,158,11,0.2)' : 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.25)' }}>
+                        <Edit2 className="w-3 h-3" /> Éditer
+                      </button>
+                      <a href={sheetUrl!} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center justify-center w-7 h-7 rounded-lg transition-all"
+                        style={{ background: 'rgba(245,158,11,0.06)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.15)', textDecoration: 'none' }}>
+                        <ExternalLink className="w-3 h-3" />
                       </a>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => createSheet(prop.id)}
-                      disabled={creating === `fiche-${prop.id}`}
+                    <button onClick={() => createSheet(prop.id)} disabled={creating === `fiche-${prop.id}`}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                       style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                      {creating === `fiche-${prop.id}`
-                        ? <RefreshCw className="w-3 h-3 animate-spin" />
-                        : <Plus className="w-3 h-3" />}
+                      {creating === `fiche-${prop.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
                       Créer
                     </button>
                   )}
@@ -215,28 +402,29 @@ export default function FichesLivretsPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-white/80 text-sm font-medium">Livret voyageur</p>
-                    {guideUrl
-                      ? <p className="text-white/25 text-xs truncate">/bienvenue/{guideToken?.slice(0, 12)}…</p>
+                    {guide
+                      ? <p className="text-white/25 text-xs truncate">/bienvenue/{guide.shareToken.slice(0, 12)}…</p>
                       : <p className="text-white/25 text-xs">Non créé</p>}
                   </div>
-                  {guideUrl ? (
+                  {guide ? (
                     <div className="flex items-center gap-1.5">
-                      <CopyButton url={guideUrl} />
-                      <a href={guideUrl} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                        style={{ background: 'rgba(56,189,248,0.1)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.2)', textDecoration: 'none' }}>
-                        Ouvrir <ExternalLink className="w-3 h-3" />
+                      <CopyButton url={guideUrl!} />
+                      <button onClick={() => openGuideEdit(guide)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all"
+                        style={{ background: editGuide?.id === guide.id ? 'rgba(56,189,248,0.18)' : 'rgba(56,189,248,0.1)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.25)' }}>
+                        <Edit2 className="w-3 h-3" /> Éditer
+                      </button>
+                      <a href={guideUrl!} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center justify-center w-7 h-7 rounded-lg transition-all"
+                        style={{ background: 'rgba(56,189,248,0.06)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.15)', textDecoration: 'none' }}>
+                        <ExternalLink className="w-3 h-3" />
                       </a>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => createGuide(prop.id)}
-                      disabled={creating === `livret-${prop.id}`}
+                    <button onClick={() => createGuide(prop.id)} disabled={creating === `livret-${prop.id}`}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                       style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                      {creating === `livret-${prop.id}`
-                        ? <RefreshCw className="w-3 h-3 animate-spin" />
-                        : <Plus className="w-3 h-3" />}
+                      {creating === `livret-${prop.id}` ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
                       Créer
                     </button>
                   )}
@@ -250,6 +438,331 @@ export default function FichesLivretsPage() {
           <div className="text-center py-20 text-white/30">Aucun logement trouvé</div>
         )}
       </div>
+
+      {/* ─── Fiche ménage — panneau d'édition ───────────────────────────────── */}
+      {editSheet && (
+        <>
+          <div className="fixed inset-0 z-40 lg:hidden" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setEditSheet(null)} />
+          <div className="fixed top-0 right-0 h-full z-50 flex flex-col overflow-hidden"
+            style={{ width: '460px', maxWidth: '100vw', background: '#131313', borderLeft: '1px solid rgba(255,255,255,0.08)', boxShadow: '-20px 0 60px rgba(0,0,0,0.5)' }}>
+
+            <div className="flex items-center justify-between px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+              <div>
+                <p className="text-white font-semibold text-sm flex items-center gap-2">
+                  <ClipboardList className="w-4 h-4 text-amber-400" /> Fiche ménage
+                </p>
+                <p className="text-white/40 text-xs mt-0.5">{properties.find(p => p.id === editSheet.propertyId)?.name}</p>
+              </div>
+              <button onClick={() => setEditSheet(null)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white transition-colors"
+                style={{ background: 'rgba(255,255,255,0.05)' }}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+              <div>
+                <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-3">Instructions générales</p>
+                <textarea
+                  value={sheetDraft.instructions}
+                  onChange={e => setSheetDraft(p => ({ ...p, instructions: e.target.value }))}
+                  placeholder="Instructions pour le ménage..."
+                  rows={4}
+                  className={`${inputCls} resize-none leading-relaxed`}
+                  style={inputBg}
+                />
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-3">Checklist</p>
+                <div className="space-y-2">
+                  {sheetDraft.checklist.map((item, idx) => (
+                    <div key={item.id} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={item.label}
+                        onChange={e => updateChecklistItem(idx, e.target.value)}
+                        className={`${inputCls} flex-1`}
+                        style={inputBg}
+                      />
+                      <button onClick={() => removeChecklistItem(idx)}
+                        className="w-9 h-9 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 transition-colors flex-shrink-0"
+                        style={{ background: 'rgba(255,255,255,0.04)' }}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  <button onClick={addChecklistItem}
+                    className="flex items-center gap-2 text-sm text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors mt-1">
+                    <Plus className="w-4 h-4" /> Ajouter un élément
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+              <button onClick={saveSheet} disabled={savingSheet}
+                className="w-full py-3 rounded-xl text-sm font-bold text-black disabled:opacity-50 transition-all hover:opacity-90"
+                style={{ background: '#D4AF37' }}>
+                {savingSheet ? 'Enregistrement...' : 'Enregistrer les modifications'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ─── Livret voyageur — panneau d'édition ────────────────────────────── */}
+      {editGuide && (
+        <>
+          <div className="fixed inset-0 z-40 lg:hidden" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setEditGuide(null)} />
+          <div className="fixed top-0 right-0 h-full z-50 flex flex-col overflow-hidden"
+            style={{ width: '480px', maxWidth: '100vw', background: '#131313', borderLeft: '1px solid rgba(255,255,255,0.08)', boxShadow: '-20px 0 60px rgba(0,0,0,0.5)' }}>
+
+            <div className="flex items-center justify-between px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+              <div>
+                <p className="text-white font-semibold text-sm flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-sky-400" /> Livret voyageur
+                </p>
+                <p className="text-white/40 text-xs mt-0.5">{properties.find(p => p.id === editGuide.propertyId)?.name}</p>
+              </div>
+              <button onClick={() => setEditGuide(null)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white transition-colors"
+                style={{ background: 'rgba(255,255,255,0.05)' }}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Onglets */}
+            <div className="flex gap-1 px-5 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              {(['general', 'acces', 'lieux', 'photos'] as const).map(tab => (
+                <button key={tab} onClick={() => setGuideTab(tab)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                  style={{
+                    background: guideTab === tab ? 'rgba(212,175,55,0.12)' : 'transparent',
+                    border: guideTab === tab ? '1px solid rgba(212,175,55,0.2)' : '1px solid transparent',
+                    color: guideTab === tab ? '#D4AF37' : 'rgba(255,255,255,0.4)',
+                  }}>
+                  {tab === 'general' ? 'Général' : tab === 'acces' ? 'Accès' : tab === 'lieux' ? 'Lieux' : 'Photos'}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+
+              {/* ── Général ── */}
+              {guideTab === 'general' && (
+                <>
+                  <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-3">Message de bienvenue</p>
+                  <textarea
+                    value={guideDraft.welcomeMessage ?? ''}
+                    onChange={e => setGuideDraft(p => ({ ...p, welcomeMessage: e.target.value }))}
+                    placeholder="Bonjour et bienvenue dans notre logement..."
+                    rows={4}
+                    className={`${inputCls} resize-none leading-relaxed`}
+                    style={inputBg}
+                  />
+
+                  <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-3 mt-2">Wifi</p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-white/50 text-xs mb-1.5">Nom du réseau</label>
+                      <div className="relative">
+                        <Wifi className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                        <input type="text" value={guideDraft.wifiName ?? ''} onChange={e => setGuideDraft(p => ({ ...p, wifiName: e.target.value }))}
+                          placeholder="MonWifi_5G" className={`${inputCls} pl-9`} style={inputBg} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-white/50 text-xs mb-1.5">Mot de passe</label>
+                      <div className="relative">
+                        <input type={showPassword ? 'text' : 'password'} value={guideDraft.wifiPassword ?? ''}
+                          onChange={e => setGuideDraft(p => ({ ...p, wifiPassword: e.target.value }))}
+                          placeholder="••••••••" className={`${inputCls} pr-10`} style={inputBg} />
+                        <button type="button" onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/70">
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-3 mt-2">Règles de la maison</p>
+                  <div className="space-y-2">
+                    {(guideDraft.houseRules ?? []).map((rule, i) => (
+                      <div key={i} className="flex gap-2">
+                        <input type="text" value={rule} onChange={e => updateRule(i, e.target.value)}
+                          placeholder={`Règle ${i + 1}`} className={`${inputCls} flex-1`} style={inputBg} />
+                        <button onClick={() => removeRule(i)}
+                          className="w-9 h-9 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 transition-colors flex-shrink-0"
+                          style={{ background: 'rgba(255,255,255,0.04)' }}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <button onClick={addRule} className="flex items-center gap-2 text-sm text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors mt-1">
+                      <Plus className="w-4 h-4" /> Ajouter une règle
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* ── Accès ── */}
+              {guideTab === 'acces' && (
+                <>
+                  <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-3">Horaires</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-white/50 text-xs mb-1.5">Check-in</label>
+                      <input type="text" value={guideDraft.checkIn ?? ''} onChange={e => setGuideDraft(p => ({ ...p, checkIn: e.target.value }))}
+                        placeholder="15h00" className={inputCls} style={inputBg} />
+                    </div>
+                    <div>
+                      <label className="block text-white/50 text-xs mb-1.5">Check-out</label>
+                      <input type="text" value={guideDraft.checkOut ?? ''} onChange={e => setGuideDraft(p => ({ ...p, checkOut: e.target.value }))}
+                        placeholder="11h00" className={inputCls} style={inputBg} />
+                    </div>
+                  </div>
+
+                  <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-3 mt-2">Accès / Boîte à clés</p>
+                  <div className="relative">
+                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                    <input type="text" value={guideDraft.keyCode ?? ''} onChange={e => setGuideDraft(p => ({ ...p, keyCode: e.target.value }))}
+                      placeholder="Code: 1234" className={`${inputCls} pl-9`} style={inputBg} />
+                  </div>
+
+                  <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-3 mt-2">Sections personnalisées</p>
+                  <div className="space-y-4">
+                    {(guideDraft.customSections ?? []).map((sec, i) => (
+                      <div key={i} className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        <div className="flex gap-2">
+                          <input type="text" value={sec.title} onChange={e => updateSection(i, 'title', e.target.value)}
+                            placeholder="Titre de la section" className={`${inputCls} flex-1`} style={inputBg} />
+                          <button onClick={() => removeSection(i)}
+                            className="w-9 h-9 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 transition-colors flex-shrink-0"
+                            style={{ background: 'rgba(255,255,255,0.04)' }}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <textarea value={sec.content} onChange={e => updateSection(i, 'content', e.target.value)}
+                          placeholder="Contenu..." rows={3} className={`${inputCls} resize-none`} style={inputBg} />
+                      </div>
+                    ))}
+                    <button onClick={addSection} className="flex items-center gap-2 text-sm text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors">
+                      <Plus className="w-4 h-4" /> Ajouter une section
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* ── Lieux ── */}
+              {guideTab === 'lieux' && (
+                <>
+                  <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-3">Restaurants & Bars</p>
+                  <div className="space-y-4">
+                    {(guideDraft.restaurants ?? []).map((r, i) => (
+                      <div key={i} className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        <div className="flex gap-2">
+                          <input type="text" value={r.name} onChange={e => updateRestaurant(i, 'name', e.target.value)}
+                            placeholder="Nom du restaurant" className={`${inputCls} flex-1`} style={inputBg} />
+                          <button onClick={() => removeRestaurant(i)}
+                            className="w-9 h-9 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 transition-colors flex-shrink-0"
+                            style={{ background: 'rgba(255,255,255,0.04)' }}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <select value={r.category} onChange={e => updateRestaurant(i, 'category', e.target.value)}
+                          className={`${inputCls} appearance-none`} style={inputBg}>
+                          {RESTAURANT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        <textarea value={r.description} onChange={e => updateRestaurant(i, 'description', e.target.value)}
+                          placeholder="Description..." rows={2} className={`${inputCls} resize-none`} style={inputBg} />
+                        <input type="text" value={r.address ?? ''} onChange={e => updateRestaurant(i, 'address', e.target.value)}
+                          placeholder="Adresse (optionnel)" className={inputCls} style={inputBg} />
+                      </div>
+                    ))}
+                    <button onClick={addRestaurant} className="flex items-center gap-2 text-sm text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors">
+                      <Plus className="w-4 h-4" /> Ajouter un restaurant
+                    </button>
+                  </div>
+
+                  <div className="h-px my-2" style={{ background: 'rgba(255,255,255,0.06)' }} />
+
+                  <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-3">À faire autour</p>
+                  <div className="space-y-4">
+                    {(guideDraft.activities ?? []).map((a, i) => (
+                      <div key={i} className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        <div className="flex gap-2">
+                          <input type="text" value={a.name} onChange={e => updateActivity(i, 'name', e.target.value)}
+                            placeholder="Nom de l'activité" className={`${inputCls} flex-1`} style={inputBg} />
+                          <button onClick={() => removeActivity(i)}
+                            className="w-9 h-9 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 transition-colors flex-shrink-0"
+                            style={{ background: 'rgba(255,255,255,0.04)' }}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <select value={a.category} onChange={e => updateActivity(i, 'category', e.target.value)}
+                          className={`${inputCls} appearance-none`} style={inputBg}>
+                          {ACTIVITY_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        <textarea value={a.description} onChange={e => updateActivity(i, 'description', e.target.value)}
+                          placeholder="Description..." rows={2} className={`${inputCls} resize-none`} style={inputBg} />
+                      </div>
+                    ))}
+                    <button onClick={addActivity} className="flex items-center gap-2 text-sm text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors">
+                      <Plus className="w-4 h-4" /> Ajouter une activité
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* ── Photos ── */}
+              {guideTab === 'photos' && (
+                <>
+                  <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-3">Galerie du logement</p>
+                  <input ref={fileInputRef} type="file" accept="image/*,video/mp4" className="hidden"
+                    onChange={e => { const file = e.target.files?.[0]; if (file) uploadGuidePhoto(file); e.target.value = '' }} />
+                  <button onClick={() => fileInputRef.current?.click()} disabled={uploadingPhoto}
+                    className="w-full flex flex-col items-center gap-2 py-8 rounded-xl text-sm text-white/40 hover:text-white/70 transition-all disabled:opacity-50"
+                    style={{ border: '2px dashed rgba(255,255,255,0.1)' }}>
+                    {uploadingPhoto
+                      ? <div className="w-6 h-6 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
+                      : <Upload className="w-8 h-8" />}
+                    <span>{uploadingPhoto ? 'Envoi en cours...' : 'Cliquer pour ajouter des photos / vidéos'}</span>
+                    <span className="text-xs text-white/25">JPG, PNG, GIF, WebP, MP4 — max 50MB</span>
+                  </button>
+                  {uploadError && <p className="text-red-400 text-xs mt-2 text-center">{uploadError}</p>}
+                  {(guideDraft.mediaUrls ?? []).length > 0 && (
+                    <div className="grid grid-cols-2 gap-3 mt-4">
+                      {(guideDraft.mediaUrls ?? []).map((url, i) => (
+                        <div key={i} className="relative group rounded-xl overflow-hidden aspect-square">
+                          {url.endsWith('.mp4')
+                            ? <video src={url} className="w-full h-full object-cover" muted />
+                            : <img src={url} alt="" className="w-full h-full object-cover" />}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center">
+                            <button onClick={() => removeGuidePhoto(url)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity w-9 h-9 rounded-full flex items-center justify-center"
+                              style={{ background: 'rgba(239,68,68,0.9)' }}>
+                              <Trash2 className="w-4 h-4 text-white" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="px-5 py-4 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+              <button onClick={saveGuide} disabled={savingGuide}
+                className="w-full py-3 rounded-xl text-sm font-bold text-black disabled:opacity-50 transition-all hover:opacity-90"
+                style={{ background: '#D4AF37' }}>
+                {savingGuide ? 'Enregistrement...' : 'Enregistrer les modifications'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
