@@ -16,14 +16,16 @@ function parseSheet(row: Record<string, unknown>) {
   return {
     id: row.id,
     propertyId: row.propertyId,
+    accessCode: row.accessCode ?? null,
+    checkoutTime: row.checkoutTime ?? null,
+    nextCheckinTime: row.nextCheckinTime ?? null,
     instructions: row.instructions ?? '',
     checklist: row.checklist ? JSON.parse(row.checklist as string) : DEFAULT_CHECKLIST,
+    customSections: row.customSections ? JSON.parse(row.customSections as string) : [],
     mediaUrls: row.mediaUrls ? JSON.parse(row.mediaUrls as string) : [],
     shareToken: row.shareToken,
     createdAt: row.createdAt,
     propertyName: row.propertyName ?? null,
-    staffName: row.staffName ?? null,
-    staffPhone: row.staffPhone ?? null,
     propertyAddress: row.propertyAddress ?? null,
     propertyCity: row.propertyCity ?? null,
   }
@@ -46,19 +48,18 @@ export async function GET() {
         return NextResponse.json(toRows(rs).map(parseSheet))
       } finally { client.close() }
     }
-    const sheets = await prisma.cleaningSheet.findMany({
-      include: { property: { include: { staff: true } } },
+    const sheets = await (prisma as any).cleaningSheet.findMany({
+      include: { property: true },
       orderBy: { createdAt: 'desc' },
     })
-    return NextResponse.json(sheets.map(s => ({
+    return NextResponse.json(sheets.map((s: any) => ({
       ...s,
       checklist: JSON.parse(s.checklist),
+      customSections: JSON.parse(s.customSections ?? '[]'),
       mediaUrls: JSON.parse(s.mediaUrls),
       propertyName: s.property.name,
       propertyAddress: s.property.address,
       propertyCity: s.property.city,
-      staffName: s.property.staff?.name ?? null,
-      staffPhone: s.property.staff?.phone ?? null,
     })))
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })

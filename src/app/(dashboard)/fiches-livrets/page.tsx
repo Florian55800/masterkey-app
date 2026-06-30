@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   BookOpen, ClipboardList, ExternalLink, Plus, RefreshCw, Copy, Check,
-  Edit2, X, Trash2, Upload, Eye, EyeOff, Wifi, Key,
+  Edit2, X, Trash2, Upload, Eye, EyeOff, Wifi, Key, LogOut, LogIn,
 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -44,8 +44,12 @@ interface Sheet {
   id: number
   propertyId: number
   shareToken: string
-  instructions: string
+  accessCode: string | null
+  checkoutTime: string | null
+  nextCheckinTime: string | null
+  instructions: string | null
   checklist: ChecklistItem[]
+  customSections: CustomSection[]
   mediaUrls: string[]
 }
 
@@ -127,8 +131,14 @@ export default function FichesLivretsPage() {
 
   // Sheet edit panel
   const [editSheet, setEditSheet]   = useState<Sheet | null>(null)
-  const [sheetDraft, setSheetDraft] = useState<{ instructions: string; checklist: ChecklistItem[] }>({ instructions: '', checklist: [] })
+  const [sheetDraft, setSheetDraft] = useState<{
+    accessCode: string; checkoutTime: string; nextCheckinTime: string;
+    instructions: string; checklist: ChecklistItem[]; customSections: CustomSection[]
+  }>({ accessCode: '', checkoutTime: '', nextCheckinTime: '', instructions: '', checklist: [], customSections: [] })
+  const [sheetTab, setSheetTab]     = useState<'infos' | 'consignes' | 'sections' | 'checklist'>('infos')
   const [savingSheet, setSavingSheet] = useState(false)
+  const [uploadingSheetPhoto, setUploadingSheetPhoto] = useState(false)
+  const sheetFileRef = useRef<HTMLInputElement>(null)
 
   // Guide edit panel
   const [editGuide, setEditGuide]   = useState<Guide | null>(null)
@@ -173,7 +183,15 @@ export default function FichesLivretsPage() {
 
   function openSheetEdit(sheet: Sheet) {
     setEditSheet(sheet)
-    setSheetDraft({ instructions: sheet.instructions ?? '', checklist: [...(sheet.checklist ?? [])] })
+    setSheetDraft({
+      accessCode: sheet.accessCode ?? '',
+      checkoutTime: sheet.checkoutTime ?? '',
+      nextCheckinTime: sheet.nextCheckinTime ?? '',
+      instructions: sheet.instructions ?? '',
+      checklist: [...(sheet.checklist ?? [])],
+      customSections: [...(sheet.customSections ?? [])],
+    })
+    setSheetTab('infos')
     setEditGuide(null)
   }
 
@@ -187,9 +205,33 @@ export default function FichesLivretsPage() {
         body: JSON.stringify({ ...sheetDraft, mediaUrls: editSheet.mediaUrls }),
       })
       setSheets(prev => prev.map(s => s.id === editSheet.id ? { ...s, ...sheetDraft } : s))
-      setEditSheet(null)
+      setEditSheet(prev => prev ? { ...prev, ...sheetDraft } : null)
     } catch (e) { console.error(e) }
     finally { setSavingSheet(false) }
+  }
+
+  async function uploadSheetPhoto(file: File) {
+    if (!editSheet) return
+    setUploadingSheetPhoto(true)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const res = await fetch(`/api/cleaning-sheets/${editSheet.id}`, { method: 'POST', body: fd })
+      const data = await res.json()
+      if (data.url) {
+        const newUrls = [...editSheet.mediaUrls, data.url]
+        setEditSheet(prev => prev ? { ...prev, mediaUrls: newUrls } : null)
+        setSheets(prev => prev.map(s => s.id === editSheet.id ? { ...s, mediaUrls: newUrls } : s))
+      }
+    } catch (e) { console.error(e) }
+    finally { setUploadingSheetPhoto(false) }
+  }
+
+  async function removeSheetPhoto(url: string) {
+    if (!editSheet) return
+    await fetch(`/api/cleaning-sheets/${editSheet.id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) })
+    const newUrls = editSheet.mediaUrls.filter(u => u !== url)
+    setEditSheet(prev => prev ? { ...prev, mediaUrls: newUrls } : null)
+    setSheets(prev => prev.map(s => s.id === editSheet.id ? { ...s, mediaUrls: newUrls } : s))
   }
 
   function addChecklistItem() {
@@ -201,6 +243,17 @@ export default function FichesLivretsPage() {
   }
   function removeChecklistItem(idx: number) {
     setSheetDraft(p => ({ ...p, checklist: p.checklist.filter((_, i) => i !== idx) }))
+  }
+
+  function addSheetSection() {
+    setSheetDraft(p => ({ ...p, customSections: [...p.customSections, { title: '', content: '' }] }))
+  }
+  function updateSheetSection(i: number, f: keyof CustomSection, v: string) {
+    const u = [...sheetDraft.customSections]; u[i] = { ...u[i], [f]: v }
+    setSheetDraft(p => ({ ...p, customSections: u }))
+  }
+  function removeSheetSection(i: number) {
+    setSheetDraft(p => ({ ...p, customSections: p.customSections.filter((_, j) => j !== i) }))
   }
 
   // ─── Guide editing ──────────────────────────────────────────────────────────
@@ -444,8 +497,9 @@ export default function FichesLivretsPage() {
         <>
           <div className="fixed inset-0 z-40 lg:hidden" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setEditSheet(null)} />
           <div className="fixed top-0 right-0 h-full z-50 flex flex-col overflow-hidden"
-            style={{ width: '460px', maxWidth: '100vw', background: '#131313', borderLeft: '1px solid rgba(255,255,255,0.08)', boxShadow: '-20px 0 60px rgba(0,0,0,0.5)' }}>
+            style={{ width: '480px', maxWidth: '100vw', background: '#131313', borderLeft: '1px solid rgba(255,255,255,0.08)', boxShadow: '-20px 0 60px rgba(0,0,0,0.5)' }}>
 
+            {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
               <div>
                 <p className="text-white font-semibold text-sm flex items-center gap-2">
@@ -453,57 +507,186 @@ export default function FichesLivretsPage() {
                 </p>
                 <p className="text-white/40 text-xs mt-0.5">{properties.find(p => p.id === editSheet.propertyId)?.name}</p>
               </div>
-              <button onClick={() => setEditSheet(null)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white transition-colors"
-                style={{ background: 'rgba(255,255,255,0.05)' }}>
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <a href={`${baseUrl}/fiche/${editSheet.shareToken}`} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                  style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.2)', textDecoration: 'none' }}>
+                  <ExternalLink className="w-3 h-3" /> Aperçu
+                </a>
+                <button onClick={() => setEditSheet(null)}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white transition-colors"
+                  style={{ background: 'rgba(255,255,255,0.05)' }}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
-              <div>
-                <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-3">Instructions générales</p>
-                <textarea
-                  value={sheetDraft.instructions}
-                  onChange={e => setSheetDraft(p => ({ ...p, instructions: e.target.value }))}
-                  placeholder="Instructions pour le ménage..."
-                  rows={4}
-                  className={`${inputCls} resize-none leading-relaxed`}
-                  style={inputBg}
-                />
-              </div>
+            {/* Onglets */}
+            <div className="flex gap-1 px-5 py-3 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              {([
+                { key: 'infos', label: 'Infos' },
+                { key: 'consignes', label: 'Consignes' },
+                { key: 'sections', label: 'Sections' },
+                { key: 'checklist', label: 'Checklist' },
+              ] as const).map(({ key, label }) => (
+                <button key={key} onClick={() => setSheetTab(key)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                  style={{
+                    background: sheetTab === key ? 'rgba(245,158,11,0.12)' : 'transparent',
+                    border: sheetTab === key ? '1px solid rgba(245,158,11,0.25)' : '1px solid transparent',
+                    color: sheetTab === key ? '#f59e0b' : 'rgba(255,255,255,0.4)',
+                  }}>
+                  {label}
+                </button>
+              ))}
+            </div>
 
-              <div>
-                <p className="text-xs font-semibold text-[#D4AF37] uppercase tracking-widest mb-3">Checklist</p>
-                <div className="space-y-2">
-                  {sheetDraft.checklist.map((item, idx) => (
-                    <div key={item.id} className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={item.label}
-                        onChange={e => updateChecklistItem(idx, e.target.value)}
-                        className={`${inputCls} flex-1`}
-                        style={inputBg}
-                      />
-                      <button onClick={() => removeChecklistItem(idx)}
-                        className="w-9 h-9 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 transition-colors flex-shrink-0"
-                        style={{ background: 'rgba(255,255,255,0.04)' }}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+            {/* Corps */}
+            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+
+              {/* ── Infos ── */}
+              {sheetTab === 'infos' && (
+                <>
+                  <p className="text-xs font-semibold text-amber-400 uppercase tracking-widest mb-3">Horaires</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-white/50 text-xs mb-1.5">
+                        <LogOut className="w-3 h-3 text-red-400" /> Heure de départ voyageurs
+                      </label>
+                      <input type="text" value={sheetDraft.checkoutTime}
+                        onChange={e => setSheetDraft(p => ({ ...p, checkoutTime: e.target.value }))}
+                        placeholder="11h00" className={inputCls} style={inputBg} />
                     </div>
-                  ))}
-                  <button onClick={addChecklistItem}
-                    className="flex items-center gap-2 text-sm text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors mt-1">
-                    <Plus className="w-4 h-4" /> Ajouter un élément
+                    <div>
+                      <label className="flex items-center gap-1.5 text-white/50 text-xs mb-1.5">
+                        <LogIn className="w-3 h-3 text-emerald-400" /> Heure d&apos;arrivée suivants
+                      </label>
+                      <input type="text" value={sheetDraft.nextCheckinTime}
+                        onChange={e => setSheetDraft(p => ({ ...p, nextCheckinTime: e.target.value }))}
+                        placeholder="15h00" className={inputCls} style={inputBg} />
+                    </div>
+                  </div>
+
+                  <p className="text-xs font-semibold text-amber-400 uppercase tracking-widest mb-3 mt-2">Code d&apos;accès / Boîte à clés</p>
+                  <div className="relative">
+                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                    <input type="text" value={sheetDraft.accessCode}
+                      onChange={e => setSheetDraft(p => ({ ...p, accessCode: e.target.value }))}
+                      placeholder="Ex: 1234 ou tourner à gauche..." className={`${inputCls} pl-9`} style={inputBg} />
+                  </div>
+
+                  <p className="text-xs font-semibold text-amber-400 uppercase tracking-widest mb-3 mt-2">Photos de référence</p>
+                  <input ref={sheetFileRef} type="file" accept="image/*,video/mp4" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) uploadSheetPhoto(f); e.target.value = '' }} />
+                  <button onClick={() => sheetFileRef.current?.click()} disabled={uploadingSheetPhoto}
+                    className="w-full flex flex-col items-center gap-2 py-6 rounded-xl text-sm text-white/40 hover:text-white/70 transition-all disabled:opacity-50"
+                    style={{ border: '2px dashed rgba(255,255,255,0.1)' }}>
+                    {uploadingSheetPhoto
+                      ? <div className="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                      : <Upload className="w-6 h-6" />}
+                    <span className="text-xs">{uploadingSheetPhoto ? 'Envoi...' : 'Ajouter des photos / vidéos'}</span>
                   </button>
-                </div>
-              </div>
+                  {editSheet.mediaUrls.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2">
+                      {editSheet.mediaUrls.map((url, i) => (
+                        <div key={i} className="relative group rounded-xl overflow-hidden aspect-square">
+                          {url.endsWith('.mp4')
+                            ? <video src={url} className="w-full h-full object-cover" muted />
+                            : <img src={url} alt="" className="w-full h-full object-cover" />}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center">
+                            <button onClick={() => removeSheetPhoto(url)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-full flex items-center justify-center"
+                              style={{ background: 'rgba(239,68,68,0.9)' }}>
+                              <Trash2 className="w-3.5 h-3.5 text-white" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ── Consignes ── */}
+              {sheetTab === 'consignes' && (
+                <>
+                  <p className="text-xs font-semibold text-amber-400 uppercase tracking-widest mb-3">Instructions générales</p>
+                  <p className="text-white/30 text-xs mb-3">Visible sur la fiche, en accordéon. Tu peux utiliser des sauts de ligne.</p>
+                  <textarea
+                    value={sheetDraft.instructions}
+                    onChange={e => setSheetDraft(p => ({ ...p, instructions: e.target.value }))}
+                    placeholder="Ex: Faire attention à la porte d'entrée qui ferme mal. Les produits ménagers sont sous l'évier..."
+                    rows={10}
+                    className={`${inputCls} resize-none leading-relaxed`}
+                    style={inputBg}
+                  />
+                </>
+              )}
+
+              {/* ── Sections personnalisées ── */}
+              {sheetTab === 'sections' && (
+                <>
+                  <p className="text-xs font-semibold text-amber-400 uppercase tracking-widest mb-1">Sections personnalisées</p>
+                  <p className="text-white/30 text-xs mb-4">Ajoute autant de blocs que tu veux : pièce par pièce, produits à utiliser, etc.</p>
+                  <div className="space-y-4">
+                    {sheetDraft.customSections.map((sec, i) => (
+                      <div key={i} className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                        <div className="flex gap-2">
+                          <input type="text" value={sec.title} onChange={e => updateSheetSection(i, 'title', e.target.value)}
+                            placeholder="Ex: Cuisine, Chambre 1, Produits..." className={`${inputCls} flex-1`} style={inputBg} />
+                          <button onClick={() => removeSheetSection(i)}
+                            className="w-9 h-9 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 transition-colors flex-shrink-0"
+                            style={{ background: 'rgba(255,255,255,0.04)' }}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <textarea value={sec.content} onChange={e => updateSheetSection(i, 'content', e.target.value)}
+                          placeholder="Instructions spécifiques..." rows={4} className={`${inputCls} resize-none`} style={inputBg} />
+                      </div>
+                    ))}
+                    <button onClick={addSheetSection}
+                      className="flex items-center gap-2 text-sm text-amber-400 hover:text-amber-300 transition-colors">
+                      <Plus className="w-4 h-4" /> Ajouter une section
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* ── Checklist ── */}
+              {sheetTab === 'checklist' && (
+                <>
+                  <p className="text-xs font-semibold text-amber-400 uppercase tracking-widest mb-1">Checklist interactive</p>
+                  <p className="text-white/30 text-xs mb-4">La femme de ménage peut cocher chaque tâche au fur et à mesure.</p>
+                  <div className="space-y-2">
+                    {sheetDraft.checklist.map((item, idx) => (
+                      <div key={item.id} className="flex items-center gap-2">
+                        <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded"
+                          style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                          <span className="text-amber-400 text-xs font-bold">{idx + 1}</span>
+                        </div>
+                        <input type="text" value={item.label} onChange={e => updateChecklistItem(idx, e.target.value)}
+                          placeholder={`Tâche ${idx + 1}`} className={`${inputCls} flex-1`} style={inputBg} />
+                        <button onClick={() => removeChecklistItem(idx)}
+                          className="w-9 h-9 rounded-lg flex items-center justify-center text-white/30 hover:text-red-400 transition-colors flex-shrink-0"
+                          style={{ background: 'rgba(255,255,255,0.04)' }}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <button onClick={addChecklistItem}
+                      className="flex items-center gap-2 text-sm text-amber-400 hover:text-amber-300 transition-colors mt-1">
+                      <Plus className="w-4 h-4" /> Ajouter une tâche
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
+            {/* Save */}
             <div className="px-5 py-4 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
               <button onClick={saveSheet} disabled={savingSheet}
                 className="w-full py-3 rounded-xl text-sm font-bold text-black disabled:opacity-50 transition-all hover:opacity-90"
-                style={{ background: '#D4AF37' }}>
+                style={{ background: '#f59e0b' }}>
                 {savingSheet ? 'Enregistrement...' : 'Enregistrer les modifications'}
               </button>
             </div>

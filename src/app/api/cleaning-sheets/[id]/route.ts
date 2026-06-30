@@ -35,35 +35,41 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
         if (!rows.length) return NextResponse.json({ error: 'Not found' }, { status: 404 })
         const row = rows[0]
         return NextResponse.json({
-          id: row.id, propertyId: row.propertyId, instructions: row.instructions ?? '',
+          id: row.id, propertyId: row.propertyId,
+          accessCode: row.accessCode ?? null,
+          checkoutTime: row.checkoutTime ?? null,
+          nextCheckinTime: row.nextCheckinTime ?? null,
+          instructions: row.instructions ?? '',
           checklist: row.checklist ? JSON.parse(row.checklist as string) : [],
+          customSections: row.customSections ? JSON.parse(row.customSections as string) : [],
           mediaUrls: row.mediaUrls ? JSON.parse(row.mediaUrls as string) : [],
           shareToken: row.shareToken, propertyName: row.propertyName,
           propertyAddress: row.propertyAddress, propertyCity: row.propertyCity,
-          propertyPhoto: row.propertyPhoto, staffName: row.staffName, staffPhone: row.staffPhone,
+          propertyPhoto: row.propertyPhoto,
         })
       } finally { client.close() }
     }
     const where = isToken ? { shareToken: params.id } : { id: Number(params.id) }
-    const sheet = await (prisma as any).cleaningSheet.findUnique({ where, include: { property: { include: { staff: true } } } })
+    const sheet = await (prisma as any).cleaningSheet.findUnique({ where, include: { property: true } })
     if (!sheet) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     return NextResponse.json({
       ...sheet,
-      checklist: JSON.parse(sheet.checklist), mediaUrls: JSON.parse(sheet.mediaUrls),
+      checklist: JSON.parse(sheet.checklist),
+      customSections: JSON.parse(sheet.customSections ?? '[]'),
+      mediaUrls: JSON.parse(sheet.mediaUrls),
       propertyName: sheet.property.name, propertyAddress: sheet.property.address,
       propertyCity: sheet.property.city, propertyPhoto: sheet.property.photo,
-      staffName: sheet.property.staff?.name ?? null, staffPhone: sheet.property.staff?.phone ?? null,
     })
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 })
   }
 }
 
-// PUT — update instructions + checklist
+// PUT — update all editable fields
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const body = await req.json()
-    const { instructions, checklist, mediaUrls } = body
+    const { accessCode, checkoutTime, nextCheckinTime, instructions, checklist, customSections, mediaUrls } = body
     const now = new Date().toISOString()
 
     if (process.env.TURSO_DATABASE_URL) {
@@ -71,15 +77,28 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       const client = createClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN })
       try {
         await client.execute({
-          sql: `UPDATE CleaningSheet SET instructions = ?, checklist = ?, mediaUrls = ?, updatedAt = ? WHERE id = ?`,
-          args: [instructions ?? null, JSON.stringify(checklist), JSON.stringify(mediaUrls ?? []), now, Number(params.id)],
+          sql: `UPDATE CleaningSheet SET accessCode = ?, checkoutTime = ?, nextCheckinTime = ?, instructions = ?, checklist = ?, customSections = ?, mediaUrls = ?, updatedAt = ? WHERE id = ?`,
+          args: [
+            accessCode ?? null, checkoutTime ?? null, nextCheckinTime ?? null,
+            instructions ?? null, JSON.stringify(checklist ?? []),
+            JSON.stringify(customSections ?? []), JSON.stringify(mediaUrls ?? []),
+            now, Number(params.id),
+          ],
         })
         return NextResponse.json({ success: true })
       } finally { client.close() }
     }
     await (prisma as any).cleaningSheet.update({
       where: { id: Number(params.id) },
-      data: { instructions, checklist: JSON.stringify(checklist), mediaUrls: JSON.stringify(mediaUrls ?? []) },
+      data: {
+        accessCode: accessCode ?? null,
+        checkoutTime: checkoutTime ?? null,
+        nextCheckinTime: nextCheckinTime ?? null,
+        instructions: instructions ?? null,
+        checklist: JSON.stringify(checklist ?? []),
+        customSections: JSON.stringify(customSections ?? []),
+        mediaUrls: JSON.stringify(mediaUrls ?? []),
+      },
     })
     return NextResponse.json({ success: true })
   } catch (e) {

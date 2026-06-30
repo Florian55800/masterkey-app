@@ -290,15 +290,19 @@ model Advance {
 }
 
 model CleaningSheet {
-  id           Int      @id @default(autoincrement())
-  propertyId   Int      @unique
-  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  instructions String?
-  checklist    String   @default("[]") // JSON [{id,label,isDefault}]
-  mediaUrls    String   @default("[]") // JSON ["/uploads/cleaning/xxx.jpg"]
-  shareToken   String   @unique @default(cuid())
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  propertyId      Int      @unique
+  property        Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  accessCode      String?
+  checkoutTime    String?
+  nextCheckinTime String?
+  instructions    String?
+  checklist       String   @default("[]") // JSON [{id,label,isDefault}]
+  customSections  String   @default("[]") // JSON [{title,content}]
+  mediaUrls       String   @default("[]") // JSON ["/uploads/cleaning/xxx.jpg"]
+  shareToken      String   @unique @default(cuid())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model WelcomeGuide {
