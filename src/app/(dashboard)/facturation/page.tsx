@@ -59,7 +59,29 @@ interface Property {
   subletExpenses: SubletExpense[]
 }
 
-type ActiveTab = 'conciergerie' | 'sous-location' | 'classement' | 'rapports'
+type ActiveTab = 'conciergerie' | 'sous-location' | 'menage' | 'classement' | 'rapports'
+
+interface CleaningMargin {
+  id: number
+  propertyId: number
+  month: number
+  year: number
+  receivedPlatform: number
+  receivedOwner: number
+  paidCleaner: number
+  notes: string | null
+}
+
+interface CleaningMarginProp {
+  id: number
+  name: string
+  address: string
+  city: string
+  typeGestion: string
+  status: string
+  owner: Owner
+  cleaningMargin: CleaningMargin | null
+}
 
 const PLATFORMS = ['airbnb', 'booking', 'direct', 'autre']
 const PLATFORM_COLORS: Record<string, string> = {
@@ -1103,6 +1125,114 @@ function SubletPropertyCard({
   )
 }
 
+// ─── Cleaning Margin Row ──────────────────────────────────────────────────────
+
+function CleaningMarginRow({
+  prop, month, year, onReload,
+}: {
+  prop: CleaningMarginProp; month: number; year: number; onReload: () => void
+}) {
+  const existing = prop.cleaningMargin
+  const [platform, setPlatform] = useState(existing ? String(existing.receivedPlatform || '') : '')
+  const [owner,    setOwner]    = useState(existing ? String(existing.receivedOwner    || '') : '')
+  const [cleaner,  setCleaner]  = useState(existing ? String(existing.paidCleaner      || '') : '')
+  const [dirty,  setDirty]  = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!dirty) {
+      setPlatform(existing ? String(existing.receivedPlatform || '') : '')
+      setOwner(existing    ? String(existing.receivedOwner    || '') : '')
+      setCleaner(existing  ? String(existing.paidCleaner      || '') : '')
+    }
+  }, [existing, dirty])
+
+  const f = (v: string) => parseFloat(v) || 0
+  const margin = f(platform) + f(owner) - f(cleaner)
+  const hasData = f(platform) > 0 || f(owner) > 0 || f(cleaner) > 0
+
+  const mark = (setter: (v: string) => void) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => { setter(e.target.value); setDirty(true) }
+
+  const handleSave = async () => {
+    setSaving(true)
+    const payload = { propertyId: prop.id, month, year, receivedPlatform: f(platform), receivedOwner: f(owner), paidCleaner: f(cleaner) }
+    if (existing?.id) {
+      await fetch(`/api/facturation/menage/${existing.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+    } else {
+      await fetch('/api/facturation/menage', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+    }
+    setDirty(false)
+    setSaving(false)
+    onReload()
+  }
+
+  return (
+    <div className={`bg-[#181818] border border-white/[0.06] rounded-2xl overflow-hidden transition-opacity ${hasData || dirty ? '' : 'opacity-60'}`}>
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.04]">
+        <div>
+          <p className="text-white font-semibold text-sm">{prop.name}</p>
+          <p className="text-white/30 text-xs">{prop.owner.name} · {prop.city}</p>
+        </div>
+        {hasData && !dirty && (
+          <div className={`text-right ${margin >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            <p className="font-bold text-lg leading-none">{margin >= 0 ? '+' : ''}{formatCurrency(margin)}</p>
+            <p className="text-[10px] opacity-60">Marge ménage</p>
+          </div>
+        )}
+      </div>
+      <div className="p-4 space-y-3">
+        {/* Mobile layout */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div>
+            <label className="text-[10px] text-white/30 block mb-1">Reçu plateforme (€)</label>
+            <input type="number" min="0" step="0.01" value={platform} onChange={mark(setPlatform)}
+              placeholder="0.00"
+              className="w-full bg-[#141414] border border-white/[0.06] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
+          </div>
+          <div>
+            <label className="text-[10px] text-white/30 block mb-1">Reçu propriétaire (€)</label>
+            <input type="number" min="0" step="0.01" value={owner} onChange={mark(setOwner)}
+              placeholder="0.00"
+              className="w-full bg-[#141414] border border-white/[0.06] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
+          </div>
+          <div>
+            <label className="text-[10px] text-white/30 block mb-1">Payé femme de ménage (€)</label>
+            <input type="number" min="0" step="0.01" value={cleaner} onChange={mark(setCleaner)}
+              placeholder="0.00"
+              className="w-full bg-[#141414] border border-white/[0.06] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
+          </div>
+        </div>
+        {(hasData || dirty) && (
+          <div className="flex items-center justify-between">
+            <div className={`flex items-center gap-3 text-sm ${margin >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              <span className="text-white/30 text-xs">Marge =</span>
+              <span className="text-white/40 text-xs">{formatCurrency(f(platform))} + {formatCurrency(f(owner))}</span>
+              <span className="text-white/25 text-xs">−</span>
+              <span className="text-white/40 text-xs">{formatCurrency(f(cleaner))}</span>
+              <span className="text-white/25 text-xs">=</span>
+              <span className="font-bold">{margin >= 0 ? '+' : ''}{formatCurrency(margin)}</span>
+            </div>
+            {dirty && (
+              <button onClick={handleSave} disabled={saving}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-40"
+                style={{ background: 'rgba(212,175,55,0.15)', color: '#D4AF37', border: '1px solid rgba(212,175,55,0.3)' }}>
+                {saving ? '...' : <><Check className="w-3.5 h-3.5" /> Enregistrer</>}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Classement ───────────────────────────────────────────────────────────────
 
 function ClassementTab({ properties, month, year }: { properties: Property[]; month: number; year: number }) {
@@ -1183,6 +1313,7 @@ export default function FacturationPage() {
   const [tab, setTab] = useState<ActiveTab>('conciergerie')
   const [conciergerieProps, setConciergerieProps] = useState<Property[]>([])
   const [sousLocationProps, setSousLocationProps] = useState<Property[]>([])
+  const [cleaningMarginProps, setCleaningMarginProps] = useState<CleaningMarginProp[]>([])
   const [loading, setLoading] = useState(true)
   const [seeding, setSeeding] = useState(false)
   const [seedMsg, setSeedMsg] = useState<string | null>(null)
@@ -1198,16 +1329,19 @@ export default function FacturationPage() {
 
   const load = useCallback(async () => {
     try {
-      const [cRes, sRes] = await Promise.all([
+      const [cRes, sRes, mRes] = await Promise.all([
         fetch(`/api/facturation?month=${month}&year=${year}`),
         fetch(`/api/facturation/sous-location?month=${month}&year=${year}`),
+        fetch(`/api/facturation/menage?month=${month}&year=${year}`),
       ])
-      const [cData, sData] = await Promise.all([cRes.json(), sRes.json()])
+      const [cData, sData, mData] = await Promise.all([cRes.json(), sRes.json(), mRes.json()])
       setConciergerieProps(Array.isArray(cData) ? cData : [])
       setSousLocationProps(Array.isArray(sData) ? sData : [])
+      setCleaningMarginProps(Array.isArray(mData) ? mData : [])
     } catch {
       setConciergerieProps([])
       setSousLocationProps([])
+      setCleaningMarginProps([])
     } finally {
       setLoading(false)
     }
@@ -1240,7 +1374,12 @@ export default function FacturationPage() {
     const charges = exp ? exp.loyer + exp.electricite + exp.wifi + exp.autresCharges : 0
     return s + (gross - cleaning - charges)
   }, 0)
-  const totalBrutGlobal = totalBrutConcierge + totalBrutSousLoc
+  const totalMenage = cleaningMarginProps.reduce((s, p) => {
+    const m = p.cleaningMargin
+    if (!m) return s
+    return s + (m.receivedPlatform + m.receivedOwner - m.paidCleaner)
+  }, 0)
+  const totalBrutGlobal = totalBrutConcierge + totalBrutSousLoc + totalMenage
 
   const handleSeed = async () => {
     if (!confirm('Importer les données historiques (Août 2025 → Fév 2026) ? Les entrées existantes ne seront pas écrasées.')) return
@@ -1265,6 +1404,7 @@ export default function FacturationPage() {
   const TABS: { key: ActiveTab; label: string; count?: number }[] = [
     { key: 'conciergerie', label: 'Conciergerie', count: visibleConciergerie.length },
     { key: 'sous-location', label: 'Sous-location', count: visibleSousLoc.length },
+    { key: 'menage', label: 'Ménage' },
     { key: 'classement', label: 'Classement' },
     { key: 'rapports', label: 'Rapports' },
   ]
@@ -1287,8 +1427,8 @@ export default function FacturationPage() {
             <Download className="w-3.5 h-3.5" />
             {seeding ? 'Import...' : 'Données historiques'}
           </button>
-          {(totalBrutConcierge > 0 || totalBrutSousLoc !== 0) && (
-            <div className="flex items-center gap-2">
+          {(totalBrutConcierge > 0 || totalBrutSousLoc !== 0 || totalMenage !== 0) && (
+            <div className="flex items-center gap-2 flex-wrap">
               {totalBrutConcierge > 0 && (
                 <div className="bg-[#D4AF37]/10 border border-[#D4AF37]/20 rounded-2xl px-3 py-2 text-center">
                   <p className="text-white/40 text-[10px] uppercase tracking-wider mb-0.5">Conciergerie</p>
@@ -1301,12 +1441,16 @@ export default function FacturationPage() {
                   <p className="text-blue-400 font-bold text-lg">{formatCurrency(totalBrutSousLoc)}</p>
                 </div>
               )}
-              {totalBrutConcierge > 0 && totalBrutSousLoc !== 0 && (
-                <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl px-3 py-2 text-center">
-                  <p className="text-white/40 text-[10px] uppercase tracking-wider mb-0.5">Total {MONTHS_FR[month]}</p>
-                  <p className="text-white font-bold text-lg">{formatCurrency(totalBrutGlobal)}</p>
+              {totalMenage !== 0 && (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-3 py-2 text-center">
+                  <p className="text-white/40 text-[10px] uppercase tracking-wider mb-0.5">Ménage</p>
+                  <p className="text-emerald-400 font-bold text-lg">{formatCurrency(totalMenage)}</p>
                 </div>
               )}
+              <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl px-3 py-2 text-center">
+                <p className="text-white/40 text-[10px] uppercase tracking-wider mb-0.5">Total {MONTHS_FR[month]}</p>
+                <p className="text-white font-bold text-lg">{formatCurrency(totalBrutGlobal)}</p>
+              </div>
             </div>
           )}
         </div>
@@ -1446,6 +1590,35 @@ export default function FacturationPage() {
               ) : (
                 visibleSousLoc.map(p => (
                   <SubletPropertyCard key={p.id} property={p} month={month} year={year} onReload={load} onHide={() => hideProperty(p.id)} />
+                ))
+              )}
+            </div>
+          )}
+
+          {tab === 'menage' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-white font-semibold">Frais de ménage — {MONTHS_FR[month]} {year}</h2>
+                  <p className="text-white/30 text-xs mt-0.5">Saisissez ce que vous avez perçu et payé pour calculer votre marge</p>
+                </div>
+                {totalMenage !== 0 && (
+                  <div className={`rounded-2xl px-4 py-2 text-center border ${totalMenage >= 0 ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                    <p className="text-white/40 text-[10px] uppercase tracking-wider mb-0.5">Marge totale</p>
+                    <p className={`font-bold text-xl ${totalMenage >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {totalMenage >= 0 ? '+' : ''}{formatCurrency(totalMenage)}
+                    </p>
+                  </div>
+                )}
+              </div>
+              {cleaningMarginProps.length === 0 ? (
+                <div className="text-center py-16 text-white/30">
+                  <Euro className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                  <p>Aucun logement actif</p>
+                </div>
+              ) : (
+                cleaningMarginProps.map(p => (
+                  <CleaningMarginRow key={p.id} prop={p} month={month} year={year} onReload={load} />
                 ))
               )}
             </div>

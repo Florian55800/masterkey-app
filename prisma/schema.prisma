@@ -140,12 +140,13 @@ model Property {
   status         String            @default("active")
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
-  revenues       PropertyRevenue[]
-  subletExpenses SubletExpense[]
-  advances       Advance[]
-  cleaningSheet  CleaningSheet?
-  welcomeGuide   WelcomeGuide?
-  checklist      PropertyChecklist?
+  revenues        PropertyRevenue[]
+  subletExpenses  SubletExpense[]
+  advances        Advance[]
+  cleaningSheet   CleaningSheet?
+  welcomeGuide    WelcomeGuide?
+  checklist       PropertyChecklist?
+  cleaningMargins CleaningMargin[]
 }
 
 model PropertyRevenue {
@@ -429,4 +430,20 @@ model Prestataire {
   isWhatsapp Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model CleaningMargin {
+  id               Int      @id @default(autoincrement())
+  propertyId       Int
+  property         Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  month            Int
+  year             Int
+  receivedPlatform Float    @default(0)
+  receivedOwner    Float    @default(0)
+  paidCleaner      Float    @default(0)
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([propertyId, month, year])
 }
