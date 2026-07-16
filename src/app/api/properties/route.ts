@@ -83,6 +83,55 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { name, address, city, type, typeGestion, ownerId, commissionRate, dateSigned, photo, cleaningFee, staffId, lodgifyId } = body
 
+    if (process.env.TURSO_DATABASE_URL) {
+      const { createClient } = require('@libsql/client')
+      const client = createClient({
+        url: process.env.TURSO_DATABASE_URL,
+        authToken: process.env.TURSO_AUTH_TOKEN,
+      })
+      try {
+        const rs = await client.execute({
+          sql: `INSERT INTO "Property" (name, address, city, type, typeGestion, ownerId, commissionRate, cleaningFee, staffId, lodgifyId, dateSigned, status, photo, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                RETURNING id`,
+          args: [
+            name, address, city, type,
+            typeGestion || 'conciergerie',
+            Number(ownerId),
+            Number(commissionRate),
+            Number(cleaningFee) || 0,
+            staffId ? Number(staffId) : null,
+            lodgifyId ? Number(lodgifyId) : null,
+            dateSigned,
+            photo || null,
+          ],
+        })
+        const rows = toRows(rs)
+        const newId = Number(rows[0]?.id)
+        const propRS = await client.execute({
+          sql: `SELECT p.id, p.name, p.address, p.city, p.type, p.typeGestion, p.ownerId,
+                       p.commissionRate, p.cleaningFee, p.staffId, p.lodgifyId,
+                       p.dateSigned, p.dateLost, p.status, p.photo, p.keyboxCode, p.createdAt,
+                       p.latitude, p.longitude,
+                       o.id as _ownerId, o.name as _ownerName,
+                       s.id as _staffId, s.name as _staffName, s.phone as _staffPhone
+                FROM Property p
+                LEFT JOIN Owner o ON o.id = p.ownerId
+                LEFT JOIN Staff s ON s.id = p.staffId
+                WHERE p.id = ?`,
+          args: [newId],
+        })
+        const p = toRows(propRS)[0]
+        return NextResponse.json({
+          ...p,
+          owner: { id: p._ownerId, name: p._ownerName ?? '—' },
+          staff: p._staffId ? { id: p._staffId, name: p._staffName, phone: p._staffPhone } : null,
+        }, { status: 201 })
+      } finally {
+        client.close()
+      }
+    }
+
     const property = await prisma.property.create({
       data: {
         name,
