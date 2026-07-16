@@ -235,8 +235,18 @@ export default function LogementsPage() {
         return
       }
 
-      await loadData()
+      const saved = await res.json()
+
+      // Mise à jour optimiste immédiate — ferme le modal sans attendre le rechargement
+      if (editingProperty) {
+        setProperties(prev => prev.map(p => p.id === editingProperty.id ? { ...p, ...saved } : p))
+      } else {
+        setProperties(prev => [saved, ...prev])
+      }
       setIsModalOpen(false)
+
+      // Rechargement en arrière-plan pour synchroniser avec le serveur
+      loadData()
     } catch {
       setError('Erreur de connexion')
     } finally {
