@@ -151,16 +151,18 @@ export default function FichesLivretsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function load() {
-    const [pRes, sRes, gRes] = await Promise.all([
-      fetch('/api/properties'),
-      fetch('/api/cleaning-sheets'),
-      fetch('/api/welcome-guides'),
-    ])
-    const [props, sh, gu] = await Promise.all([pRes.json(), sRes.json(), gRes.json()])
-    setProperties(Array.isArray(props) ? props : [])
-    setSheets(Array.isArray(sh) ? sh : [])
-    setGuides(Array.isArray(gu) ? gu : [])
-    setLoading(false)
+    try {
+      const [pRes, sRes, gRes] = await Promise.all([
+        fetch('/api/properties'),
+        fetch('/api/cleaning-sheets'),
+        fetch('/api/welcome-guides'),
+      ])
+      const [props, sh, gu] = await Promise.all([pRes.json(), sRes.json(), gRes.json()])
+      setProperties(Array.isArray(props) ? props : [])
+      setSheets(Array.isArray(sh) ? sh : [])
+      setGuides(Array.isArray(gu) ? gu : [])
+    } catch (e) { console.error(e) }
+    finally { setLoading(false) }
   }
 
   useEffect(() => { load() }, [])
@@ -199,11 +201,12 @@ export default function FichesLivretsPage() {
     if (!editSheet) return
     setSavingSheet(true)
     try {
-      await fetch(`/api/cleaning-sheets/${editSheet.id}`, {
+      const res = await fetch(`/api/cleaning-sheets/${editSheet.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...sheetDraft, mediaUrls: editSheet.mediaUrls }),
       })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setSheets(prev => prev.map(s => s.id === editSheet.id ? { ...s, ...sheetDraft } : s))
       setEditSheet(prev => prev ? { ...prev, ...sheetDraft } : null)
     } catch (e) { console.error(e) }
@@ -283,11 +286,12 @@ export default function FichesLivretsPage() {
     if (!editGuide) return
     setSavingGuide(true)
     try {
-      await fetch(`/api/welcome-guides/${editGuide.id}`, {
+      const res = await fetch(`/api/welcome-guides/${editGuide.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(guideDraft),
       })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setGuides(prev => prev.map(g => g.id === editGuide.id ? { ...g, ...guideDraft } as Guide : g))
       setEditGuide(null)
     } catch (e) { console.error(e) }

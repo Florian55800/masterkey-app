@@ -36,16 +36,21 @@ export async function GET(req: NextRequest) {
       })
       const props = toRows(propRS)
 
-      const marginSql = month && year
-        ? `SELECT * FROM CleaningMargin WHERE propertyId = ? AND month = ? AND year = ?`
-        : `SELECT * FROM CleaningMargin WHERE propertyId = ? ORDER BY year DESC, month DESC LIMIT 1`
+      const propIds = props.map((p) => p.id)
+      let margins: Record<string, unknown>[] = []
+      if (propIds.length > 0) {
+        const placeholders = propIds.map(() => '?').join(',')
+        const marginSql = month && year
+          ? `SELECT * FROM CleaningMargin WHERE propertyId IN (${placeholders}) AND month = ? AND year = ?`
+          : `SELECT * FROM CleaningMargin WHERE propertyId IN (${placeholders})`
+        const marginArgs = month && year ? [...propIds, month, year] : propIds
+        const marginRS = await client.execute({ sql: marginSql, args: marginArgs })
+        margins = toRows(marginRS)
+      }
+      const marginByProp = new Map(margins.map((m) => [Number(m.propertyId), m]))
 
-      const result = await Promise.all(props.map(async (p) => {
-        const args = month && year ? [p.id, month, year] : [p.id]
-        const marginRS = await client.execute({ sql: marginSql, args })
-        const margins = toRows(marginRS)
-        const margin = margins[0] ?? null
-
+      const result = props.map((p) => {
+        const margin = marginByProp.get(Number(p.id)) ?? null
         return {
           id: p.id, name: p.name, address: p.address, city: p.city,
           typeGestion: p.typeGestion, status: p.status,
@@ -61,7 +66,7 @@ export async function GET(req: NextRequest) {
             notes: margin.notes ?? null,
           } : null,
         }
-      }))
+      })
 
       return NextResponse.json(result)
     } catch (error) {

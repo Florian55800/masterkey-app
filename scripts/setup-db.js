@@ -454,8 +454,16 @@ async function setup() {
       await client.execute(sql)
       console.log('[setup-db] ✓ migration:', sql.substring(0, 60))
     } catch (err) {
-      // Ignore "duplicate column" — colonne déjà présente
-      if (!err.message.includes('duplicate column')) console.warn('[setup-db] ⚠ migration:', err.message)
+      const msg = err.message ?? String(err)
+      // Ignore expected idempotency errors: column already exists, table already exists
+      const isIdempotent = msg.includes('duplicate column') || msg.includes('already exists')
+      if (isIdempotent) {
+        // silent — expected on re-run
+      } else {
+        console.error('[setup-db] ✗ migration FAILED:', msg)
+        console.error('[setup-db] SQL:', sql.substring(0, 120))
+        throw err
+      }
     }
   }
 

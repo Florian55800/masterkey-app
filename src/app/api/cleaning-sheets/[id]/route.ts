@@ -28,8 +28,8 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
       const client = createClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN })
       try {
         const sql = isToken
-          ? `SELECT cs.*, p.name as propertyName, p.address as propertyAddress, p.city as propertyCity, p.photo as propertyPhoto, s.name as staffName, s.phone as staffPhone FROM CleaningSheet cs LEFT JOIN Property p ON p.id = cs.propertyId LEFT JOIN Staff s ON s.id = p.staffId WHERE cs.shareToken = ?`
-          : `SELECT cs.*, p.name as propertyName, p.address as propertyAddress, p.city as propertyCity, p.photo as propertyPhoto, s.name as staffName, s.phone as staffPhone FROM CleaningSheet cs LEFT JOIN Property p ON p.id = cs.propertyId LEFT JOIN Staff s ON s.id = p.staffId WHERE cs.id = ?`
+          ? `SELECT cs.*, p.name as propertyName, p.address as propertyAddress, p.city as propertyCity, p.photo as propertyPhoto FROM CleaningSheet cs LEFT JOIN Property p ON p.id = cs.propertyId WHERE cs.shareToken = ?`
+          : `SELECT cs.*, p.name as propertyName, p.address as propertyAddress, p.city as propertyCity, p.photo as propertyPhoto FROM CleaningSheet cs LEFT JOIN Property p ON p.id = cs.propertyId WHERE cs.id = ?`
         const rs = await client.execute({ sql, args: [isToken ? params.id : Number(params.id)] })
         const rows = toRows(rs)
         if (!rows.length) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -156,6 +156,15 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
         const updated = current.filter(u => u !== url)
         await client.execute({ sql: `UPDATE CleaningSheet SET mediaUrls = ?, updatedAt = ? WHERE id = ?`, args: [JSON.stringify(updated), now, Number(params.id)] })
       } finally { client.close() }
+    } else {
+      const sheet = await (prisma as any).cleaningSheet.findUnique({ where: { id: Number(params.id) } })
+      if (sheet) {
+        const current: string[] = sheet.mediaUrls ? JSON.parse(sheet.mediaUrls) : []
+        await (prisma as any).cleaningSheet.update({
+          where: { id: Number(params.id) },
+          data: { mediaUrls: JSON.stringify(current.filter((u: string) => u !== url)) },
+        })
+      }
     }
     // Delete file from disk
     try {

@@ -1133,17 +1133,17 @@ function CleaningMarginRow({
   prop: CleaningMarginProp; month: number; year: number; onReload: () => void
 }) {
   const existing = prop.cleaningMargin
-  const [platform, setPlatform] = useState(existing ? String(existing.receivedPlatform || '') : '')
-  const [owner,    setOwner]    = useState(existing ? String(existing.receivedOwner    || '') : '')
-  const [cleaner,  setCleaner]  = useState(existing ? String(existing.paidCleaner      || '') : '')
+  const [platform, setPlatform] = useState(existing != null ? String(existing.receivedPlatform) : '')
+  const [owner,    setOwner]    = useState(existing != null ? String(existing.receivedOwner)    : '')
+  const [cleaner,  setCleaner]  = useState(existing != null ? String(existing.paidCleaner)      : '')
   const [dirty,  setDirty]  = useState(false)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!dirty) {
-      setPlatform(existing ? String(existing.receivedPlatform || '') : '')
-      setOwner(existing    ? String(existing.receivedOwner    || '') : '')
-      setCleaner(existing  ? String(existing.paidCleaner      || '') : '')
+      setPlatform(existing != null ? String(existing.receivedPlatform) : '')
+      setOwner(existing    != null ? String(existing.receivedOwner)    : '')
+      setCleaner(existing  != null ? String(existing.paidCleaner)      : '')
     }
   }, [existing, dirty])
 
@@ -1156,21 +1156,22 @@ function CleaningMarginRow({
 
   const handleSave = async () => {
     setSaving(true)
-    const payload = { propertyId: prop.id, month, year, receivedPlatform: f(platform), receivedOwner: f(owner), paidCleaner: f(cleaner) }
-    if (existing?.id) {
-      await fetch(`/api/facturation/menage/${existing.id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-    } else {
-      await fetch('/api/facturation/menage', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-    }
-    setDirty(false)
-    setSaving(false)
-    onReload()
+    try {
+      const payload = { propertyId: prop.id, month, year, receivedPlatform: f(platform), receivedOwner: f(owner), paidCleaner: f(cleaner) }
+      const res = existing?.id
+        ? await fetch(`/api/facturation/menage/${existing.id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+        : await fetch('/api/facturation/menage', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setDirty(false)
+      onReload()
+    } catch (e) { console.error(e) }
+    finally { setSaving(false) }
   }
 
   return (
