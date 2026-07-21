@@ -254,6 +254,18 @@ export async function PUT(
             args,
           })
         }
+        // Propagate new commissionRate to current + future PropertyRevenue rows
+        if (commissionRate !== undefined) {
+          const now = new Date()
+          const curMonth = now.getMonth() + 1
+          const curYear  = now.getFullYear()
+          await client.execute({
+            sql: `UPDATE PropertyRevenue SET commissionRate = ?, updatedAt = CURRENT_TIMESTAMP
+                  WHERE propertyId = ?
+                    AND (year > ? OR (year = ? AND month >= ?))`,
+            args: [Number(commissionRate), id, curYear, curYear, curMonth],
+          })
+        }
         const propRS = await client.execute({
           sql: `SELECT p.*, o.id as _oid, o.name as _oname, s.id as _sid, s.name as _sname, s.phone as _sphone
                 FROM Property p
@@ -297,6 +309,22 @@ export async function PUT(
       },
       include: { owner: true, staff: { select: { id: true, name: true, phone: true } } },
     })
+    // Propagate new commissionRate to current + future PropertyRevenue rows
+    if (commissionRate !== undefined) {
+      const now = new Date()
+      const curMonth = now.getMonth() + 1
+      const curYear  = now.getFullYear()
+      await prisma.propertyRevenue.updateMany({
+        where: {
+          propertyId: id,
+          OR: [
+            { year: { gt: curYear } },
+            { year: curYear, month: { gte: curMonth } },
+          ],
+        },
+        data: { commissionRate: Number(commissionRate) },
+      })
+    }
     return NextResponse.json(property)
   } catch (error) {
     console.error('Property PUT error:', error)

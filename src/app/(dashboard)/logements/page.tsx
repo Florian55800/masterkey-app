@@ -254,16 +254,11 @@ export default function LogementsPage() {
     }
   }
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Marquer ce logement comme inactif ?')) return
-    await fetch(`/api/properties/${id}`, { method: 'DELETE' })
-    await loadData()
-  }
-
-  const handlePermanentDelete = async (id: number, name: string) => {
+  const handleDelete = async (id: number, name: string) => {
     if (!confirm(`Supprimer définitivement "${name}" ? Toutes les données associées seront perdues. Cette action est irréversible.`)) return
+    setProperties(prev => prev.filter(p => p.id !== id))
     await fetch(`/api/properties/${id}?permanent=true`, { method: 'DELETE' })
-    await loadData()
+    loadData()
   }
 
   const getTypeBadgeVariant = (type: string) => {
@@ -505,23 +500,13 @@ export default function LogementsPage() {
                   <Edit2 className="w-3.5 h-3.5" />
                   Modifier
                 </button>
-                {property.status === 'active' ? (
-                  <button
-                    onClick={() => handleDelete(property.id)}
-                    title="Désactiver"
-                    className="px-3 py-2 rounded-xl border border-white/[0.07] text-gray-600 hover:text-red-400 hover:border-red-500/20 transition-all"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handlePermanentDelete(property.id, property.name)}
-                    title="Supprimer définitivement"
-                    className="px-3 py-2 rounded-xl border border-red-500/20 text-red-500/50 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/5 transition-all"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
+                <button
+                  onClick={() => handleDelete(property.id, property.name)}
+                  title="Supprimer définitivement"
+                  className="px-3 py-2 rounded-xl border border-white/[0.07] text-gray-600 hover:text-red-400 hover:border-red-500/20 transition-all"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
             </Card>
           ))}
