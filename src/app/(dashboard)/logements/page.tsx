@@ -256,9 +256,15 @@ export default function LogementsPage() {
 
   const handleDelete = async (id: number, name: string) => {
     if (!confirm(`Supprimer définitivement "${name}" ? Toutes les données associées seront perdues. Cette action est irréversible.`)) return
+    const backup = properties
     setProperties(prev => prev.filter(p => p.id !== id))
-    await fetch(`/api/properties/${id}?permanent=true`, { method: 'DELETE' })
-    loadData()
+    const res = await fetch(`/api/properties/${id}?permanent=true`, { method: 'DELETE' })
+    if (!res.ok) {
+      setProperties(backup)
+      alert('Erreur lors de la suppression — réessayez.')
+    } else {
+      loadData()
+    }
   }
 
   const getTypeBadgeVariant = (type: string) => {

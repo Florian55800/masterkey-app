@@ -349,7 +349,17 @@ export async function DELETE(
       })
       try {
         if (permanent) {
-          await client.execute({ sql: `DELETE FROM "Property" WHERE id = ?`, args: [id] })
+          // Suppression manuelle des tables liées (FK peuvent bloquer le DELETE direct)
+          await client.batch([
+            { sql: `DELETE FROM PropertyRevenue    WHERE propertyId = ?`, args: [id] },
+            { sql: `DELETE FROM SubletExpense      WHERE propertyId = ?`, args: [id] },
+            { sql: `DELETE FROM CleaningSheet      WHERE propertyId = ?`, args: [id] },
+            { sql: `DELETE FROM WelcomeGuide       WHERE propertyId = ?`, args: [id] },
+            { sql: `DELETE FROM PropertyChecklist  WHERE propertyId = ?`, args: [id] },
+            { sql: `DELETE FROM CleaningMargin     WHERE propertyId = ?`, args: [id] },
+            { sql: `UPDATE Advance SET propertyId = NULL WHERE propertyId = ?`, args: [id] },
+            { sql: `DELETE FROM "Property"         WHERE id = ?`,         args: [id] },
+          ], 'write')
           return NextResponse.json({ deleted: true })
         } else {
           await client.execute({
