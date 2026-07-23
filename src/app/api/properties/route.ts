@@ -90,44 +90,33 @@ export async function POST(request: NextRequest) {
         authToken: process.env.TURSO_AUTH_TOKEN,
       })
       try {
-        const batchResults = await client.batch([
-          {
-            sql: `INSERT INTO "Property" (name, address, city, type, typeGestion, ownerId, commissionRate, cleaningFee, staffId, lodgifyId, dateSigned, status, photo, createdAt, updatedAt)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-            args: [
-              name, address, city, type,
-              typeGestion || 'conciergerie',
-              Number(ownerId),
-              Number(commissionRate),
-              Number(cleaningFee) || 0,
-              staffId ? Number(staffId) : null,
-              lodgifyId ? Number(lodgifyId) : null,
-              dateSigned,
-              photo || null,
-            ],
-          },
-          { sql: 'SELECT last_insert_rowid() as id', args: [] },
-        ], 'write')
-        const newId = Number(toRows(batchResults[1])[0]?.id)
-        const propRS = await client.execute({
-          sql: `SELECT p.id, p.name, p.address, p.city, p.type, p.typeGestion, p.ownerId,
-                       p.commissionRate, p.cleaningFee, p.staffId, p.lodgifyId,
-                       p.dateSigned, p.dateLost, p.status, p.photo, p.keyboxCode, p.createdAt,
-                       p.latitude, p.longitude,
-                       o.id as _ownerId, o.name as _ownerName,
-                       s.id as _staffId, s.name as _staffName, s.phone as _staffPhone
-                FROM Property p
-                LEFT JOIN Owner o ON o.id = p.ownerId
-                LEFT JOIN Staff s ON s.id = p.staffId
-                WHERE p.id = ?`,
-          args: [newId],
+        const rs = await client.execute({
+          sql: `INSERT INTO "Property" (name, address, city, type, typeGestion, ownerId, commissionRate, cleaningFee, staffId, lodgifyId, dateSigned, status, photo, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                RETURNING *`,
+          args: [
+            name, address, city, type,
+            typeGestion || 'conciergerie',
+            Number(ownerId),
+            Number(commissionRate),
+            Number(cleaningFee) || 0,
+            staffId ? Number(staffId) : null,
+            lodgifyId ? Number(lodgifyId) : null,
+            dateSigned,
+            photo || null,
+          ],
         })
-        const p = toRows(propRS)[0]
-        if (!p) throw new Error(`Property ${newId} not found after insert`)
+        const row = toRows(rs)[0]
+        if (!row) throw new Error('INSERT did not return a row')
+        const ownerRS = await client.execute({
+          sql: `SELECT id, name FROM Owner WHERE id = ?`,
+          args: [Number(ownerId)],
+        })
+        const ownerRow = toRows(ownerRS)[0]
         return NextResponse.json({
-          ...p,
-          owner: { id: p._ownerId, name: p._ownerName ?? '—' },
-          staff: p._staffId ? { id: p._staffId, name: p._staffName, phone: p._staffPhone } : null,
+          ...row,
+          owner: { id: ownerRow?.id ?? ownerId, name: ownerRow?.name ?? '—' },
+          staff: null,
         }, { status: 201 })
       } finally {
         client.close()
