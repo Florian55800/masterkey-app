@@ -90,23 +90,25 @@ export async function POST(request: NextRequest) {
         authToken: process.env.TURSO_AUTH_TOKEN,
       })
       try {
-        await client.execute({
-          sql: `INSERT INTO "Property" (name, address, city, type, typeGestion, ownerId, commissionRate, cleaningFee, staffId, lodgifyId, dateSigned, status, photo, createdAt, updatedAt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-          args: [
-            name, address, city, type,
-            typeGestion || 'conciergerie',
-            Number(ownerId),
-            Number(commissionRate),
-            Number(cleaningFee) || 0,
-            staffId ? Number(staffId) : null,
-            lodgifyId ? Number(lodgifyId) : null,
-            dateSigned,
-            photo || null,
-          ],
-        })
-        const lastIdRS = await client.execute('SELECT last_insert_rowid() as id')
-        const newId = Number(toRows(lastIdRS)[0]?.id)
+        const batchResults = await client.batch([
+          {
+            sql: `INSERT INTO "Property" (name, address, city, type, typeGestion, ownerId, commissionRate, cleaningFee, staffId, lodgifyId, dateSigned, status, photo, createdAt, updatedAt)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+            args: [
+              name, address, city, type,
+              typeGestion || 'conciergerie',
+              Number(ownerId),
+              Number(commissionRate),
+              Number(cleaningFee) || 0,
+              staffId ? Number(staffId) : null,
+              lodgifyId ? Number(lodgifyId) : null,
+              dateSigned,
+              photo || null,
+            ],
+          },
+          { sql: 'SELECT last_insert_rowid() as id', args: [] },
+        ], 'write')
+        const newId = Number(toRows(batchResults[1])[0]?.id)
         const propRS = await client.execute({
           sql: `SELECT p.id, p.name, p.address, p.city, p.type, p.typeGestion, p.ownerId,
                        p.commissionRate, p.cleaningFee, p.staffId, p.lodgifyId,
