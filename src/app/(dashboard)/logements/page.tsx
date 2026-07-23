@@ -87,6 +87,7 @@ export default function LogementsPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [loadError, setLoadError] = useState('')
+  const [syncing, setSyncing] = useState(false)
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -121,10 +122,11 @@ export default function LogementsPage() {
   }, [])
 
   const loadData = async () => {
+    setSyncing(true)
+    setLoadError('')
     try {
-      setLoadError('')
       const abort = new AbortController()
-      const tid = setTimeout(() => abort.abort(), 15_000)
+      const tid = setTimeout(() => abort.abort(), 30_000)
       const [propsRes, ownersRes, staffRes] = await Promise.all([
         fetch('/api/properties', { signal: abort.signal }),
         fetch('/api/owners', { signal: abort.signal }),
@@ -149,9 +151,10 @@ export default function LogementsPage() {
         }))
       }
     } catch {
-      setLoadError('Serveur lent — données en cache affichées')
+      // Timeout ou réseau — les données en cache restent affichées silencieusement
     } finally {
       setLoading(false)
+      setSyncing(false)
     }
   }
 
@@ -296,8 +299,15 @@ export default function LogementsPage() {
       </div>
 
       {loadError && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-red-400 text-sm">
-          ⚠️ {loadError}
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-red-400 text-sm flex items-center justify-between">
+          <span>⚠️ {loadError}</span>
+          <button onClick={loadData} className="text-xs underline opacity-70 hover:opacity-100">Réessayer</button>
+        </div>
+      )}
+      {syncing && !loadError && (
+        <div className="flex items-center gap-2 text-white/30 text-xs">
+          <div className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin" />
+          Actualisation…
         </div>
       )}
 
