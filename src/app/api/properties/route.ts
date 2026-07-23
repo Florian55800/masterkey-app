@@ -90,10 +90,9 @@ export async function POST(request: NextRequest) {
         authToken: process.env.TURSO_AUTH_TOKEN,
       })
       try {
-        const rs = await client.execute({
+        await client.execute({
           sql: `INSERT INTO "Property" (name, address, city, type, typeGestion, ownerId, commissionRate, cleaningFee, staffId, lodgifyId, dateSigned, status, photo, createdAt, updatedAt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                RETURNING id`,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
           args: [
             name, address, city, type,
             typeGestion || 'conciergerie',
@@ -106,8 +105,8 @@ export async function POST(request: NextRequest) {
             photo || null,
           ],
         })
-        const rows = toRows(rs)
-        const newId = Number(rows[0]?.id)
+        const lastIdRS = await client.execute('SELECT last_insert_rowid() as id')
+        const newId = Number(toRows(lastIdRS)[0]?.id)
         const propRS = await client.execute({
           sql: `SELECT p.id, p.name, p.address, p.city, p.type, p.typeGestion, p.ownerId,
                        p.commissionRate, p.cleaningFee, p.staffId, p.lodgifyId,
@@ -122,6 +121,7 @@ export async function POST(request: NextRequest) {
           args: [newId],
         })
         const p = toRows(propRS)[0]
+        if (!p) throw new Error(`Property ${newId} not found after insert`)
         return NextResponse.json({
           ...p,
           owner: { id: p._ownerId, name: p._ownerName ?? '—' },
@@ -153,7 +153,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(property, { status: 201 })
   } catch (error) {
-    console.error('Property POST error:', error)
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error('Property POST error:', msg)
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
