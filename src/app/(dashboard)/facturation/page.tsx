@@ -710,24 +710,29 @@ async function downloadPDF(property: Property, revenues: PropertyRevenue[], mont
 
   y += 9; stroke(190,190,190); doc.setLineWidth(0.3); doc.line(mg,y,W-mg,y); y += 6
 
-  // Bloc propriété
-  fill(248,248,248); stroke(220,220,220); doc.setLineWidth(0.2)
-  doc.roundedRect(mg, y, cW, 21, 2, 2, 'FD')
-  fill(12,12,12); doc.rect(mg, y, 2.5, 21, 'F')
-  const propFields: [string, string][] = [
-    ['LOGEMENT', property.name],
-    ['ADRESSE', `${property.address}, ${property.city}`],
-    ['PROPRIÉTAIRE', property.owner.name],
-    ['COMMISSION', `${property.commissionRate} %`],
+  // Bloc propriété — retour à la ligne automatique si texte trop long
+  const propLabels = ['LOGEMENT', 'ADRESSE', 'PROPRIÉTAIRE', 'COMMISSION']
+  const propVals = [
+    property.name,
+    `${property.address}, ${property.city}`,
+    property.owner.name,
+    `${property.commissionRate} %`,
   ]
   const fw = cW / 4
-  propFields.forEach(([lbl, val], i) => {
+  font('normal', 8)
+  const propLineGroups = propVals.map(v => (doc.splitTextToSize(v, fw - 8) as string[]).slice(0, 2))
+  const maxPropLines = Math.max(...propLineGroups.map(g => g.length))
+  const blockH = maxPropLines === 1 ? 22 : 28
+  fill(248,248,248); stroke(220,220,220); doc.setLineWidth(0.2)
+  doc.roundedRect(mg, y, cW, blockH, 2, 2, 'FD')
+  fill(12,12,12); doc.rect(mg, y, 2.5, blockH, 'F')
+  propLabels.forEach((lbl, i) => {
     const x = mg + 4.5 + i * fw
-    font('bold', 6.5); color(175,175,175); text(lbl, x, y+7)
-    font('bold', 8.5); color(15,15,15)
-    text(trunc(val, fw - 6), x, y+15)
+    font('bold', 6); color(175,175,175); text(lbl, x, y + 6)
+    font('normal', 8); color(15,15,15)
+    propLineGroups[i].forEach((line, li) => text(line, x, y + 12.5 + li * 5.5))
   })
-  y += 26
+  y += blockH + 5
 
   // Taux d'occupation
   const daysInMonth = new Date(year, month, 0).getDate()
@@ -736,35 +741,40 @@ async function downloadPDF(property: Property, revenues: PropertyRevenue[], mont
     const tauxOcc = daysInMonth > 0 ? Math.round((totalNuits / daysInMonth) * 100) : 0
     fill(236,236,236); stroke(210,210,210); doc.setLineWidth(0.15)
     doc.roundedRect(mg, y, cW, 12, 2, 2, 'FD')
-    font('bold', 8.5); color(15,15,15)
+    font('bold', 8); color(15,15,15)
     text(`Taux d'occupation : ${tauxOcc} %  (${totalNuits} nuits / ${daysInMonth} jours)`, mg+4, y+8)
     y += 17
   }
 
-  // Tableau header
-  const cols = ['Plateforme', 'Montant brut', 'Frais ménage', 'Com. %', 'Base', 'Part MasterKey', 'Part propriétaire']
-  const colWidths = [28, 26, 26, 17, 26, 29, 30]
-  const rowH = 8
+  // Tableau — colonnes mieux proportionnées (total = 182 mm)
+  // Plateforme|Montant|Ménage|Com%|Base|Part MK|Part proprio
+  const cols = ['Plateforme', 'Montant brut', 'Ménage', 'Com.%', 'Base', 'Part MasterKey', 'Part propriétaire']
+  const colWidths = [24, 27, 23, 12, 20, 36, 40]
+  const lH = 4.5   // hauteur d'une ligne de texte
+  const rowPad = 3  // padding vertical total
+  const minRowH = lH + rowPad * 2
 
-  fill(12,12,12); doc.rect(mg, y, cW, rowH, 'F')
-  font('bold', 7); color(255,255,255)
+  // En-tête tableau
+  fill(12,12,12); doc.rect(mg, y, cW, minRowH + 1, 'F')
+  font('bold', 6.5); color(255,255,255)
   let cx = mg + 2
   cols.forEach((c, i) => {
-    text(c, cx + (i>0 ? colWidths[i]-1 : 0), y+5.5, { align: i>0 ? 'right' : 'left' })
+    // L'en-tête peut aussi se couper en 2 lignes si besoin
+    font('bold', 6.5)
+    const hLines = doc.splitTextToSize(c, colWidths[i] - 2) as string[]
+    const hY = y + (minRowH + 1) / 2 - (hLines.length - 1) * lH / 2
+    hLines.forEach((line, li) => text(line, cx + (i>0 ? colWidths[i]-1 : 0), hY + li * lH, { align: i>0 ? 'right' : 'left' }))
     cx += colWidths[i]
   })
-  y += rowH
+  y += minRowH + 1
 
-  // Lignes données — Airbnb rose vif, Booking bleu vif
+  // Lignes données — hauteur dynamique selon contenu
   revenues.forEach((r, ri) => {
     const { base, partMK, partProprio } = calcRevenue(r)
     const isAirbnb  = r.platform === 'airbnb'
     const isBooking = r.platform === 'booking'
-    const bg: [number,number,number] = isAirbnb ? [255,150,170] : isBooking ? [80,165,255] : ri%2===0 ? [255,255,255] : [248,248,248]
-    fill(...bg); stroke(210,210,210); doc.setLineWidth(0.12)
-    doc.rect(mg, y, cW, rowH, 'FD')
-    cx = mg + 2
-    const cells = [
+
+    const allCells = [
       PLATFORM_LABELS[r.platform] ?? r.platform,
       fmt(r.platformAmount),
       r.cleaningFees > 0 ? fmt(r.cleaningFees) : '—',
@@ -773,32 +783,50 @@ async function downloadPDF(property: Property, revenues: PropertyRevenue[], mont
       fmt(partMK),
       fmt(partProprio),
     ]
-    cells.forEach((cell, ci) => {
-      font(ci===0 ? 'bold' : 'normal', 7.5)
+    // Mesure le nb de lignes pour chaque cellule avec la bonne police
+    const cellGroups = allCells.map((cell, ci) => {
+      font(ci===0 ? 'bold' : 'normal', 7)
+      return (doc.splitTextToSize(cell, colWidths[ci] - 2) as string[]).slice(0, 3)
+    })
+    const maxLines = Math.max(...cellGroups.map(g => g.length))
+    const thisRowH = maxLines * lH + rowPad * 2
+
+    const bg: [number,number,number] = isAirbnb ? [255,150,170] : isBooking ? [80,165,255] : ri%2===0 ? [255,255,255] : [248,248,248]
+    fill(...bg); stroke(210,210,210); doc.setLineWidth(0.12)
+    doc.rect(mg, y, cW, thisRowH, 'FD')
+
+    cx = mg + 2
+    const baseY = y + rowPad + lH * 0.75
+    cellGroups.forEach((lines, ci) => {
+      font(ci===0 ? 'bold' : 'normal', 7)
       if (ci === 0) color(isAirbnb ? 120 : isBooking ? 0 : 20, isAirbnb ? 0 : isBooking ? 20 : 20, isAirbnb ? 30 : isBooking ? 130 : 20)
       else if (ci === 5) color(0, 25, 140)
       else if (ci === 6) color(10, 100, 40)
-      else if (ci >= 2 && ci <= 3) color(90, 90, 90)
+      else if (ci === 2 || ci === 3) color(90, 90, 90)
       else color(20, 20, 20)
-      text(trunc(cell, colWidths[ci] - 3), cx + (ci>0 ? colWidths[ci]-1 : 0), y+5.5, { align: ci>0 ? 'right' : 'left' })
+      lines.forEach((line, li) =>
+        text(line, cx + (ci>0 ? colWidths[ci]-1 : 0), baseY + li * lH, { align: ci>0 ? 'right' : 'left' })
+      )
       cx += colWidths[ci]
     })
-    y += rowH
+    y += thisRowH
   })
 
   // Ligne TOTAL
+  const totalRowH = minRowH + 1
   fill(228,228,228); stroke(210,210,210); doc.setLineWidth(0.12)
-  doc.rect(mg, y, cW, rowH, 'FD')
+  doc.rect(mg, y, cW, totalRowH, 'FD')
   cx = mg + 2
-  ;['TOTAL', fmt(totals.platformAmount), fmt(totals.cleaningFees), '', fmt(totals.base), fmt(totals.partMK), fmt(totals.partProprio)].forEach((cell, ci) => {
-    font('bold', 7.5)
+  const totalCells = ['TOTAL', fmt(totals.platformAmount), fmt(totals.cleaningFees), '', fmt(totals.base), fmt(totals.partMK), fmt(totals.partProprio)]
+  totalCells.forEach((cell, ci) => {
+    font('bold', 7)
     if (ci === 5) color(0, 25, 140)
     else if (ci === 6) color(10, 100, 40)
     else color(20, 20, 20)
-    text(cell, cx + (ci>0 ? colWidths[ci]-1 : 0), y+5.5, { align: ci>0 ? 'right' : 'left' })
+    text(cell, cx + (ci>0 ? colWidths[ci]-1 : 0), y + totalRowH/2 + lH/2, { align: ci>0 ? 'right' : 'left' })
     cx += colWidths[ci]
   })
-  y += rowH + 6
+  y += totalRowH + 6
 
   // Cartes synthèse — noir et blanc
   const cards: { lbl: string; val: string; bg: [number,number,number]; fg: [number,number,number] }[] = [
@@ -878,24 +906,29 @@ async function downloadSubletPDF(property: Property, revenues: PropertyRevenue[]
 
   y += 9; stroke(190,190,190); doc.setLineWidth(0.3); doc.line(mg,y,W-mg,y); y += 6
 
-  // Bloc propriété
-  fill(248,248,248); stroke(220,220,220); doc.setLineWidth(0.2)
-  doc.roundedRect(mg, y, cW, 21, 2, 2, 'FD')
-  fill(12,12,12); doc.rect(mg, y, 2.5, 21, 'F')
-  const propFields: [string, string][] = [
-    ['LOGEMENT', property.name],
-    ['ADRESSE', `${property.address}, ${property.city}`],
-    ['PROPRIÉTAIRE', property.owner.name],
-    ['TYPE', 'Sous-location'],
+  // Bloc propriété — retour à la ligne automatique
+  const propLabels = ['LOGEMENT', 'ADRESSE', 'PROPRIÉTAIRE', 'TYPE']
+  const propVals = [
+    property.name,
+    `${property.address}, ${property.city}`,
+    property.owner.name,
+    'Sous-location',
   ]
   const fw = cW / 4
-  propFields.forEach(([lbl, val], i) => {
+  font('normal', 8)
+  const propLineGroups = propVals.map(v => (doc.splitTextToSize(v, fw - 8) as string[]).slice(0, 2))
+  const maxPropLines = Math.max(...propLineGroups.map(g => g.length))
+  const blockH = maxPropLines === 1 ? 22 : 28
+  fill(248,248,248); stroke(220,220,220); doc.setLineWidth(0.2)
+  doc.roundedRect(mg, y, cW, blockH, 2, 2, 'FD')
+  fill(12,12,12); doc.rect(mg, y, 2.5, blockH, 'F')
+  propLabels.forEach((lbl, i) => {
     const x = mg + 4.5 + i * fw
-    font('bold', 6.5); color(175,175,175); txt(lbl, x, y+7)
-    font('bold', 8.5); color(15,15,15)
-    txt(trunc(val, fw - 6), x, y+15)
+    font('bold', 6); color(175,175,175); txt(lbl, x, y + 6)
+    font('normal', 8); color(15,15,15)
+    propLineGroups[i].forEach((line, li) => txt(line, x, y + 12.5 + li * 5.5))
   })
-  y += 26
+  y += blockH + 5
 
   // Taux d'occupation
   const daysInMonth = new Date(year, month, 0).getDate()
@@ -904,57 +937,84 @@ async function downloadSubletPDF(property: Property, revenues: PropertyRevenue[]
     const tauxOcc = Math.round((totalNuits / daysInMonth) * 100)
     fill(236,236,236); stroke(210,210,210); doc.setLineWidth(0.15)
     doc.roundedRect(mg, y, cW, 12, 2, 2, 'FD')
-    font('bold', 8.5); color(15,15,15)
+    font('bold', 8); color(15,15,15)
     txt(`Taux d'occupation : ${tauxOcc} %  (${totalNuits} nuits / ${daysInMonth} jours)`, mg+4, y+8)
     y += 17
   }
 
-  // Tableau revenus
+  // Tableau revenus — colonnes élargies (total = 182mm)
   const rCols = ['Plateforme', 'Nuits', 'Montant brut', 'Frais ménage', 'Net plateforme']
-  const rColW = [32, 16, 38, 38, 58]
-  const rowH  = 8
+  const rColW = [28, 14, 40, 40, 60]
+  const lH = 4.5
+  const rowPad = 3
+  const minRowH = lH + rowPad * 2
 
-  fill(12,12,12); doc.rect(mg, y, cW, rowH, 'F')
-  font('bold', 7); color(255,255,255)
+  // En-tête
+  fill(12,12,12); doc.rect(mg, y, cW, minRowH + 1, 'F')
+  font('bold', 6.5); color(255,255,255)
   let cx = mg + 2
-  rCols.forEach((c, i) => { txt(c, cx+(i>0?rColW[i]-1:0), y+5.5, { align:i>0?'right':'left' }); cx += rColW[i] })
-  y += rowH
+  rCols.forEach((c, i) => {
+    const hLines = doc.splitTextToSize(c, rColW[i] - 2) as string[]
+    const hY = y + (minRowH + 1) / 2 - (hLines.length - 1) * lH / 2
+    hLines.forEach((line, li) => txt(line, cx + (i>0 ? rColW[i]-1 : 0), hY + li * lH, { align: i>0 ? 'right' : 'left' }))
+    cx += rColW[i]
+  })
+  y += minRowH + 1
 
   const totalGross    = revenues.reduce((s, r) => s + r.platformAmount, 0)
   const totalCleaning = revenues.reduce((s, r) => s + r.cleaningFees, 0)
   const totalRevNet   = totalGross - totalCleaning
 
-  // Lignes — Airbnb rose vif, Booking bleu vif
+  // Lignes données — hauteur dynamique
   revenues.forEach((r, ri) => {
     const net = r.platformAmount - r.cleaningFees
     const isAirbnb  = r.platform === 'airbnb'
     const isBooking = r.platform === 'booking'
+
+    const rCells = [
+      PLATFORM_LABELS[r.platform] ?? r.platform,
+      r.nbNuits > 0 ? String(r.nbNuits) : '—',
+      r.platformAmount > 0 ? fmt(r.platformAmount) : '—',
+      r.cleaningFees > 0 ? `- ${fmt(r.cleaningFees)}` : '—',
+      fmt(net),
+    ]
+    const rCellGroups = rCells.map((cell, ci) => {
+      font(ci===0 ? 'bold' : 'normal', 7)
+      return (doc.splitTextToSize(cell, rColW[ci] - 2) as string[]).slice(0, 3)
+    })
+    const maxLines = Math.max(...rCellGroups.map(g => g.length))
+    const thisRowH = maxLines * lH + rowPad * 2
+
     const bg: [number,number,number] = isAirbnb ? [255,150,170] : isBooking ? [80,165,255] : ri%2===0 ? [255,255,255] : [248,248,248]
     fill(...bg); stroke(210,210,210); doc.setLineWidth(0.12)
-    doc.rect(mg, y, cW, rowH, 'FD')
+    doc.rect(mg, y, cW, thisRowH, 'FD')
     cx = mg + 2
-    font('bold', 7.5)
-    color(isAirbnb ? 120 : isBooking ? 0 : 20, isAirbnb ? 0 : isBooking ? 20 : 20, isAirbnb ? 30 : isBooking ? 130 : 20)
-    txt(trunc(PLATFORM_LABELS[r.platform] ?? r.platform, rColW[0] - 3), cx, y+5.5)
-    cx += rColW[0]
-    font('normal', 7.5); color(80,80,80)
-    txt(r.nbNuits > 0 ? String(r.nbNuits) : '—', cx+rColW[1]-1, y+5.5, { align:'right' })
-    cx += rColW[1]
-    color(20,20,20); txt(r.platformAmount>0 ? fmt(r.platformAmount) : '—', cx+rColW[2]-1, y+5.5, { align:'right' }); cx += rColW[2]
-    color(r.cleaningFees>0 ? 180 : 130, r.cleaningFees>0 ? 40 : 130, r.cleaningFees>0 ? 40 : 130)
-    txt(r.cleaningFees>0 ? `- ${fmt(r.cleaningFees)}` : '—', cx+rColW[3]-1, y+5.5, { align:'right' }); cx += rColW[3]
-    color(10,100,40); font('bold', 7.5); txt(fmt(net), cx+rColW[4]-1, y+5.5, { align:'right' })
-    y += rowH
+    const baseY = y + rowPad + lH * 0.75
+    rCellGroups.forEach((lines, ci) => {
+      font(ci===0 ? 'bold' : 'normal', 7)
+      if (ci === 0) color(isAirbnb ? 120 : isBooking ? 0 : 20, isAirbnb ? 0 : isBooking ? 20 : 20, isAirbnb ? 30 : isBooking ? 130 : 20)
+      else if (ci === 1) color(80, 80, 80)
+      else if (ci === 3) color(r.cleaningFees > 0 ? 170 : 130, r.cleaningFees > 0 ? 35 : 130, r.cleaningFees > 0 ? 35 : 130)
+      else if (ci === 4) { font('bold', 7); color(10, 100, 40) }
+      else color(20, 20, 20)
+      lines.forEach((line, li) =>
+        txt(line, cx + (ci>0 ? rColW[ci]-1 : 0), baseY + li * lH, { align: ci>0 ? 'right' : 'left' })
+      )
+      cx += rColW[ci]
+    })
+    y += thisRowH
   })
 
   // Ligne total revenus
-  fill(228,228,228); stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, rowH, 'FD')
-  cx = mg + 2; font('bold', 7.5); color(20,20,20)
-  txt('TOTAL REVENUS', cx, y+5.5); cx += rColW[0] + rColW[1]
-  txt(fmt(totalGross), cx+rColW[2]-1, y+5.5, { align:'right' }); cx += rColW[2]
-  color(180,40,40); txt(`- ${fmt(totalCleaning)}`, cx+rColW[3]-1, y+5.5, { align:'right' }); cx += rColW[3]
-  color(10,100,40); txt(fmt(totalRevNet), cx+rColW[4]-1, y+5.5, { align:'right' })
-  y += rowH + 5
+  const totalRowH = minRowH + 1
+  fill(228,228,228); stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, totalRowH, 'FD')
+  const tBaseY = y + totalRowH / 2 + lH / 2
+  cx = mg + 2; font('bold', 7); color(20,20,20)
+  txt('TOTAL REVENUS', cx, tBaseY); cx += rColW[0] + rColW[1]
+  txt(fmt(totalGross), cx + rColW[2]-1, tBaseY, { align:'right' }); cx += rColW[2]
+  color(170,35,35); txt(`- ${fmt(totalCleaning)}`, cx + rColW[3]-1, tBaseY, { align:'right' }); cx += rColW[3]
+  color(10,100,40); txt(fmt(totalRevNet), cx + rColW[4]-1, tBaseY, { align:'right' })
+  y += totalRowH + 5
 
   if (expense) {
     // Section charges
@@ -974,16 +1034,16 @@ async function downloadSubletPDF(property: Property, revenues: PropertyRevenue[]
 
     chargeItems.forEach(([label, value], ri) => {
       fill(ri%2===0 ? 255 : 250, ri%2===0 ? 255 : 250, ri%2===0 ? 255 : 250)
-      stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, rowH, 'FD')
-      font('normal', 7.5); color(20,20,20); txt(label, mg+2, y+5.5)
-      color(180,40,40); font('bold', 7.5); txt(`- ${fmt(value)}`, W-mg-2, y+5.5, { align:'right' })
-      y += rowH
+      stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, minRowH, 'FD')
+      font('normal', 7); color(20,20,20); txt(label, mg+2, y + minRowH/2 + lH/2)
+      color(170,35,35); font('bold', 7); txt(`- ${fmt(value)}`, W-mg-2, y + minRowH/2 + lH/2, { align:'right' })
+      y += minRowH
     })
 
-    fill(228,228,228); stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, rowH, 'FD')
-    font('bold', 7.5); color(20,20,20); txt('TOTAL CHARGES', mg+2, y+5.5)
-    color(180,40,40); txt(`- ${fmt(totalCharges)}`, W-mg-2, y+5.5, { align:'right' })
-    y += rowH + 5
+    fill(228,228,228); stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, minRowH, 'FD')
+    font('bold', 7); color(20,20,20); txt('TOTAL CHARGES', mg+2, y + minRowH/2 + lH/2)
+    color(170,35,35); txt(`- ${fmt(totalCharges)}`, W-mg-2, y + minRowH/2 + lH/2, { align:'right' })
+    y += minRowH + 5
 
     // Résultat net
     const netProfit  = totalRevNet - totalCharges
