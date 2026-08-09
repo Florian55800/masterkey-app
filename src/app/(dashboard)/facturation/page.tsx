@@ -44,6 +44,13 @@ interface SubletExpense {
   nbSejours: number
   nbNuits: number
   notes: string | null
+  revenueTva: number
+  loyerTva: number
+  electriciteTva: number
+  wifiTva: number
+  assuranceTva: number
+  autresChargesTva: number
+  isRecurring: boolean
 }
 
 interface Property {
@@ -58,6 +65,7 @@ interface Property {
   owner: Owner
   revenues: PropertyRevenue[]
   subletExpenses: SubletExpense[]
+  recurringTemplate?: SubletExpense | null
 }
 
 type ActiveTab = 'conciergerie' | 'sous-location' | 'menage' | 'classement' | 'rapports'
@@ -552,6 +560,14 @@ function ExtraPlatformModal({
 
 // ─── Sublet Expense Modal ─────────────────────────────────────────────────────
 
+const EXPENSE_ROWS = [
+  { key: 'loyer',         tvaKey: 'loyerTva',         label: '🏠 Loyer' },
+  { key: 'electricite',   tvaKey: 'electriciteTva',    label: '⚡ Électricité' },
+  { key: 'wifi',          tvaKey: 'wifiTva',           label: '📶 Wi-Fi' },
+  { key: 'assurance',     tvaKey: 'assuranceTva',      label: '🛡 Assurance' },
+  { key: 'autresCharges', tvaKey: 'autresChargesTva',  label: '📦 Autres charges' },
+] as const
+
 function SubletModal({
   isOpen, onClose, onSave, initial, property, month, year,
 }: {
@@ -560,29 +576,44 @@ function SubletModal({
   initial: Partial<SubletExpense> | null
   property: Property; month: number; year: number
 }) {
-  const [form, setForm] = useState({
-    loyer: String(initial?.loyer ?? ''),
-    electricite: String(initial?.electricite ?? ''),
-    wifi: String(initial?.wifi ?? ''),
-    autresCharges: String(initial?.autresCharges ?? ''),
-    assurance: String(initial?.assurance ?? ''),
-    notes: initial?.notes ?? '',
+  const blank = {
+    loyer: '', electricite: '', wifi: '', autresCharges: '', assurance: '', notes: '',
+    revenueTva: '', loyerTva: '', electriciteTva: '', wifiTva: '', assuranceTva: '', autresChargesTva: '',
+    isRecurring: false,
+  }
+  const fromInitial = (init: Partial<SubletExpense> | null) => ({
+    loyer: String(init?.loyer ?? ''),
+    electricite: String(init?.electricite ?? ''),
+    wifi: String(init?.wifi ?? ''),
+    autresCharges: String(init?.autresCharges ?? ''),
+    assurance: String(init?.assurance ?? ''),
+    notes: init?.notes ?? '',
+    revenueTva: init?.revenueTva ? String(init.revenueTva) : '',
+    loyerTva: init?.loyerTva ? String(init.loyerTva) : '',
+    electriciteTva: init?.electriciteTva ? String(init.electriciteTva) : '',
+    wifiTva: init?.wifiTva ? String(init.wifiTva) : '',
+    assuranceTva: init?.assuranceTva ? String(init.assuranceTva) : '',
+    autresChargesTva: init?.autresChargesTva ? String(init.autresChargesTva) : '',
+    isRecurring: init?.isRecurring ?? false,
   })
+
+  const [form, setForm] = useState(blank)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (isOpen) setForm({
-      loyer: String(initial?.loyer ?? ''),
-      electricite: String(initial?.electricite ?? ''),
-      wifi: String(initial?.wifi ?? ''),
-      autresCharges: String(initial?.autresCharges ?? ''),
-      assurance: String(initial?.assurance ?? ''),
-      notes: initial?.notes ?? '',
-    })
+    if (isOpen) setForm(fromInitial(initial))
   }, [isOpen, initial])
 
   const f = (v: string) => parseFloat(v) || 0
-  const total = f(form.loyer) + f(form.electricite) + f(form.wifi) + f(form.autresCharges) + f(form.assurance)
+  const setField = (k: string, v: string | boolean) => setForm(prev => ({ ...prev, [k]: v }))
+
+  const totalHT  = EXPENSE_ROWS.reduce((s, r) => s + f(form[r.key]), 0)
+  const totalTTC = EXPENSE_ROWS.reduce((s, r) => {
+    const ht = f(form[r.key])
+    const tva = f(form[r.tvaKey])
+    return s + ht * (1 + tva / 100)
+  }, 0)
+  const hasTva = EXPENSE_ROWS.some(r => f(form[r.tvaKey]) > 0)
 
   const handleSave = async () => {
     setSaving(true)
@@ -590,50 +621,123 @@ function SubletModal({
       ...(initial?.id ? { id: initial.id } : {}),
       propertyId: property.id, month, year,
       loyer: f(form.loyer), electricite: f(form.electricite),
-      wifi: f(form.wifi), autresCharges: f(form.autresCharges),
-      assurance: f(form.assurance),
-      nbSejours: 0, nbNuits: 0,
-      notes: form.notes || null,
+      wifi: f(form.wifi), autresCharges: f(form.autresCharges), assurance: f(form.assurance),
+      nbSejours: 0, nbNuits: 0, notes: form.notes || null,
+      revenueTva: f(form.revenueTva), loyerTva: f(form.loyerTva),
+      electriciteTva: f(form.electriciteTva), wifiTva: f(form.wifiTva),
+      assuranceTva: f(form.assuranceTva), autresChargesTva: f(form.autresChargesTva),
+      isRecurring: form.isRecurring,
     })
     setSaving(false)
     onClose()
   }
 
+  const inputCls = "w-full bg-[#1b1b1b] border border-white/[0.08] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40"
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Charges — ${property.name}`}>
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { key: 'loyer', label: 'Loyer (€)' },
-            { key: 'electricite', label: 'Électricité (€)' },
-            { key: 'wifi', label: 'Wi-Fi (€)' },
-            { key: 'assurance', label: 'Assurance (€)' },
-            { key: 'autresCharges', label: 'Autres charges (€)' },
-          ].map(({ key, label }) => (
-            <div key={key}>
-              <label className="text-xs text-white/40 block mb-1.5">{label}</label>
-              <input
-                type="number" min="0" step="0.01"
-                value={form[key as keyof typeof form]}
-                onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40"
-              />
-            </div>
-          ))}
+        {/* Tableau dépenses avec TVA */}
+        <div>
+          <div className="grid grid-cols-[1fr_120px_70px_80px] gap-2 mb-1.5 px-0.5">
+            <span className="text-[10px] text-white/30">Poste</span>
+            <span className="text-[10px] text-white/30">Montant HT (€)</span>
+            <span className="text-[10px] text-white/30">TVA (%)</span>
+            <span className="text-[10px] text-white/30">TTC</span>
+          </div>
+          <div className="space-y-2">
+            {EXPENSE_ROWS.map(({ key, tvaKey, label }) => {
+              const ht = f(form[key])
+              const tva = f(form[tvaKey])
+              const ttc = ht * (1 + tva / 100)
+              return (
+                <div key={key} className="grid grid-cols-[1fr_120px_70px_80px] gap-2 items-center">
+                  <span className="text-xs text-white/50">{label}</span>
+                  <input
+                    type="number" min="0" step="0.01" placeholder="0.00"
+                    value={form[key]}
+                    onChange={e => setField(key, e.target.value)}
+                    className={inputCls}
+                  />
+                  <input
+                    type="number" min="0" max="100" step="0.1" placeholder="0"
+                    value={form[tvaKey]}
+                    onChange={e => setField(tvaKey, e.target.value)}
+                    className={inputCls}
+                  />
+                  <span className={`text-xs font-medium text-right ${ht > 0 ? 'text-white/60' : 'text-white/20'}`}>
+                    {ht > 0 ? formatCurrency(tva > 0 ? ttc : ht) : '—'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
         </div>
+
+        {/* Total */}
+        {totalHT > 0 && (
+          <div className="bg-[#141414] border border-white/[0.06] rounded-xl p-3 flex justify-around">
+            <div className="text-center">
+              <p className="text-white/30 text-[10px] mb-0.5">Total HT</p>
+              <p className="text-white/70 font-semibold text-sm">{formatCurrency(totalHT)}</p>
+            </div>
+            {hasTva && (
+              <div className="text-center">
+                <p className="text-white/30 text-[10px] mb-0.5">Total TTC</p>
+                <p className="text-red-400 font-bold text-sm">{formatCurrency(totalTTC)}</p>
+              </div>
+            )}
+            {!hasTva && (
+              <div className="text-center">
+                <p className="text-white/30 text-[10px] mb-0.5">Total charges</p>
+                <p className="text-red-400 font-bold text-sm">{formatCurrency(totalHT)}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TVA sur revenus */}
+        <div className="flex items-center gap-3 bg-[#141414] border border-white/[0.06] rounded-xl px-3 py-2.5">
+          <div className="flex-1">
+            <p className="text-xs text-white/50 font-medium">TVA sur revenus (%)</p>
+            <p className="text-[10px] text-white/25">Appliquée au CA net (revenus bruts − ménage)</p>
+          </div>
+          <input
+            type="number" min="0" max="100" step="0.1" placeholder="0"
+            value={form.revenueTva}
+            onChange={e => setField('revenueTva', e.target.value)}
+            className="w-20 bg-[#1b1b1b] border border-white/[0.08] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40 text-center"
+          />
+        </div>
+
+        {/* Récurrent */}
+        <button
+          type="button"
+          onClick={() => setField('isRecurring', !form.isRecurring)}
+          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${
+            form.isRecurring
+              ? 'border-[#D4AF37]/30 bg-[#D4AF37]/5 text-[#D4AF37]'
+              : 'border-white/[0.08] bg-[#141414] text-white/40 hover:border-white/20'
+          }`}
+        >
+          <div className="text-left">
+            <p className="text-sm font-medium">Charges récurrentes</p>
+            <p className="text-[10px] opacity-60">Se pré-rempliront automatiquement les mois suivants</p>
+          </div>
+          <div className={`w-10 h-5 rounded-full transition-colors relative flex-shrink-0 ${form.isRecurring ? 'bg-[#D4AF37]' : 'bg-white/10'}`}>
+            <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.isRecurring ? 'left-5' : 'left-0.5'}`} />
+          </div>
+        </button>
+
+        {/* Notes */}
         <div>
           <label className="text-xs text-white/40 block mb-1.5">Notes</label>
           <input type="text" value={form.notes}
-            onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+            onChange={e => setField('notes', e.target.value)}
             className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40"
           />
         </div>
-        {total > 0 && (
-          <div className="bg-[#141414] border border-white/[0.06] rounded-xl p-3 text-center">
-            <p className="text-white/30 text-[10px] mb-0.5">Total charges</p>
-            <p className="text-red-400 font-bold text-lg">{formatCurrency(total)}</p>
-          </div>
-        )}
+
         <div className="flex gap-3 justify-end pt-1">
           <Button variant="ghost" onClick={onClose}>Annuler</Button>
           <Button isLoading={saving} onClick={handleSave}>Enregistrer</Button>
@@ -754,9 +858,9 @@ async function downloadPDF(property: Property, revenues: PropertyRevenue[], mont
   // En-tête
   fill(12,12,12); doc.rect(mg, y, cW, rowH, 'F')
   font('bold', 6.5); color(255,255,255)
-  let cx = mg + 2
+  let cx = mg
   cols.forEach((c, i) => {
-    text(c, cx + (i>0 ? colWidths[i]-2 : 0), y+5.5, { align: i>0 ? 'right' : 'left' })
+    text(c, i>0 ? cx+colWidths[i]-2 : cx+2, y+5.5, { align: i>0 ? 'right' : 'left' })
     cx += colWidths[i]
   })
   y += rowH
@@ -770,7 +874,7 @@ async function downloadPDF(property: Property, revenues: PropertyRevenue[], mont
     const bg: [number,number,number] = isAirbnb ? [255,150,170] : isBooking ? [80,165,255] : ri%2===0 ? [255,255,255] : [248,248,248]
     fill(...bg); stroke(210,210,210); doc.setLineWidth(0.12)
     doc.rect(mg, y, cW, rowH, 'FD')
-    cx = mg + 2
+    cx = mg
     const cells = [
       PLATFORM_LABELS[r.platform] ?? r.platform,
       fmt(r.platformAmount),
@@ -785,14 +889,12 @@ async function downloadPDF(property: Property, revenues: PropertyRevenue[], mont
       if (ci === 0) {
         color(isAirbnb ? 110 : isBooking ? 0 : 20, isAirbnb ? 0 : isBooking ? 15 : 20, isAirbnb ? 25 : isBooking ? 110 : 20)
       } else if (onColor) {
-        // Sur fond coloré : texte noir pour garantir la lisibilité
         color(15, 15, 15)
       } else if (ci === 5) color(0, 25, 140)
       else if (ci === 6) color(10, 100, 40)
       else if (ci === 2 || ci === 3) color(100, 100, 100)
       else color(20, 20, 20)
-      // Ancre à 2mm du bord droit pour ne jamais dépasser
-      const anchor = ci > 0 ? cx + colWidths[ci] - 2 : cx
+      const anchor = ci > 0 ? cx + colWidths[ci] - 2 : cx + 2
       text(trunc(cell, colWidths[ci] - 4), anchor, y+5.5, { align: ci>0 ? 'right' : 'left' })
       cx += colWidths[ci]
     })
@@ -802,13 +904,13 @@ async function downloadPDF(property: Property, revenues: PropertyRevenue[], mont
   // Ligne TOTAL
   fill(228,228,228); stroke(210,210,210); doc.setLineWidth(0.12)
   doc.rect(mg, y, cW, rowH, 'FD')
-  cx = mg + 2
+  cx = mg
   ;['TOTAL', fmt(totals.platformAmount), fmt(totals.cleaningFees), '', fmt(totals.base), fmt(totals.partMK), fmt(totals.partProprio)].forEach((cell, ci) => {
     font('bold', 7)
     if (ci === 5) color(0, 25, 140)
     else if (ci === 6) color(10, 100, 40)
     else color(20, 20, 20)
-    const anchor = ci > 0 ? cx + colWidths[ci] - 2 : cx
+    const anchor = ci > 0 ? cx + colWidths[ci] - 2 : cx + 2
     text(cell, anchor, y+5.5, { align: ci>0 ? 'right' : 'left' })
     cx += colWidths[ci]
   })
@@ -936,9 +1038,9 @@ async function downloadSubletPDF(property: Property, revenues: PropertyRevenue[]
   // En-tête
   fill(12,12,12); doc.rect(mg, y, cW, rowH, 'F')
   font('bold', 6.5); color(255,255,255)
-  let cx = mg + 2
+  let cx = mg
   rCols.forEach((c, i) => {
-    txt(c, cx + (i>0 ? rColW[i]-2 : 0), y+5.5, { align: i>0 ? 'right' : 'left' })
+    txt(c, i>0 ? cx+rColW[i]-2 : cx+2, y+5.5, { align: i>0 ? 'right' : 'left' })
     cx += rColW[i]
   })
   y += rowH
@@ -956,12 +1058,12 @@ async function downloadSubletPDF(property: Property, revenues: PropertyRevenue[]
     const bg: [number,number,number] = isAirbnb ? [255,150,170] : isBooking ? [80,165,255] : ri%2===0 ? [255,255,255] : [248,248,248]
     fill(...bg); stroke(210,210,210); doc.setLineWidth(0.12)
     doc.rect(mg, y, cW, rowH, 'FD')
-    cx = mg + 2
+    cx = mg
 
     // Col 0 : plateforme
     font('bold', 7)
     color(isAirbnb ? 110 : isBooking ? 0 : 20, isAirbnb ? 0 : isBooking ? 15 : 20, isAirbnb ? 25 : isBooking ? 110 : 20)
-    txt(trunc(PLATFORM_LABELS[r.platform] ?? r.platform, rColW[0]-4), cx, y+5.5)
+    txt(trunc(PLATFORM_LABELS[r.platform] ?? r.platform, rColW[0]-4), cx+2, y+5.5)
     cx += rColW[0]
 
     // Col 1 : nuits
@@ -987,12 +1089,25 @@ async function downloadSubletPDF(property: Property, revenues: PropertyRevenue[]
 
   // Ligne total revenus
   fill(228,228,228); stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, rowH, 'FD')
-  cx = mg + 2; font('bold', 7); color(20,20,20)
-  txt('TOTAL REVENUS', cx, y+5.5); cx += rColW[0] + rColW[1]
+  cx = mg; font('bold', 7); color(20,20,20)
+  txt('TOTAL REVENUS', cx+2, y+5.5); cx += rColW[0] + rColW[1]
   txt(trunc(fmt(totalGross), rColW[2]-4), cx+rColW[2]-2, y+5.5, { align:'right' }); cx += rColW[2]
   color(170,35,35); txt(trunc(`- ${fmt(totalCleaning)}`, rColW[3]-4), cx+rColW[3]-2, y+5.5, { align:'right' }); cx += rColW[3]
   color(10,100,40); txt(trunc(fmt(totalRevNet), rColW[4]-4), cx+rColW[4]-2, y+5.5, { align:'right' })
   y += rowH + 5
+
+  // TVA sur revenus (si définie)
+  const revTva = expense?.revenueTva ?? 0
+  if (revTva > 0 && totalRevNet > 0) {
+    const totalRevTTC = totalRevNet * (1 + revTva / 100)
+    fill(248,248,248); stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, rowH, 'FD')
+    font('normal', 7); color(80,80,80)
+    txt(`CA HT (revenus nets)`, mg+2, y+5.5)
+    font('bold', 7); color(10,100,40); txt(fmt(totalRevNet), W-mg-cW/2-1, y+5.5, { align:'right' })
+    color(80,80,80); txt(`TVA ${revTva}% →`, W-mg-cW/4-1, y+5.5, { align:'right' })
+    color(0,25,140); txt(fmt(totalRevTTC), W-mg-2, y+5.5, { align:'right' })
+    y += rowH + 3
+  }
 
   if (expense) {
     // Section charges
@@ -1000,28 +1115,40 @@ async function downloadSubletPDF(property: Property, revenues: PropertyRevenue[]
     font('bold', 7); color(255,255,255); txt('CHARGES MENSUELLES', mg+2, y+5.5)
     y += 8
 
-    const chargeItems = [
-      ['Loyer',          expense.loyer],
-      ['Électricité',    expense.electricite],
-      ['Wi-Fi',          expense.wifi],
-      ['Assurance',      expense.assurance ?? 0],
-      ['Autres charges', expense.autresCharges],
-    ].filter(([, v]) => (v as number) > 0) as [string, number][]
+    const expRowData = [
+      { label: 'Loyer',          ht: expense.loyer,         tva: expense.loyerTva ?? 0 },
+      { label: 'Électricité',    ht: expense.electricite,   tva: expense.electriciteTva ?? 0 },
+      { label: 'Wi-Fi',          ht: expense.wifi,          tva: expense.wifiTva ?? 0 },
+      { label: 'Assurance',      ht: expense.assurance ?? 0,tva: expense.assuranceTva ?? 0 },
+      { label: 'Autres charges', ht: expense.autresCharges, tva: expense.autresChargesTva ?? 0 },
+    ].filter(r => r.ht > 0)
 
-    const totalCharges = chargeItems.reduce((s, [, v]) => s + v, 0)
+    const totalChargesHT  = expRowData.reduce((s, r) => s + r.ht, 0)
+    const totalChargesTTC = expRowData.reduce((s, r) => s + r.ht * (1 + r.tva / 100), 0)
+    const hasTvaExp       = expRowData.some(r => r.tva > 0)
 
-    chargeItems.forEach(([label, value], ri) => {
+    expRowData.forEach((r, ri) => {
+      const ttc = r.ht * (1 + r.tva / 100)
+      const rH  = r.tva > 0 ? 11 : rowH
       fill(ri%2===0 ? 255 : 250, ri%2===0 ? 255 : 250, ri%2===0 ? 255 : 250)
-      stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, rowH, 'FD')
-      font('normal', 7); color(20,20,20); txt(label, mg+2, y+5.5)
-      color(170,35,35); font('bold', 7); txt(`- ${fmt(value)}`, W-mg-2, y+5.5, { align:'right' })
-      y += rowH
+      stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, rH, 'FD')
+      font('normal', 7); color(20,20,20); txt(r.label, mg+2, y + (r.tva>0 ? 5 : 5.5))
+      if (r.tva > 0) {
+        color(130,130,130); font('normal', 6); txt(`HT ${fmt(r.ht)}  TVA ${r.tva}%`, mg+2, y+9)
+        color(170,35,35); font('bold', 7); txt(`- ${fmt(ttc)}`, W-mg-2, y+7, { align:'right' })
+      } else {
+        color(170,35,35); font('bold', 7); txt(`- ${fmt(r.ht)}`, W-mg-2, y+5.5, { align:'right' })
+      }
+      y += rH
     })
 
     fill(228,228,228); stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, rowH, 'FD')
-    font('bold', 7); color(20,20,20); txt('TOTAL CHARGES', mg+2, y+5.5)
-    color(170,35,35); txt(`- ${fmt(totalCharges)}`, W-mg-2, y+5.5, { align:'right' })
+    font('bold', 7); color(20,20,20)
+    txt(hasTvaExp ? 'TOTAL CHARGES TTC' : 'TOTAL CHARGES', mg+2, y+5.5)
+    color(170,35,35); txt(`- ${fmt(hasTvaExp ? totalChargesTTC : totalChargesHT)}`, W-mg-2, y+5.5, { align:'right' })
     y += rowH + 5
+
+    const totalCharges = hasTvaExp ? totalChargesTTC : totalChargesHT
 
     // Résultat net
     const netProfit  = totalRevNet - totalCharges
@@ -1034,13 +1161,11 @@ async function downloadSubletPDF(property: Property, revenues: PropertyRevenue[]
     y += 19
 
     // Cartes synthèse
-    const totalChargesAll = expense.loyer + expense.electricite + expense.wifi + (expense.assurance ?? 0) + expense.autresCharges
-    const net2 = totalRevNet - totalChargesAll
     const slCards: { lbl: string; val: string; bg: [number,number,number]; fg: [number,number,number] }[] = [
       { lbl:'Revenus bruts',   val:fmt(totalGross),     bg:[242,242,242], fg:[20,20,20] },
       { lbl:'Revenus nets',    val:fmt(totalRevNet),    bg:[220,245,228], fg:[10,100,40] },
-      { lbl:'Charges totales', val:fmt(totalChargesAll),bg:[255,228,228], fg:[170,30,30] },
-      { lbl:'Résultat net',    val:`${net2>=0?'+':''}${fmt(net2)}`, bg:net2>=0?[220,245,228]:[255,228,228], fg:net2>=0?[10,100,40]:[170,30,30] },
+      { lbl:'Charges totales', val:fmt(totalCharges),   bg:[255,228,228], fg:[170,30,30] },
+      { lbl:'Résultat net',    val:`${netProfit>=0?'+':''}${fmt(netProfit)}`, bg:netProfit>=0?[220,245,228]:[255,228,228], fg:netProfit>=0?[10,100,40]:[170,30,30] },
     ]
     const cCardW = cW / slCards.length - 2
     slCards.forEach((c, i) => {
@@ -1313,15 +1438,32 @@ function SubletPropertyCard({
   property: Property; month: number; year: number; onReload: () => void; onHide: () => void
 }) {
   const [expenseModalOpen, setExpenseModalOpen] = useState(false)
+  const [modalInitial, setModalInitial] = useState<Partial<SubletExpense> | null>(null)
   const [printOpen, setPrintOpen] = useState(false)
 
   const revenues        = property.revenues
   const expense         = property.subletExpenses[0] ?? null
+  const template        = !expense ? (property.recurringTemplate ?? null) : null
   const totalGross      = revenues.reduce((s, r) => s + r.platformAmount, 0)
   const totalCleaning   = revenues.reduce((s, r) => s + r.cleaningFees, 0)
   const totalRevenueNet = totalGross - totalCleaning
-  const totalCharges    = expense ? expense.loyer + expense.electricite + expense.wifi + expense.autresCharges + (expense.assurance ?? 0) : 0
+  const totalChargesHT  = expense ? expense.loyer + expense.electricite + expense.wifi + expense.autresCharges + (expense.assurance ?? 0) : 0
+  const totalChargesTTC = expense ? EXPENSE_ROWS.reduce((s, r) => {
+    const ht = expense[r.key as keyof SubletExpense] as number || 0
+    const tva = (expense[r.tvaKey as keyof SubletExpense] as number) || 0
+    return s + ht * (1 + tva / 100)
+  }, 0) : 0
+  const hasTva          = expense ? EXPENSE_ROWS.some(r => ((expense[r.tvaKey as keyof SubletExpense] as number) || 0) > 0) : false
+  const totalCharges    = hasTva ? totalChargesTTC : totalChargesHT
+  const revTva          = expense?.revenueTva ?? 0
+  const netHT           = totalRevenueNet
+  const netTTC          = revTva > 0 ? netHT * (1 + revTva / 100) : netHT
   const netProfit       = totalRevenueNet - totalCharges
+
+  const openExpenseModal = (initial: Partial<SubletExpense> | null) => {
+    setModalInitial(initial)
+    setExpenseModalOpen(true)
+  }
 
   const handleSaveExpense = async (data: Partial<SubletExpense>) => {
     if (data.id) {
@@ -1329,6 +1471,15 @@ function SubletPropertyCard({
     } else {
       await fetch('/api/facturation/sous-location', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
     }
+    onReload()
+  }
+
+  const cancelRecurrence = async () => {
+    if (!expense) return
+    await fetch(`/api/facturation/sous-location/${expense.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...expense, isRecurring: false }),
+    })
     onReload()
   }
 
@@ -1406,36 +1557,78 @@ function SubletPropertyCard({
         )}
       </div>
 
+      {/* TVA sur revenus */}
+      {revTva > 0 && totalRevenueNet > 0 && (
+        <div className="px-5 py-2 flex items-center justify-between bg-[#D4AF37]/[0.04] border-t border-[#D4AF37]/[0.08]">
+          <span className="text-white/30 text-xs">CA HT — CA TTC ({revTva}%)</span>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-white/50">{formatCurrency(netHT)}</span>
+            <span className="text-white/20">→</span>
+            <span className="text-[#D4AF37] font-semibold">{formatCurrency(netTTC)}</span>
+          </div>
+        </div>
+      )}
+
       {/* Charges section */}
       <div className="p-5 space-y-3">
         <div className="flex items-center justify-between">
-          <p className="text-white/40 text-[10px] font-semibold uppercase tracking-wider">Charges mensuelles</p>
-          <button onClick={() => setExpenseModalOpen(true)}
-            className="text-white/40 text-xs flex items-center gap-1 hover:text-white/70 transition-colors">
-            <Edit2 className="w-3 h-3" /> {expense ? 'Modifier' : 'Saisir'}
-          </button>
+          <div className="flex items-center gap-2">
+            <p className="text-white/40 text-[10px] font-semibold uppercase tracking-wider">Charges mensuelles</p>
+            {expense?.isRecurring && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#D4AF37]/10 text-[#D4AF37]/70 border border-[#D4AF37]/20">♻ Récurrent</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {expense?.isRecurring && (
+              <button onClick={cancelRecurrence} className="text-white/25 text-[10px] hover:text-white/50 transition-colors">
+                Annuler récurrence
+              </button>
+            )}
+            <button onClick={() => openExpenseModal(expense)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-white/50 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] hover:text-white/80 transition-all">
+              <Edit2 className="w-3 h-3" /> {expense ? 'Modifier' : 'Saisir'}
+            </button>
+          </div>
         </div>
+
+        {/* Suggestion charges récurrentes */}
+        {!expense && template && (
+          <button onClick={() => openExpenseModal({ ...template, id: undefined as any, month, year, propertyId: property.id })}
+            className="w-full py-3 rounded-xl border border-dashed border-[#D4AF37]/30 text-[#D4AF37]/60 text-sm hover:border-[#D4AF37]/60 hover:text-[#D4AF37] transition-all flex items-center justify-center gap-2">
+            ♻ Reprendre les charges récurrentes du mois précédent
+          </button>
+        )}
+
         {expense ? (
           <div className="bg-[#141414] rounded-xl p-3 space-y-2">
-            {([
-              ['🏠 Loyer',        expense.loyer],
-              ['⚡ Électricité',  expense.electricite],
-              ['📶 Wi-Fi',        expense.wifi],
-              ['🛡 Assurance',    expense.assurance ?? 0],
-              ['📦 Autres',       expense.autresCharges],
-            ] as [string, number][]).filter(([, v]) => v > 0).map(([label, value]) => (
-              <div key={label} className="flex justify-between">
-                <span className="text-white/40 text-xs">{label}</span>
-                <span className="text-red-400 text-sm font-medium">{formatCurrency(value)}</span>
-              </div>
-            ))}
+            {EXPENSE_ROWS.map(({ key, tvaKey, label }) => {
+              const ht = expense[key as keyof SubletExpense] as number || 0
+              const tva = (expense[tvaKey as keyof SubletExpense] as number) || 0
+              const ttc = ht * (1 + tva / 100)
+              if (ht <= 0) return null
+              return (
+                <div key={key} className="flex justify-between items-start">
+                  <span className="text-white/40 text-xs">{label}</span>
+                  <div className="text-right">
+                    {tva > 0 ? (
+                      <>
+                        <div className="text-white/40 text-[10px]">HT {formatCurrency(ht)} + TVA {tva}%</div>
+                        <div className="text-red-400 text-sm font-medium">TTC {formatCurrency(ttc)}</div>
+                      </>
+                    ) : (
+                      <span className="text-red-400 text-sm font-medium">{formatCurrency(ht)}</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
             <div className="flex justify-between border-t border-white/[0.06] pt-2">
-              <span className="text-white/50 text-xs font-medium">Total charges</span>
+              <span className="text-white/50 text-xs font-medium">Total {hasTva ? 'TTC' : 'charges'}</span>
               <span className="text-red-400 font-bold text-sm">{formatCurrency(totalCharges)}</span>
             </div>
           </div>
-        ) : (
-          <button onClick={() => setExpenseModalOpen(true)}
+        ) : !template && (
+          <button onClick={() => openExpenseModal(null)}
             className="w-full py-3 rounded-xl border border-dashed border-white/[0.08] text-white/20 text-sm hover:border-white/20 hover:text-white/40 transition-all">
             + Saisir les charges
           </button>
@@ -1455,7 +1648,7 @@ function SubletPropertyCard({
 
       <SubletModal
         isOpen={expenseModalOpen} onClose={() => setExpenseModalOpen(false)}
-        onSave={handleSaveExpense} initial={expense}
+        onSave={handleSaveExpense} initial={modalInitial}
         property={property} month={month} year={year}
       />
       <SubletPrintModal

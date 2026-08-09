@@ -16,7 +16,10 @@ function toRows(rs: { columns: string[]; rows: unknown[][] }): Record<string, un
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const body = await req.json()
-    const { loyer, electricite, wifi, autresCharges, assurance, nbSejours, nbNuits, notes } = body
+    const {
+      loyer, electricite, wifi, autresCharges, assurance, nbSejours, nbNuits, notes,
+      revenueTva, loyerTva, electriciteTva, wifiTva, assuranceTva, autresChargesTva, isRecurring,
+    } = body
     const id = Number(params.id)
 
     if (process.env.TURSO_DATABASE_URL) {
@@ -29,17 +32,40 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         await client.execute({
           sql: `UPDATE SubletExpense SET
                   loyer = ?, electricite = ?, wifi = ?, autresCharges = ?,
-                  assurance = ?, nbSejours = ?, nbNuits = ?, notes = ?, updatedAt = datetime('now')
+                  assurance = ?, nbSejours = ?, nbNuits = ?, notes = ?,
+                  revenueTva = COALESCE(?, revenueTva, 0),
+                  loyerTva = COALESCE(?, loyerTva, 0),
+                  electriciteTva = COALESCE(?, electriciteTva, 0),
+                  wifiTva = COALESCE(?, wifiTva, 0),
+                  assuranceTva = COALESCE(?, assuranceTva, 0),
+                  autresChargesTva = COALESCE(?, autresChargesTva, 0),
+                  isRecurring = COALESCE(?, isRecurring, 0),
+                  updatedAt = datetime('now')
                 WHERE id = ?`,
           args: [
             Number(loyer) || 0, Number(electricite) || 0,
             Number(wifi) || 0, Number(autresCharges) || 0,
             Number(assurance) || 0,
             Number(nbSejours) || 0, Number(nbNuits) || 0,
-            notes ?? null, id,
+            notes ?? null,
+            revenueTva !== undefined ? Number(revenueTva) : null,
+            loyerTva !== undefined ? Number(loyerTva) : null,
+            electriciteTva !== undefined ? Number(electriciteTva) : null,
+            wifiTva !== undefined ? Number(wifiTva) : null,
+            assuranceTva !== undefined ? Number(assuranceTva) : null,
+            autresChargesTva !== undefined ? Number(autresChargesTva) : null,
+            isRecurring !== undefined ? (isRecurring ? 1 : 0) : null,
+            id,
           ],
         })
-        const rs = await client.execute({ sql: `SELECT * FROM SubletExpense WHERE id = ?`, args: [id] })
+        const rs = await client.execute({
+          sql: `SELECT *, COALESCE(revenueTva,0) as revenueTva, COALESCE(loyerTva,0) as loyerTva,
+                       COALESCE(electriciteTva,0) as electriciteTva, COALESCE(wifiTva,0) as wifiTva,
+                       COALESCE(assuranceTva,0) as assuranceTva, COALESCE(autresChargesTva,0) as autresChargesTva,
+                       COALESCE(isRecurring,0) as isRecurring
+                FROM SubletExpense WHERE id = ?`,
+          args: [id],
+        })
         const rows = toRows(rs)
         if (rows.length === 0) return NextResponse.json({ error: 'Introuvable' }, { status: 404 })
         return NextResponse.json(rows[0])
@@ -61,7 +87,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         notes: notes ?? null,
       },
     })
-    return NextResponse.json(expense)
+    return NextResponse.json({ ...expense, revenueTva: 0, loyerTva: 0, electriciteTva: 0, wifiTva: 0, assuranceTva: 0, autresChargesTva: 0, isRecurring: false })
   } catch (error) {
     console.error('Sous-location PUT error:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
