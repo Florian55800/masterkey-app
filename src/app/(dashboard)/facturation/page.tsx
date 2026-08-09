@@ -746,35 +746,32 @@ async function downloadPDF(property: Property, revenues: PropertyRevenue[], mont
     y += 17
   }
 
-  // Tableau — colonnes mieux proportionnées (total = 182 mm)
-  // Plateforme|Montant|Ménage|Com%|Base|Part MK|Part proprio
-  const cols = ['Plateforme', 'Montant brut', 'Ménage', 'Com.%', 'Base', 'Part MasterKey', 'Part propriétaire']
-  const colWidths = [24, 27, 23, 12, 20, 36, 40]
-  const lH = 4.5   // hauteur d'une ligne de texte
-  const rowPad = 3  // padding vertical total
-  const minRowH = lH + rowPad * 2
+  // Tableau — colonnes équilibrées, hauteur fixe (total = 182 mm)
+  const cols = ['Plateforme', 'Montant brut', 'Frais ménage', 'Com.%', 'Base', 'Part MasterKey', 'Part propriétaire']
+  const colWidths = [26, 28, 26, 14, 22, 32, 34]
+  const rowH = 8
 
-  // En-tête tableau
-  fill(12,12,12); doc.rect(mg, y, cW, minRowH + 1, 'F')
+  // En-tête
+  fill(12,12,12); doc.rect(mg, y, cW, rowH, 'F')
   font('bold', 6.5); color(255,255,255)
   let cx = mg + 2
   cols.forEach((c, i) => {
-    // L'en-tête peut aussi se couper en 2 lignes si besoin
-    font('bold', 6.5)
-    const hLines = doc.splitTextToSize(c, colWidths[i] - 2) as string[]
-    const hY = y + (minRowH + 1) / 2 - (hLines.length - 1) * lH / 2
-    hLines.forEach((line, li) => text(line, cx + (i>0 ? colWidths[i]-1 : 0), hY + li * lH, { align: i>0 ? 'right' : 'left' }))
+    text(c, cx + (i>0 ? colWidths[i]-2 : 0), y+5.5, { align: i>0 ? 'right' : 'left' })
     cx += colWidths[i]
   })
-  y += minRowH + 1
+  y += rowH
 
-  // Lignes données — hauteur dynamique selon contenu
+  // Lignes données
   revenues.forEach((r, ri) => {
     const { base, partMK, partProprio } = calcRevenue(r)
     const isAirbnb  = r.platform === 'airbnb'
     const isBooking = r.platform === 'booking'
-
-    const allCells = [
+    const onColor   = isAirbnb || isBooking
+    const bg: [number,number,number] = isAirbnb ? [255,150,170] : isBooking ? [80,165,255] : ri%2===0 ? [255,255,255] : [248,248,248]
+    fill(...bg); stroke(210,210,210); doc.setLineWidth(0.12)
+    doc.rect(mg, y, cW, rowH, 'FD')
+    cx = mg + 2
+    const cells = [
       PLATFORM_LABELS[r.platform] ?? r.platform,
       fmt(r.platformAmount),
       r.cleaningFees > 0 ? fmt(r.cleaningFees) : '—',
@@ -783,50 +780,39 @@ async function downloadPDF(property: Property, revenues: PropertyRevenue[], mont
       fmt(partMK),
       fmt(partProprio),
     ]
-    // Mesure le nb de lignes pour chaque cellule avec la bonne police
-    const cellGroups = allCells.map((cell, ci) => {
+    cells.forEach((cell, ci) => {
       font(ci===0 ? 'bold' : 'normal', 7)
-      return (doc.splitTextToSize(cell, colWidths[ci] - 2) as string[]).slice(0, 3)
-    })
-    const maxLines = Math.max(...cellGroups.map(g => g.length))
-    const thisRowH = maxLines * lH + rowPad * 2
-
-    const bg: [number,number,number] = isAirbnb ? [255,150,170] : isBooking ? [80,165,255] : ri%2===0 ? [255,255,255] : [248,248,248]
-    fill(...bg); stroke(210,210,210); doc.setLineWidth(0.12)
-    doc.rect(mg, y, cW, thisRowH, 'FD')
-
-    cx = mg + 2
-    const baseY = y + rowPad + lH * 0.75
-    cellGroups.forEach((lines, ci) => {
-      font(ci===0 ? 'bold' : 'normal', 7)
-      if (ci === 0) color(isAirbnb ? 120 : isBooking ? 0 : 20, isAirbnb ? 0 : isBooking ? 20 : 20, isAirbnb ? 30 : isBooking ? 130 : 20)
-      else if (ci === 5) color(0, 25, 140)
+      if (ci === 0) {
+        color(isAirbnb ? 110 : isBooking ? 0 : 20, isAirbnb ? 0 : isBooking ? 15 : 20, isAirbnb ? 25 : isBooking ? 110 : 20)
+      } else if (onColor) {
+        // Sur fond coloré : texte noir pour garantir la lisibilité
+        color(15, 15, 15)
+      } else if (ci === 5) color(0, 25, 140)
       else if (ci === 6) color(10, 100, 40)
-      else if (ci === 2 || ci === 3) color(90, 90, 90)
+      else if (ci === 2 || ci === 3) color(100, 100, 100)
       else color(20, 20, 20)
-      lines.forEach((line, li) =>
-        text(line, cx + (ci>0 ? colWidths[ci]-1 : 0), baseY + li * lH, { align: ci>0 ? 'right' : 'left' })
-      )
+      // Ancre à 2mm du bord droit pour ne jamais dépasser
+      const anchor = ci > 0 ? cx + colWidths[ci] - 2 : cx
+      text(trunc(cell, colWidths[ci] - 4), anchor, y+5.5, { align: ci>0 ? 'right' : 'left' })
       cx += colWidths[ci]
     })
-    y += thisRowH
+    y += rowH
   })
 
   // Ligne TOTAL
-  const totalRowH = minRowH + 1
   fill(228,228,228); stroke(210,210,210); doc.setLineWidth(0.12)
-  doc.rect(mg, y, cW, totalRowH, 'FD')
+  doc.rect(mg, y, cW, rowH, 'FD')
   cx = mg + 2
-  const totalCells = ['TOTAL', fmt(totals.platformAmount), fmt(totals.cleaningFees), '', fmt(totals.base), fmt(totals.partMK), fmt(totals.partProprio)]
-  totalCells.forEach((cell, ci) => {
+  ;['TOTAL', fmt(totals.platformAmount), fmt(totals.cleaningFees), '', fmt(totals.base), fmt(totals.partMK), fmt(totals.partProprio)].forEach((cell, ci) => {
     font('bold', 7)
     if (ci === 5) color(0, 25, 140)
     else if (ci === 6) color(10, 100, 40)
     else color(20, 20, 20)
-    text(cell, cx + (ci>0 ? colWidths[ci]-1 : 0), y + totalRowH/2 + lH/2, { align: ci>0 ? 'right' : 'left' })
+    const anchor = ci > 0 ? cx + colWidths[ci] - 2 : cx
+    text(cell, anchor, y+5.5, { align: ci>0 ? 'right' : 'left' })
     cx += colWidths[ci]
   })
-  y += totalRowH + 6
+  y += rowH + 6
 
   // Cartes synthèse — noir et blanc
   const cards: { lbl: string; val: string; bg: [number,number,number]; fg: [number,number,number] }[] = [
@@ -942,85 +928,77 @@ async function downloadSubletPDF(property: Property, revenues: PropertyRevenue[]
     y += 17
   }
 
-  // Tableau revenus — colonnes élargies (total = 182mm)
+  // Tableau revenus — colonnes équilibrées, hauteur fixe (total = 182mm)
   const rCols = ['Plateforme', 'Nuits', 'Montant brut', 'Frais ménage', 'Net plateforme']
-  const rColW = [28, 14, 40, 40, 60]
-  const lH = 4.5
-  const rowPad = 3
-  const minRowH = lH + rowPad * 2
+  const rColW  = [28, 14, 40, 38, 62]
+  const rowH   = 8
 
   // En-tête
-  fill(12,12,12); doc.rect(mg, y, cW, minRowH + 1, 'F')
+  fill(12,12,12); doc.rect(mg, y, cW, rowH, 'F')
   font('bold', 6.5); color(255,255,255)
   let cx = mg + 2
   rCols.forEach((c, i) => {
-    const hLines = doc.splitTextToSize(c, rColW[i] - 2) as string[]
-    const hY = y + (minRowH + 1) / 2 - (hLines.length - 1) * lH / 2
-    hLines.forEach((line, li) => txt(line, cx + (i>0 ? rColW[i]-1 : 0), hY + li * lH, { align: i>0 ? 'right' : 'left' }))
+    txt(c, cx + (i>0 ? rColW[i]-2 : 0), y+5.5, { align: i>0 ? 'right' : 'left' })
     cx += rColW[i]
   })
-  y += minRowH + 1
+  y += rowH
 
   const totalGross    = revenues.reduce((s, r) => s + r.platformAmount, 0)
   const totalCleaning = revenues.reduce((s, r) => s + r.cleaningFees, 0)
   const totalRevNet   = totalGross - totalCleaning
 
-  // Lignes données — hauteur dynamique
+  // Lignes données
   revenues.forEach((r, ri) => {
-    const net = r.platformAmount - r.cleaningFees
+    const net        = r.platformAmount - r.cleaningFees
     const isAirbnb  = r.platform === 'airbnb'
     const isBooking = r.platform === 'booking'
-
-    const rCells = [
-      PLATFORM_LABELS[r.platform] ?? r.platform,
-      r.nbNuits > 0 ? String(r.nbNuits) : '—',
-      r.platformAmount > 0 ? fmt(r.platformAmount) : '—',
-      r.cleaningFees > 0 ? `- ${fmt(r.cleaningFees)}` : '—',
-      fmt(net),
-    ]
-    const rCellGroups = rCells.map((cell, ci) => {
-      font(ci===0 ? 'bold' : 'normal', 7)
-      return (doc.splitTextToSize(cell, rColW[ci] - 2) as string[]).slice(0, 3)
-    })
-    const maxLines = Math.max(...rCellGroups.map(g => g.length))
-    const thisRowH = maxLines * lH + rowPad * 2
-
+    const onColor   = isAirbnb || isBooking
     const bg: [number,number,number] = isAirbnb ? [255,150,170] : isBooking ? [80,165,255] : ri%2===0 ? [255,255,255] : [248,248,248]
     fill(...bg); stroke(210,210,210); doc.setLineWidth(0.12)
-    doc.rect(mg, y, cW, thisRowH, 'FD')
+    doc.rect(mg, y, cW, rowH, 'FD')
     cx = mg + 2
-    const baseY = y + rowPad + lH * 0.75
-    rCellGroups.forEach((lines, ci) => {
-      font(ci===0 ? 'bold' : 'normal', 7)
-      if (ci === 0) color(isAirbnb ? 120 : isBooking ? 0 : 20, isAirbnb ? 0 : isBooking ? 20 : 20, isAirbnb ? 30 : isBooking ? 130 : 20)
-      else if (ci === 1) color(80, 80, 80)
-      else if (ci === 3) color(r.cleaningFees > 0 ? 170 : 130, r.cleaningFees > 0 ? 35 : 130, r.cleaningFees > 0 ? 35 : 130)
-      else if (ci === 4) { font('bold', 7); color(10, 100, 40) }
-      else color(20, 20, 20)
-      lines.forEach((line, li) =>
-        txt(line, cx + (ci>0 ? rColW[ci]-1 : 0), baseY + li * lH, { align: ci>0 ? 'right' : 'left' })
-      )
-      cx += rColW[ci]
-    })
-    y += thisRowH
+
+    // Col 0 : plateforme
+    font('bold', 7)
+    color(isAirbnb ? 110 : isBooking ? 0 : 20, isAirbnb ? 0 : isBooking ? 15 : 20, isAirbnb ? 25 : isBooking ? 110 : 20)
+    txt(trunc(PLATFORM_LABELS[r.platform] ?? r.platform, rColW[0]-4), cx, y+5.5)
+    cx += rColW[0]
+
+    // Col 1 : nuits
+    font('normal', 7); color(onColor ? 15 : 100, onColor ? 15 : 100, onColor ? 15 : 100)
+    txt(r.nbNuits > 0 ? String(r.nbNuits) : '—', cx+rColW[1]-2, y+5.5, { align:'right' })
+    cx += rColW[1]
+
+    // Col 2 : montant
+    font('normal', 7); color(onColor ? 15 : 20, onColor ? 15 : 20, onColor ? 15 : 20)
+    txt(r.platformAmount > 0 ? trunc(fmt(r.platformAmount), rColW[2]-4) : '—', cx+rColW[2]-2, y+5.5, { align:'right' })
+    cx += rColW[2]
+
+    // Col 3 : ménage
+    color(onColor ? 15 : r.cleaningFees>0 ? 170 : 130, onColor ? 15 : r.cleaningFees>0 ? 35 : 130, onColor ? 15 : r.cleaningFees>0 ? 35 : 130)
+    txt(r.cleaningFees > 0 ? trunc(`- ${fmt(r.cleaningFees)}`, rColW[3]-4) : '—', cx+rColW[3]-2, y+5.5, { align:'right' })
+    cx += rColW[3]
+
+    // Col 4 : net
+    font('bold', 7); color(onColor ? 15 : 10, onColor ? 15 : 100, onColor ? 15 : 40)
+    txt(trunc(fmt(net), rColW[4]-4), cx+rColW[4]-2, y+5.5, { align:'right' })
+    y += rowH
   })
 
   // Ligne total revenus
-  const totalRowH = minRowH + 1
-  fill(228,228,228); stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, totalRowH, 'FD')
-  const tBaseY = y + totalRowH / 2 + lH / 2
+  fill(228,228,228); stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, rowH, 'FD')
   cx = mg + 2; font('bold', 7); color(20,20,20)
-  txt('TOTAL REVENUS', cx, tBaseY); cx += rColW[0] + rColW[1]
-  txt(fmt(totalGross), cx + rColW[2]-1, tBaseY, { align:'right' }); cx += rColW[2]
-  color(170,35,35); txt(`- ${fmt(totalCleaning)}`, cx + rColW[3]-1, tBaseY, { align:'right' }); cx += rColW[3]
-  color(10,100,40); txt(fmt(totalRevNet), cx + rColW[4]-1, tBaseY, { align:'right' })
-  y += totalRowH + 5
+  txt('TOTAL REVENUS', cx, y+5.5); cx += rColW[0] + rColW[1]
+  txt(trunc(fmt(totalGross), rColW[2]-4), cx+rColW[2]-2, y+5.5, { align:'right' }); cx += rColW[2]
+  color(170,35,35); txt(trunc(`- ${fmt(totalCleaning)}`, rColW[3]-4), cx+rColW[3]-2, y+5.5, { align:'right' }); cx += rColW[3]
+  color(10,100,40); txt(trunc(fmt(totalRevNet), rColW[4]-4), cx+rColW[4]-2, y+5.5, { align:'right' })
+  y += rowH + 5
 
   if (expense) {
     // Section charges
-    fill(12,12,12); doc.rect(mg, y, cW, 7, 'F')
-    font('bold', 7); color(255,255,255); txt('CHARGES MENSUELLES', mg+2, y+5)
-    y += 7
+    fill(12,12,12); doc.rect(mg, y, cW, 8, 'F')
+    font('bold', 7); color(255,255,255); txt('CHARGES MENSUELLES', mg+2, y+5.5)
+    y += 8
 
     const chargeItems = [
       ['Loyer',          expense.loyer],
@@ -1034,16 +1012,16 @@ async function downloadSubletPDF(property: Property, revenues: PropertyRevenue[]
 
     chargeItems.forEach(([label, value], ri) => {
       fill(ri%2===0 ? 255 : 250, ri%2===0 ? 255 : 250, ri%2===0 ? 255 : 250)
-      stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, minRowH, 'FD')
-      font('normal', 7); color(20,20,20); txt(label, mg+2, y + minRowH/2 + lH/2)
-      color(170,35,35); font('bold', 7); txt(`- ${fmt(value)}`, W-mg-2, y + minRowH/2 + lH/2, { align:'right' })
-      y += minRowH
+      stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, rowH, 'FD')
+      font('normal', 7); color(20,20,20); txt(label, mg+2, y+5.5)
+      color(170,35,35); font('bold', 7); txt(`- ${fmt(value)}`, W-mg-2, y+5.5, { align:'right' })
+      y += rowH
     })
 
-    fill(228,228,228); stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, minRowH, 'FD')
-    font('bold', 7); color(20,20,20); txt('TOTAL CHARGES', mg+2, y + minRowH/2 + lH/2)
-    color(170,35,35); txt(`- ${fmt(totalCharges)}`, W-mg-2, y + minRowH/2 + lH/2, { align:'right' })
-    y += minRowH + 5
+    fill(228,228,228); stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, rowH, 'FD')
+    font('bold', 7); color(20,20,20); txt('TOTAL CHARGES', mg+2, y+5.5)
+    color(170,35,35); txt(`- ${fmt(totalCharges)}`, W-mg-2, y+5.5, { align:'right' })
+    y += rowH + 5
 
     // Résultat net
     const netProfit  = totalRevNet - totalCharges
