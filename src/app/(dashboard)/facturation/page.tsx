@@ -1319,11 +1319,24 @@ function PropertyRevenueCard({
 }) {
   const [extraOpen, setExtraOpen] = useState(false)
   const [printOpen, setPrintOpen] = useState(false)
+  const lsKey = `propTva_${property.id}`
+  const [tvaInput, setTvaInput] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem(lsKey) ?? ''
+    return ''
+  })
 
-  const revenues     = property.revenues
-  const totals       = propertyTotals(revenues)
+  const revenues      = property.revenues
+  const totals        = propertyTotals(revenues)
   const usedPlatforms = revenues.map(r => r.platform)
-  const hasExtra     = PLATFORMS.filter(p => !['airbnb', 'booking'].includes(p) && !usedPlatforms.includes(p)).length > 0
+  const hasExtra      = PLATFORMS.filter(p => !['airbnb', 'booking'].includes(p) && !usedPlatforms.includes(p)).length > 0
+  const tvaRate       = Math.max(0, Math.min(100, parseFloat(tvaInput) || 0))
+  const partMKTTC     = totals.partMK * (1 + tvaRate / 100)
+
+  const saveTvaLocal = (val: string) => {
+    const n = Math.max(0, Math.min(100, parseFloat(val) || 0))
+    if (n > 0) localStorage.setItem(lsKey, String(n))
+    else localStorage.removeItem(lsKey)
+  }
 
   const getFor = (platform: string) => revenues.find(r => r.platform === platform) ?? null
 
@@ -1362,8 +1375,8 @@ function PropertyRevenueCard({
           )}
           {totals.partMK > 0 && (
             <div className="text-right">
-              <p className="text-[#D4AF37] font-bold text-lg leading-none">{formatCurrency(totals.partMK)}</p>
-              <p className="text-white/30 text-[10px]">Part MK</p>
+              <p className="text-[#D4AF37] font-bold text-lg leading-none">{formatCurrency(tvaRate > 0 ? partMKTTC : totals.partMK)}</p>
+              <p className="text-white/30 text-[10px]">Part MK {tvaRate > 0 ? 'TTC' : 'HT'}</p>
             </div>
           )}
         </div>
@@ -1414,6 +1427,30 @@ function PropertyRevenueCard({
             <span className="text-white/30 text-xs font-medium">TOTAL</span>
             <span className="text-[#D4AF37] font-bold text-sm">{formatCurrency(totals.partMK)} MK · {formatCurrency(totals.partProprio)} proprio</span>
           </div>
+          {/* TVA sur commission MK — always visible */}
+          <div className={`px-5 py-2.5 flex items-center justify-between border-t ${tvaRate > 0 ? 'bg-[#D4AF37]/[0.04] border-[#D4AF37]/[0.10]' : 'border-white/[0.04]'}`}>
+            <div className="flex items-center gap-2">
+              <span className="text-white/40 text-xs">TVA sur commission</span>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number" min="0" max="100" step="0.1"
+                  value={tvaInput}
+                  onChange={e => setTvaInput(e.target.value)}
+                  onBlur={e => saveTvaLocal(e.target.value)}
+                  placeholder="0"
+                  className="w-12 bg-transparent border-b border-white/[0.10] text-white/60 text-[11px] focus:outline-none focus:border-[#D4AF37]/60 text-center py-0.5"
+                />
+                <span className="text-white/30 text-xs">%</span>
+              </div>
+            </div>
+            {tvaRate > 0 && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-white/40">HT {formatCurrency(totals.partMK)}</span>
+                <span className="text-white/20">→</span>
+                <span className="text-[#D4AF37] font-semibold">TTC {formatCurrency(partMKTTC)}</span>
+              </div>
+            )}
+          </div>
         </>
       )}
 
@@ -1441,24 +1478,69 @@ function SubletPropertyCard({
   const [modalInitial, setModalInitial] = useState<Partial<SubletExpense> | null>(null)
   const [printOpen, setPrintOpen] = useState(false)
 
+  // TVA inline state
+  const [revTvaInput, setRevTvaInput] = useState('')
+  const [expTvaInputs, setExpTvaInputs] = useState({ loyer: '', electricite: '', wifi: '', assurance: '', autresCharges: '' })
+
   const revenues        = property.revenues
   const expense         = property.subletExpenses[0] ?? null
   const template        = !expense ? (property.recurringTemplate ?? null) : null
   const totalGross      = revenues.reduce((s, r) => s + r.platformAmount, 0)
   const totalCleaning   = revenues.reduce((s, r) => s + r.cleaningFees, 0)
   const totalRevenueNet = totalGross - totalCleaning
+
+  const ft = (v: string) => Math.max(0, Math.min(100, parseFloat(v) || 0))
+  const revTva      = ft(revTvaInput)
+  const expTvaVals  = {
+    loyer:          ft(expTvaInputs.loyer),
+    electricite:    ft(expTvaInputs.electricite),
+    wifi:           ft(expTvaInputs.wifi),
+    assurance:      ft(expTvaInputs.assurance),
+    autresCharges:  ft(expTvaInputs.autresCharges),
+  }
+
   const totalChargesHT  = expense ? expense.loyer + expense.electricite + expense.wifi + expense.autresCharges + (expense.assurance ?? 0) : 0
-  const totalChargesTTC = expense ? EXPENSE_ROWS.reduce((s, r) => {
-    const ht = expense[r.key as keyof SubletExpense] as number || 0
-    const tva = (expense[r.tvaKey as keyof SubletExpense] as number) || 0
-    return s + ht * (1 + tva / 100)
-  }, 0) : 0
-  const hasTva          = expense ? EXPENSE_ROWS.some(r => ((expense[r.tvaKey as keyof SubletExpense] as number) || 0) > 0) : false
-  const totalCharges    = hasTva ? totalChargesTTC : totalChargesHT
-  const revTva          = expense?.revenueTva ?? 0
-  const netHT           = totalRevenueNet
-  const netTTC          = revTva > 0 ? netHT * (1 + revTva / 100) : netHT
-  const netProfit       = totalRevenueNet - totalCharges
+  const totalChargesTTC = expense ? (
+    expense.loyer * (1 + expTvaVals.loyer / 100) +
+    expense.electricite * (1 + expTvaVals.electricite / 100) +
+    expense.wifi * (1 + expTvaVals.wifi / 100) +
+    (expense.assurance ?? 0) * (1 + expTvaVals.assurance / 100) +
+    expense.autresCharges * (1 + expTvaVals.autresCharges / 100)
+  ) : 0
+  const hasTva        = Object.values(expTvaVals).some(v => v > 0)
+  const totalCharges  = hasTva ? totalChargesTTC : totalChargesHT
+  const netProfit     = totalRevenueNet - totalCharges
+
+  // Sync TVA inputs from expense data
+  useEffect(() => {
+    setRevTvaInput(expense?.revenueTva ? String(expense.revenueTva) : '')
+    setExpTvaInputs({
+      loyer:          expense?.loyerTva         ? String(expense.loyerTva)         : '',
+      electricite:    expense?.electriciteTva   ? String(expense.electriciteTva)   : '',
+      wifi:           expense?.wifiTva          ? String(expense.wifiTva)          : '',
+      assurance:      expense?.assuranceTva     ? String(expense.assuranceTva)     : '',
+      autresCharges:  expense?.autresChargesTva ? String(expense.autresChargesTva) : '',
+    })
+  }, [expense])
+
+  const saveTva = async () => {
+    if (!expense) return
+    await fetch(`/api/facturation/sous-location/${expense.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...expense,
+        revenueTva:       revTva,
+        loyerTva:         expTvaVals.loyer,
+        electriciteTva:   expTvaVals.electricite,
+        wifiTva:          expTvaVals.wifi,
+        assuranceTva:     expTvaVals.assurance,
+        autresChargesTva: expTvaVals.autresCharges,
+      }),
+    })
+    onReload()
+  }
+
+  const tvaInputCls = "w-12 bg-transparent border-b border-white/[0.10] text-white/60 text-[11px] focus:outline-none focus:border-[#D4AF37]/60 text-center py-0.5"
 
   const openExpenseModal = (initial: Partial<SubletExpense> | null) => {
     setModalInitial(initial)
@@ -1557,15 +1639,34 @@ function SubletPropertyCard({
         )}
       </div>
 
-      {/* TVA sur revenus */}
-      {revTva > 0 && totalRevenueNet > 0 && (
-        <div className="px-5 py-2 flex items-center justify-between bg-[#D4AF37]/[0.04] border-t border-[#D4AF37]/[0.08]">
-          <span className="text-white/30 text-xs">CA HT — CA TTC ({revTva}%)</span>
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-white/50">{formatCurrency(netHT)}</span>
-            <span className="text-white/20">→</span>
-            <span className="text-[#D4AF37] font-semibold">{formatCurrency(netTTC)}</span>
+      {/* TVA sur CA — always visible when revenues exist */}
+      {totalRevenueNet > 0 && (
+        <div className={`px-5 py-2.5 flex items-center justify-between border-t ${revTva > 0 ? 'bg-[#D4AF37]/[0.04] border-[#D4AF37]/[0.10]' : 'border-white/[0.04]'}`}>
+          <div className="flex items-center gap-2">
+            <span className="text-white/40 text-xs">TVA sur CA</span>
+            {expense ? (
+              <div className="flex items-center gap-1">
+                <input
+                  type="number" min="0" max="100" step="0.1"
+                  value={revTvaInput}
+                  onChange={e => setRevTvaInput(e.target.value)}
+                  onBlur={saveTva}
+                  placeholder="0"
+                  className={tvaInputCls}
+                />
+                <span className="text-white/30 text-xs">%</span>
+              </div>
+            ) : (
+              <span className="text-white/20 text-[11px] italic">— saisir charges d&apos;abord</span>
+            )}
           </div>
+          {revTva > 0 && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-white/40">HT {formatCurrency(totalRevenueNet)}</span>
+              <span className="text-white/20">→</span>
+              <span className="text-[#D4AF37] font-semibold">TTC {formatCurrency(totalRevenueNet * (1 + revTva / 100))}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -1601,18 +1702,35 @@ function SubletPropertyCard({
 
         {expense ? (
           <div className="bg-[#141414] rounded-xl p-3 space-y-2">
-            {EXPENSE_ROWS.map(({ key, tvaKey, label }) => {
+            {/* Header hint */}
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-white/20 text-[10px] uppercase tracking-wider">Dépense</span>
+              <span className="text-white/20 text-[10px] uppercase tracking-wider">TVA %</span>
+            </div>
+            {EXPENSE_ROWS.map(({ key, label }) => {
+              const tvaKey = key as keyof typeof expTvaInputs
               const ht = expense[key as keyof SubletExpense] as number || 0
-              const tva = (expense[tvaKey as keyof SubletExpense] as number) || 0
-              const ttc = ht * (1 + tva / 100)
+              const tvaVal = expTvaVals[tvaKey]
+              const ttc = ht * (1 + tvaVal / 100)
               if (ht <= 0) return null
               return (
-                <div key={key} className="flex justify-between items-start">
-                  <span className="text-white/40 text-xs">{label}</span>
-                  <div className="text-right">
-                    {tva > 0 ? (
+                <div key={key} className="flex items-center gap-2">
+                  <span className="text-white/40 text-xs flex-1">{label}</span>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <input
+                      type="number" min="0" max="100" step="0.1"
+                      value={expTvaInputs[tvaKey]}
+                      onChange={e => setExpTvaInputs(p => ({ ...p, [tvaKey]: e.target.value }))}
+                      onBlur={saveTva}
+                      placeholder="0"
+                      className={tvaInputCls}
+                    />
+                    <span className="text-white/25 text-[11px]">%</span>
+                  </div>
+                  <div className="text-right flex-shrink-0 min-w-[80px]">
+                    {tvaVal > 0 ? (
                       <>
-                        <div className="text-white/40 text-[10px]">HT {formatCurrency(ht)} + TVA {tva}%</div>
+                        <div className="text-white/35 text-[10px]">HT {formatCurrency(ht)}</div>
                         <div className="text-red-400 text-sm font-medium">TTC {formatCurrency(ttc)}</div>
                       </>
                     ) : (
