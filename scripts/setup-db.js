@@ -374,6 +374,7 @@ async function setup() {
     )`,
     `ALTER TABLE "SubletExpense"   ADD COLUMN "nbSejours" INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE "SubletExpense"   ADD COLUMN "nbNuits"   INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE "SubletExpense"   ADD COLUMN "assurance" REAL    NOT NULL DEFAULT 0`,
     `ALTER TABLE "PropertyRevenue" ADD COLUMN "nbSejours" INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE "PropertyRevenue" ADD COLUMN "nbNuits"   INTEGER NOT NULL DEFAULT 0`,
     // ── Nouvelles tables ──────────────────────────────────────────────────────

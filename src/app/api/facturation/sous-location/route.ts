@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
            ORDER BY year DESC, month DESC${month && year ? '' : ' LIMIT 50'}`
 
       const expSql = `SELECT id, propertyId, month, year, loyer, electricite, wifi,
-                             autresCharges, nbSejours, nbNuits, notes
+                             autresCharges, COALESCE(assurance, 0) as assurance, nbSejours, nbNuits, notes
                       FROM SubletExpense
                       WHERE propertyId = ?${month && year ? ' AND month = ? AND year = ?' : ''}
                       ORDER BY year DESC, month DESC${month && year ? '' : ' LIMIT 12'}`
@@ -89,6 +89,7 @@ export async function GET(req: NextRequest) {
           electricite: Number(e.electricite) || 0,
           wifi: Number(e.wifi) || 0,
           autresCharges: Number(e.autresCharges) || 0,
+          assurance: Number(e.assurance) || 0,
           nbSejours: Number(e.nbSejours) || 0,
           nbNuits: Number(e.nbNuits) || 0,
           notes: e.notes ?? null,
@@ -138,7 +139,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { propertyId, month, year, loyer, electricite, wifi, autresCharges, nbSejours, nbNuits, notes } = body
+    const { propertyId, month, year, loyer, electricite, wifi, autresCharges, assurance, nbSejours, nbNuits, notes } = body
 
     if (process.env.TURSO_DATABASE_URL) {
       const { createClient } = require('@libsql/client')
@@ -148,13 +149,14 @@ export async function POST(req: NextRequest) {
       })
       try {
         const rs = await client.execute({
-          sql: `INSERT INTO SubletExpense (propertyId, month, year, loyer, electricite, wifi, autresCharges, nbSejours, nbNuits, notes, createdAt, updatedAt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+          sql: `INSERT INTO SubletExpense (propertyId, month, year, loyer, electricite, wifi, autresCharges, assurance, nbSejours, nbNuits, notes, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
                 ON CONFLICT(propertyId, month, year) DO UPDATE SET
                   loyer = excluded.loyer,
                   electricite = excluded.electricite,
                   wifi = excluded.wifi,
                   autresCharges = excluded.autresCharges,
+                  assurance = excluded.assurance,
                   nbSejours = excluded.nbSejours,
                   nbNuits = excluded.nbNuits,
                   notes = excluded.notes,
@@ -164,6 +166,7 @@ export async function POST(req: NextRequest) {
             Number(propertyId), Number(month), Number(year),
             Number(loyer) || 0, Number(electricite) || 0,
             Number(wifi) || 0, Number(autresCharges) || 0,
+            Number(assurance) || 0,
             Number(nbSejours) || 0, Number(nbNuits) || 0,
             notes ?? null,
           ],
@@ -188,6 +191,7 @@ export async function POST(req: NextRequest) {
         electricite: Number(electricite) || 0,
         wifi: Number(wifi) || 0,
         autresCharges: Number(autresCharges) || 0,
+        assurance: Number(assurance) || 0,
         nbSejours: Number(nbSejours) || 0,
         nbNuits: Number(nbNuits) || 0,
         notes: notes ?? null,
@@ -200,6 +204,7 @@ export async function POST(req: NextRequest) {
         electricite: Number(electricite) || 0,
         wifi: Number(wifi) || 0,
         autresCharges: Number(autresCharges) || 0,
+        assurance: Number(assurance) || 0,
         nbSejours: Number(nbSejours) || 0,
         nbNuits: Number(nbNuits) || 0,
         notes: notes ?? null,

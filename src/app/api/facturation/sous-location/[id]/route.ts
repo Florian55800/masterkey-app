@@ -16,7 +16,7 @@ function toRows(rs: { columns: string[]; rows: unknown[][] }): Record<string, un
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const body = await req.json()
-    const { loyer, electricite, wifi, autresCharges, nbSejours, nbNuits, notes } = body
+    const { loyer, electricite, wifi, autresCharges, assurance, nbSejours, nbNuits, notes } = body
     const id = Number(params.id)
 
     if (process.env.TURSO_DATABASE_URL) {
@@ -29,11 +29,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         await client.execute({
           sql: `UPDATE SubletExpense SET
                   loyer = ?, electricite = ?, wifi = ?, autresCharges = ?,
-                  nbSejours = ?, nbNuits = ?, notes = ?, updatedAt = datetime('now')
+                  assurance = ?, nbSejours = ?, nbNuits = ?, notes = ?, updatedAt = datetime('now')
                 WHERE id = ?`,
           args: [
             Number(loyer) || 0, Number(electricite) || 0,
             Number(wifi) || 0, Number(autresCharges) || 0,
+            Number(assurance) || 0,
             Number(nbSejours) || 0, Number(nbNuits) || 0,
             notes ?? null, id,
           ],
@@ -54,6 +55,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         electricite: Number(electricite) || 0,
         wifi: Number(wifi) || 0,
         autresCharges: Number(autresCharges) || 0,
+        assurance: Number(assurance) || 0,
         nbSejours: Number(nbSejours) || 0,
         nbNuits: Number(nbNuits) || 0,
         notes: notes ?? null,

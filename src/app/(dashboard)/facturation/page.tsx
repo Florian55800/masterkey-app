@@ -40,6 +40,7 @@ interface SubletExpense {
   electricite: number
   wifi: number
   autresCharges: number
+  assurance: number
   nbSejours: number
   nbNuits: number
   notes: string | null
@@ -139,8 +140,7 @@ function PlatformRow({
   const [commission, setCommission] = useState(
     existing ? String(existing.commissionRate) : String(property.commissionRate)
   )
-  const [sejours, setSejours] = useState(existing ? String(existing.nbSejours || '') : '')
-  const [nuits,   setNuits]   = useState(existing ? String(existing.nbNuits    || '') : '')
+  const [nuits, setNuits] = useState(existing ? String(existing.nbNuits || '') : '')
   const [dirty,  setDirty]  = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -150,8 +150,7 @@ function PlatformRow({
       setAmount(existing    ? String(existing.platformAmount)  : '')
       setCleaning(existing  ? String(existing.cleaningFees)    : '')
       setCommission(existing ? String(existing.commissionRate) : String(property.commissionRate))
-      setSejours(existing ? String(existing.nbSejours || '') : '')
-      setNuits(existing   ? String(existing.nbNuits    || '') : '')
+      setNuits(existing ? String(existing.nbNuits || '') : '')
     }
   }, [existing, property.commissionRate, dirty])
 
@@ -169,7 +168,7 @@ function PlatformRow({
     const payload = {
       propertyId: property.id, month, year, platform,
       platformAmount: f(amount), cleaningFees: f(cleaning), commissionRate: f(commission),
-      nbSejours: parseInt(sejours) || 0, nbNuits: parseInt(nuits) || 0,
+      nbNuits: parseInt(nuits) || 0,
     }
     if (existing?.id) {
       await fetch(`/api/facturation/${existing.id}`, {
@@ -220,19 +219,11 @@ function PlatformRow({
               className="w-full bg-[#141414] border border-white/[0.06] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-[10px] text-white/30 block mb-1">Séjours</label>
-            <input type="number" min="0" step="1" value={sejours} onChange={mark(setSejours)}
-              placeholder="0"
-              className="w-full bg-[#141414] border border-white/[0.06] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
-          </div>
-          <div>
-            <label className="text-[10px] text-white/30 block mb-1">Nuits</label>
-            <input type="number" min="0" step="1" value={nuits} onChange={mark(setNuits)}
-              placeholder="0"
-              className="w-full bg-[#141414] border border-white/[0.06] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
-          </div>
+        <div>
+          <label className="text-[10px] text-white/30 block mb-1">Nuits</label>
+          <input type="number" min="0" step="1" value={nuits} onChange={mark(setNuits)}
+            placeholder="0"
+            className="w-full bg-[#141414] border border-white/[0.06] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
         </div>
         {hasAmount && (
           <div className="grid grid-cols-3 gap-2 text-center">
@@ -265,11 +256,6 @@ function PlatformRow({
           <input type="number" min="0" step="0.01" value={cleaning} onChange={mark(setCleaning)}
             placeholder="0.00"
             className="w-full bg-transparent border-b border-white/[0.08] focus:border-[#D4AF37]/50 px-1 py-1 text-white/60 text-sm outline-none transition-colors placeholder:text-white/15" />
-        </div>
-        <div className="w-[70px] px-2 py-2 flex-shrink-0">
-          <input type="number" min="0" step="1" value={sejours} onChange={mark(setSejours)}
-            placeholder="0"
-            className="w-full bg-transparent border-b border-white/[0.08] focus:border-[#D4AF37]/50 px-1 py-1 text-white/40 text-sm outline-none transition-colors text-center placeholder:text-white/15" />
         </div>
         <div className="w-[70px] px-2 py-2 flex-shrink-0">
           <input type="number" min="0" step="1" value={nuits} onChange={mark(setNuits)}
@@ -321,6 +307,7 @@ function SubletPlatformRow({
 }) {
   const [amount,   setAmount]   = useState(existing ? String(existing.platformAmount) : '')
   const [cleaning, setCleaning] = useState(existing ? String(existing.cleaningFees)   : '')
+  const [nuits,    setNuits]    = useState(existing ? String(existing.nbNuits || '') : '')
   const [dirty,    setDirty]    = useState(false)
   const [saving,   setSaving]   = useState(false)
 
@@ -328,6 +315,7 @@ function SubletPlatformRow({
     if (!dirty) {
       setAmount(existing   ? String(existing.platformAmount) : '')
       setCleaning(existing ? String(existing.cleaningFees)   : '')
+      setNuits(existing    ? String(existing.nbNuits || '')  : '')
     }
   }, [existing, dirty])
 
@@ -343,6 +331,7 @@ function SubletPlatformRow({
     const payload = {
       propertyId: property.id, month, year, platform,
       platformAmount: f(amount), cleaningFees: f(cleaning), commissionRate: 0,
+      nbNuits: parseInt(nuits) || 0,
     }
     if (existing?.id) {
       await fetch(`/api/facturation/${existing.id}`, {
@@ -376,7 +365,7 @@ function SubletPlatformRow({
             <span className="text-green-400 font-bold text-sm ml-auto">net {formatCurrency(net)}</span>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <div>
             <label className="text-[10px] text-white/30 block mb-1">Montant plateforme (€)</label>
             <input type="number" min="0" step="0.01" value={amount} onChange={mark(setAmount)}
@@ -387,6 +376,12 @@ function SubletPlatformRow({
             <label className="text-[10px] text-white/30 block mb-1">Frais ménage (€)</label>
             <input type="number" min="0" step="0.01" value={cleaning} onChange={mark(setCleaning)}
               placeholder="0.00"
+              className="w-full bg-[#141414] border border-white/[0.06] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
+          </div>
+          <div>
+            <label className="text-[10px] text-white/30 block mb-1">Nuits</label>
+            <input type="number" min="0" step="1" value={nuits} onChange={mark(setNuits)}
+              placeholder="0"
               className="w-full bg-[#141414] border border-white/[0.06] rounded-lg px-2.5 py-2 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40" />
           </div>
         </div>
@@ -432,6 +427,11 @@ function SubletPlatformRow({
           <input type="number" min="0" step="0.01" value={cleaning} onChange={mark(setCleaning)}
             placeholder="0.00"
             className="w-full bg-transparent border-b border-white/[0.08] focus:border-red-400/30 px-1 py-1 text-red-400/70 text-sm outline-none transition-colors placeholder:text-white/15" />
+        </div>
+        <div className="w-[60px] px-2 py-2 flex-shrink-0">
+          <input type="number" min="0" step="1" value={nuits} onChange={mark(setNuits)}
+            placeholder="0"
+            className="w-full bg-transparent border-b border-white/[0.08] focus:border-[#D4AF37]/50 px-1 py-1 text-white/40 text-sm outline-none transition-colors text-center placeholder:text-white/15" />
         </div>
         <div className="w-[110px] px-4 py-3 text-green-400 font-semibold text-sm text-right flex-shrink-0">
           {hasAmount ? formatCurrency(net) : <span className="text-white/15">—</span>}
@@ -565,8 +565,7 @@ function SubletModal({
     electricite: String(initial?.electricite ?? ''),
     wifi: String(initial?.wifi ?? ''),
     autresCharges: String(initial?.autresCharges ?? ''),
-    nbSejours: String(initial?.nbSejours ?? ''),
-    nbNuits: String(initial?.nbNuits ?? ''),
+    assurance: String(initial?.assurance ?? ''),
     notes: initial?.notes ?? '',
   })
   const [saving, setSaving] = useState(false)
@@ -577,14 +576,13 @@ function SubletModal({
       electricite: String(initial?.electricite ?? ''),
       wifi: String(initial?.wifi ?? ''),
       autresCharges: String(initial?.autresCharges ?? ''),
-      nbSejours: String(initial?.nbSejours ?? ''),
-      nbNuits: String(initial?.nbNuits ?? ''),
+      assurance: String(initial?.assurance ?? ''),
       notes: initial?.notes ?? '',
     })
   }, [isOpen, initial])
 
   const f = (v: string) => parseFloat(v) || 0
-  const total = f(form.loyer) + f(form.electricite) + f(form.wifi) + f(form.autresCharges)
+  const total = f(form.loyer) + f(form.electricite) + f(form.wifi) + f(form.autresCharges) + f(form.assurance)
 
   const handleSave = async () => {
     setSaving(true)
@@ -593,8 +591,8 @@ function SubletModal({
       propertyId: property.id, month, year,
       loyer: f(form.loyer), electricite: f(form.electricite),
       wifi: f(form.wifi), autresCharges: f(form.autresCharges),
-      nbSejours: parseInt(form.nbSejours) || 0,
-      nbNuits: parseInt(form.nbNuits) || 0,
+      assurance: f(form.assurance),
+      nbSejours: 0, nbNuits: 0,
       notes: form.notes || null,
     })
     setSaving(false)
@@ -606,10 +604,11 @@ function SubletModal({
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           {[
-            { key: 'loyer', label: 'Loyer (€)', icon: Home },
-            { key: 'electricite', label: 'Électricité (€)', icon: Zap },
-            { key: 'wifi', label: 'Wi-Fi (€)', icon: Wifi },
-            { key: 'autresCharges', label: 'Autres charges (€)', icon: MoreHorizontal },
+            { key: 'loyer', label: 'Loyer (€)' },
+            { key: 'electricite', label: 'Électricité (€)' },
+            { key: 'wifi', label: 'Wi-Fi (€)' },
+            { key: 'assurance', label: 'Assurance (€)' },
+            { key: 'autresCharges', label: 'Autres charges (€)' },
           ].map(({ key, label }) => (
             <div key={key}>
               <label className="text-xs text-white/40 block mb-1.5">{label}</label>
@@ -621,26 +620,6 @@ function SubletModal({
               />
             </div>
           ))}
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs text-white/40 block mb-1.5">Séjours</label>
-            <input
-              type="number" min="0" step="1"
-              value={form.nbSejours}
-              onChange={e => setForm(f => ({ ...f, nbSejours: e.target.value }))}
-              className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-white/40 block mb-1.5">Nuits</label>
-            <input
-              type="number" min="0" step="1"
-              value={form.nbNuits}
-              onChange={e => setForm(f => ({ ...f, nbNuits: e.target.value }))}
-              className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40"
-            />
-          </div>
         </div>
         <div>
           <label className="text-xs text-white/40 block mb-1.5">Notes</label>
@@ -723,9 +702,11 @@ async function downloadPDF(property: Property, revenues: PropertyRevenue[], mont
   const totalNuits = revenues.reduce((s, r) => s + (r.nbNuits ?? 0), 0)
   if (totalNuits > 0) {
     const tauxOcc = daysInMonth > 0 ? Math.round((totalNuits / daysInMonth) * 100) : 0
-    font('normal', 9); color(80,80,80)
-    text(`Taux d'occupation : ${tauxOcc} %`, mg, y + 6)
-    y += 14
+    fill(255,251,235); stroke(253,230,138); doc.setLineWidth(0.2)
+    doc.roundedRect(mg, y, cW, 13, 2, 2, 'FD')
+    font('bold', 8.5); color(146,112,10)
+    text(`Taux d'occupation : ${tauxOcc} %  (${totalNuits} nuits / ${daysInMonth} jours)`, mg+4, y+8.5)
+    y += 18
   }
 
   // tableau header
@@ -739,22 +720,20 @@ async function downloadPDF(property: Property, revenues: PropertyRevenue[], mont
   cols.forEach((c, i) => { text(c, cx + (i>0 ? colWidths[i]-1 : 0), y+5.5, { align: i>0 ? 'right' : 'left' }); cx += colWidths[i] })
   y += rowH
 
-  // lignes données
-  const allRows = [
-    ...revenues.map(r => {
-      const { base, partMK, partProprio } = calcRevenue(r)
-      return { cells: [PLATFORM_LABELS[r.platform]??r.platform, fmt(r.platformAmount), r.cleaningFees>0?fmt(r.cleaningFees):'—', `${r.commissionRate}%`, fmt(base), fmt(partMK), fmt(partProprio)], isTotal: false }
-    }),
-    { cells: ['TOTAL', fmt(totals.platformAmount), fmt(totals.cleaningFees), '', fmt(totals.base), fmt(totals.partMK), fmt(totals.partProprio)], isTotal: true },
-  ]
-  allRows.forEach((row, ri) => {
-    const bg = row.isTotal ? [240,240,240] : ri%2===0 ? [255,255,255] : [250,250,250]
-    fill(bg[0],bg[1],bg[2]); stroke(230,230,230); doc.setLineWidth(0.15)
+  // lignes données avec code couleur plateforme
+  revenues.forEach((r, ri) => {
+    const { base, partMK, partProprio } = calcRevenue(r)
+    const isAirbnb  = r.platform === 'airbnb'
+    const isBooking = r.platform === 'booking'
+    const bg: [number,number,number] = isAirbnb ? [255,241,242] : isBooking ? [239,246,255] : ri%2===0 ? [255,255,255] : [250,250,250]
+    fill(...bg); stroke(230,230,230); doc.setLineWidth(0.15)
     doc.rect(mg, y, cW, rowH, 'FD')
     cx = mg + 2
-    row.cells.forEach((cell, ci) => {
-      font(row.isTotal||ci===0?'bold':'normal', 8.5)
-      if (ci===5) color(146,112,10)
+    const cells = [PLATFORM_LABELS[r.platform]??r.platform, fmt(r.platformAmount), r.cleaningFees>0?fmt(r.cleaningFees):'—', `${r.commissionRate}%`, fmt(base), fmt(partMK), fmt(partProprio)]
+    cells.forEach((cell, ci) => {
+      font(ci===0?'bold':'normal', 8.5)
+      if (ci===0) { color(isAirbnb?225:isBooking?37:26, isAirbnb?29:isBooking?99:26, isAirbnb?72:isBooking?235:26) }
+      else if (ci===5) color(146,112,10)
       else if (ci===6) color(22,101,52)
       else if (ci>=2&&ci<=3) color(130,130,130)
       else color(26,26,26)
@@ -763,6 +742,19 @@ async function downloadPDF(property: Property, revenues: PropertyRevenue[], mont
     })
     y += rowH
   })
+  // ligne TOTAL
+  fill(240,240,240); stroke(230,230,230); doc.setLineWidth(0.15)
+  doc.rect(mg, y, cW, rowH, 'FD')
+  cx = mg + 2
+  ;['TOTAL', fmt(totals.platformAmount), fmt(totals.cleaningFees), '', fmt(totals.base), fmt(totals.partMK), fmt(totals.partProprio)].forEach((cell, ci) => {
+    font('bold', 8.5)
+    if (ci===5) color(146,112,10)
+    else if (ci===6) color(22,101,52)
+    else color(26,26,26)
+    text(cell, cx+(ci>0?colWidths[ci]-1:0), y+5.5, { align:ci>0?'right':'left' })
+    cx += colWidths[ci]
+  })
+  y += rowH
   y += 6
 
   // cartes synthèse
@@ -795,6 +787,233 @@ async function downloadPDF(property: Property, revenues: PropertyRevenue[], mont
   doc.save(`MasterKey_${property.name.replace(/\s+/g,'_')}_${MONTHS_FR[month]}_${year}.pdf`)
 }
 
+
+// ─── Sous-location PDF ────────────────────────────────────────────────────────
+
+async function downloadSubletPDF(property: Property, revenues: PropertyRevenue[], expense: SubletExpense | null, month: number, year: number) {
+  const { default: jsPDF } = await import('jspdf')
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const today = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
+  const W = 210, mg = 14, cW = W - mg * 2
+  let y = 0
+
+  const txt   = (t: string, x: number, yy: number, opts?: { align?: 'left'|'right'|'center'; maxWidth?: number }) => doc.text(t, x, yy, opts)
+  const font  = (style: 'normal'|'bold', size: number) => { doc.setFont('helvetica', style); doc.setFontSize(size) }
+  const color = (r: number, g: number, b: number) => doc.setTextColor(r, g, b)
+  const fill  = (r: number, g: number, b: number) => doc.setFillColor(r, g, b)
+  const stroke= (r: number, g: number, b: number) => doc.setDrawColor(r, g, b)
+
+  fill(59,130,246); doc.rect(0,0,W,1.5,'F')
+
+  y = 11
+  font('bold', 20); color(26,26,26); txt('Master', mg, y)
+  color(212,175,55); txt('Key', mg + doc.getTextWidth('Master'), y)
+  font('normal', 8); color(160,160,160); txt('Conciergerie & Gestion Locative', mg, y+5)
+  font('bold', 12); color(59,130,246); txt(`Bilan Sous-location — ${MONTHS_FR[month]} ${year}`, W-mg, y, { align:'right' })
+  font('normal', 8); color(160,160,160); txt(`Édité le ${today}`, W-mg, y+5, { align:'right' })
+
+  y += 9; stroke(59,130,246); doc.setLineWidth(0.4); doc.line(mg,y,W-mg,y); y += 6
+
+  fill(249,249,249); stroke(230,230,230); doc.setLineWidth(0.25)
+  doc.roundedRect(mg, y, cW, 20, 2, 2, 'FD')
+  fill(59,130,246); doc.rect(mg, y, 2, 20, 'F')
+  const propFields = [
+    ['LOGEMENT', property.name],
+    ['ADRESSE', `${property.address}, ${property.city}`],
+    ['PROPRIÉTAIRE', property.owner.name],
+    ['TYPE', 'Sous-location'],
+  ]
+  const fw = cW / propFields.length
+  propFields.forEach(([lbl, val], i) => {
+    const x = mg + 3 + i * fw
+    font('bold', 7); color(180,180,180); txt(lbl, x, y+7)
+    font('bold', 9); color(26,26,26); txt(val, x, y+14, { maxWidth: fw-4 })
+  })
+  y += 25
+
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const totalNuits  = revenues.reduce((s, r) => s + (r.nbNuits ?? 0), 0)
+  if (totalNuits > 0) {
+    const tauxOcc = Math.round((totalNuits / daysInMonth) * 100)
+    fill(239,246,255); stroke(219,234,254); doc.setLineWidth(0.2)
+    doc.roundedRect(mg, y, cW, 13, 2, 2, 'FD')
+    font('bold', 8.5); color(37,99,235)
+    txt(`Taux d'occupation : ${tauxOcc} %  (${totalNuits} nuits / ${daysInMonth} jours)`, mg+4, y+8.5)
+    y += 18
+  }
+
+  // Tableau revenus
+  const rCols = ['Plateforme','Nuits','Montant brut','Frais ménage','Net plateforme']
+  const rColW = [32, 16, 38, 38, 58]
+  const rowH  = 8
+
+  fill(26,26,26); doc.rect(mg, y, cW, rowH, 'F')
+  font('bold', 7.5); color(255,255,255)
+  let cx = mg + 2
+  rCols.forEach((c, i) => { txt(c, cx+(i>0?rColW[i]-1:0), y+5.5, { align:i>0?'right':'left' }); cx += rColW[i] })
+  y += rowH
+
+  const totalGross     = revenues.reduce((s, r) => s + r.platformAmount, 0)
+  const totalCleaning  = revenues.reduce((s, r) => s + r.cleaningFees, 0)
+  const totalRevNet    = totalGross - totalCleaning
+
+  revenues.forEach((r, ri) => {
+    const net = r.platformAmount - r.cleaningFees
+    const isAirbnb  = r.platform === 'airbnb'
+    const isBooking = r.platform === 'booking'
+    const bg: [number,number,number] = isAirbnb ? [255,241,242] : isBooking ? [239,246,255] : ri%2===0 ? [255,255,255] : [250,250,250]
+    fill(...bg); stroke(230,230,230); doc.setLineWidth(0.15)
+    doc.rect(mg, y, cW, rowH, 'FD')
+    cx = mg + 2
+    font('bold', 8.5)
+    color(isAirbnb?225:isBooking?37:26, isAirbnb?29:isBooking?99:26, isAirbnb?72:isBooking?235:26)
+    txt(PLATFORM_LABELS[r.platform] ?? r.platform, cx, y+5.5)
+    cx += rColW[0]
+    font('normal', 8.5); color(100,100,100)
+    txt(r.nbNuits > 0 ? String(r.nbNuits) : '—', cx+rColW[1]-1, y+5.5, { align:'right' })
+    cx += rColW[1]
+    color(26,26,26); txt(r.platformAmount>0?fmt(r.platformAmount):'—', cx+rColW[2]-1, y+5.5, { align:'right' }); cx += rColW[2]
+    color(r.cleaningFees>0?200:130, r.cleaningFees>0?60:130, r.cleaningFees>0?60:130)
+    txt(r.cleaningFees>0?`- ${fmt(r.cleaningFees)}`:'—', cx+rColW[3]-1, y+5.5, { align:'right' }); cx += rColW[3]
+    color(22,101,52); font('bold', 8.5); txt(fmt(net), cx+rColW[4]-1, y+5.5, { align:'right' })
+    y += rowH
+  })
+
+  fill(240,240,240); stroke(230,230,230); doc.rect(mg, y, cW, rowH, 'FD')
+  cx = mg + 2; font('bold', 8.5); color(26,26,26)
+  txt('TOTAL REVENUS', cx, y+5.5); cx += rColW[0] + rColW[1]
+  txt(fmt(totalGross), cx+rColW[2]-1, y+5.5, { align:'right' }); cx += rColW[2]
+  color(200,60,60); txt(`- ${fmt(totalCleaning)}`, cx+rColW[3]-1, y+5.5, { align:'right' }); cx += rColW[3]
+  color(22,101,52); txt(fmt(totalRevNet), cx+rColW[4]-1, y+5.5, { align:'right' })
+  y += rowH + 5
+
+  if (expense) {
+    fill(26,26,26); doc.rect(mg, y, cW, 7, 'F')
+    font('bold', 7.5); color(255,255,255); txt('CHARGES MENSUELLES', mg+2, y+5)
+    y += 7
+
+    const chargeItems = [
+      ['Loyer',          expense.loyer],
+      ['Électricité',    expense.electricite],
+      ['Wi-Fi',          expense.wifi],
+      ['Assurance',      expense.assurance ?? 0],
+      ['Autres charges', expense.autresCharges],
+    ].filter(([, v]) => (v as number) > 0) as [string, number][]
+
+    const totalCharges = chargeItems.reduce((s, [, v]) => s + v, 0)
+
+    chargeItems.forEach(([label, value], ri) => {
+      fill(ri%2===0?255:250, ri%2===0?255:250, ri%2===0?255:250)
+      stroke(230,230,230); doc.setLineWidth(0.15); doc.rect(mg, y, cW, rowH, 'FD')
+      font('normal', 8.5); color(26,26,26); txt(label, mg+2, y+5.5)
+      color(200,60,60); font('bold', 8.5); txt(`- ${fmt(value)}`, W-mg-2, y+5.5, { align:'right' })
+      y += rowH
+    })
+
+    fill(240,240,240); stroke(230,230,230); doc.rect(mg, y, cW, rowH, 'FD')
+    font('bold', 8.5); color(26,26,26); txt('TOTAL CHARGES', mg+2, y+5.5)
+    color(200,60,60); txt(`- ${fmt(totalCharges)}`, W-mg-2, y+5.5, { align:'right' })
+    y += rowH + 5
+
+    const netProfit  = totalRevNet - totalCharges
+    const isPositive = netProfit >= 0
+    fill(isPositive?240:254, isPositive?253:242, isPositive?244:242)
+    stroke(isPositive?187:252, isPositive?247:165, isPositive?208:165)
+    doc.setLineWidth(0.3); doc.roundedRect(mg, y, cW, 14, 2, 2, 'FD')
+    font('bold', 10); color(isPositive?22:185, isPositive?101:28, isPositive?52:26)
+    txt(`RÉSULTAT NET : ${isPositive?'+':''}${fmt(netProfit)}`, W/2, y+9, { align:'center' })
+    y += 19
+
+    const totalChargesAll = expense.loyer + expense.electricite + expense.wifi + (expense.assurance ?? 0) + expense.autresCharges
+    const net2  = totalRevNet - totalChargesAll
+    const cards = [
+      { lbl:'Revenus bruts',   val:fmt(totalGross),     bg:[245,245,245] as [number,number,number], fg:[26,26,26] as [number,number,number] },
+      { lbl:'Revenus nets',    val:fmt(totalRevNet),    bg:[240,253,244] as [number,number,number], fg:[22,101,52] as [number,number,number] },
+      { lbl:'Charges totales', val:fmt(totalChargesAll),bg:[254,242,242] as [number,number,number], fg:[185,28,26] as [number,number,number] },
+      { lbl:'Résultat net',    val:`${net2>=0?'+':''}${fmt(net2)}`, bg:net2>=0?[240,253,244] as [number,number,number]:[254,242,242] as [number,number,number], fg:net2>=0?[22,101,52] as [number,number,number]:[185,28,26] as [number,number,number] },
+    ]
+    const cCardW = cW/cards.length - 2
+    cards.forEach((c, i) => {
+      const x = mg + i*(cCardW+2)
+      fill(...c.bg); stroke(220,220,220); doc.setLineWidth(0.2)
+      doc.roundedRect(x, y, cCardW, 17, 2, 2, 'FD')
+      font('normal', 7); color(150,150,150); txt(c.lbl.toUpperCase(), x+cCardW/2, y+6, {align:'center'})
+      font('bold', 10); color(...c.fg); txt(c.val, x+cCardW/2, y+13, {align:'center'})
+    })
+    y += 22
+  }
+
+  stroke(220,220,220); doc.setLineWidth(0.2); doc.line(mg,y,W-mg,y); y += 4
+  font('normal', 7.5); color(180,180,180)
+  txt('MasterKey — Conciergerie & Gestion Locative', mg, y)
+  txt(`Document confidentiel · ${today}`, W-mg, y, {align:'right'})
+
+  fill(59,130,246); doc.rect(0,294.5,W,1.5,'F')
+
+  doc.save(`MasterKey_SousLoc_${property.name.replace(/\s+/g,'_')}_${MONTHS_FR[month]}_${year}.pdf`)
+}
+
+function SubletPrintModal({
+  isOpen, onClose, property, revenues, expense, month, year,
+}: {
+  isOpen: boolean; onClose: () => void
+  property: Property; revenues: PropertyRevenue[]
+  expense: SubletExpense | null; month: number; year: number
+}) {
+  const [generating, setGenerating] = useState(false)
+  const totalGross    = revenues.reduce((s, r) => s + r.platformAmount, 0)
+  const totalCleaning = revenues.reduce((s, r) => s + r.cleaningFees, 0)
+  const totalRevNet   = totalGross - totalCleaning
+  const totalCharges  = expense ? expense.loyer + expense.electricite + expense.wifi + (expense.assurance ?? 0) + expense.autresCharges : 0
+  const netProfit     = totalRevNet - totalCharges
+
+  const handleDownload = async () => {
+    setGenerating(true)
+    await downloadSubletPDF(property, revenues, expense, month, year)
+    setGenerating(false)
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Rapport — ${property.name}`}>
+      <div className="space-y-4">
+        <div className="flex items-start justify-between bg-[#141414] rounded-xl p-4">
+          <div>
+            <p className="text-white font-semibold">{property.name}</p>
+            <p className="text-white/40 text-xs mt-0.5">{property.address}, {property.city}</p>
+            <p className="text-white/40 text-xs">Propriétaire : <span className="text-white/60">{property.owner.name}</span></p>
+          </div>
+          <div className="text-right">
+            <p className="text-blue-400 font-semibold text-sm">{MONTHS_FR[month]} {year}</p>
+            <p className="text-white/30 text-xs mt-0.5">Sous-location</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-[#141414] rounded-xl p-3 text-center">
+            <p className="text-white/30 text-[10px] mb-1">Revenus bruts</p>
+            <p className="text-white font-bold">{formatCurrency(totalGross)}</p>
+          </div>
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
+            <p className="text-red-400/60 text-[10px] mb-1">Charges totales</p>
+            <p className="text-red-400 font-bold">{formatCurrency(totalCharges)}</p>
+          </div>
+          <div className={`${netProfit >= 0 ? 'bg-green-500/10 border border-green-500/20' : 'bg-red-500/10 border border-red-500/20'} rounded-xl p-3 text-center`}>
+            <p className={`${netProfit >= 0 ? 'text-green-400/60' : 'text-red-400/60'} text-[10px] mb-1`}>Résultat net</p>
+            <p className={`${netProfit >= 0 ? 'text-green-400' : 'text-red-400'} font-bold`}>{netProfit >= 0 ? '+' : ''}{formatCurrency(netProfit)}</p>
+          </div>
+        </div>
+        <div className="flex gap-3 justify-end">
+          <Button variant="ghost" onClick={onClose}>Fermer</Button>
+          <Button onClick={handleDownload} isLoading={generating}>
+            <Download className="w-4 h-4 mr-1.5" />
+            {generating ? 'Génération…' : 'Télécharger le PDF'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// ─── Conciergerie Print Modal ─────────────────────────────────────────────────
 
 function PrintModal({
   isOpen, onClose, property, revenues, month, year,
@@ -917,7 +1136,6 @@ function PropertyRevenueCard({
         <div className="w-[110px] px-4 py-2 text-white/25 text-[10px] font-medium flex-shrink-0">Plateforme</div>
         <div className="flex-1 px-3 py-2 text-white/25 text-[10px] font-medium">Montant (€)</div>
         <div className="flex-1 px-3 py-2 text-white/25 text-[10px] font-medium">Ménage (€)</div>
-        <div className="w-[70px] px-3 py-2 text-white/25 text-[10px] font-medium text-center flex-shrink-0">Séjours</div>
         <div className="w-[70px] px-3 py-2 text-white/25 text-[10px] font-medium text-center flex-shrink-0">Nuits</div>
         <div className="w-[70px] px-3 py-2 text-white/25 text-[10px] font-medium text-center flex-shrink-0">Com.%</div>
         <div className="w-[90px] px-4 py-2 text-white/25 text-[10px] font-medium text-right flex-shrink-0">Base</div>
@@ -947,7 +1165,6 @@ function PropertyRevenueCard({
             <div className="w-[110px] px-4 py-3 text-white/30 text-xs font-semibold flex-shrink-0">TOTAL</div>
             <div className="flex-1 px-3 py-3 text-white font-semibold text-sm">{formatCurrency(totals.platformAmount)}</div>
             <div className="flex-1 px-3 py-3 text-white/50 text-sm">{formatCurrency(totals.cleaningFees)}</div>
-            <div className="w-[70px] flex-shrink-0" />
             <div className="w-[70px] flex-shrink-0" />
             <div className="w-[70px] flex-shrink-0" />
             <div className="w-[90px] px-4 py-3 text-white/70 font-semibold text-sm text-right flex-shrink-0">{formatCurrency(totals.base)}</div>
@@ -983,13 +1200,14 @@ function SubletPropertyCard({
   property: Property; month: number; year: number; onReload: () => void; onHide: () => void
 }) {
   const [expenseModalOpen, setExpenseModalOpen] = useState(false)
+  const [printOpen, setPrintOpen] = useState(false)
 
   const revenues        = property.revenues
   const expense         = property.subletExpenses[0] ?? null
   const totalGross      = revenues.reduce((s, r) => s + r.platformAmount, 0)
   const totalCleaning   = revenues.reduce((s, r) => s + r.cleaningFees, 0)
   const totalRevenueNet = totalGross - totalCleaning
-  const totalCharges    = expense ? expense.loyer + expense.electricite + expense.wifi + expense.autresCharges : 0
+  const totalCharges    = expense ? expense.loyer + expense.electricite + expense.wifi + expense.autresCharges + (expense.assurance ?? 0) : 0
   const netProfit       = totalRevenueNet - totalCharges
 
   const handleSaveExpense = async (data: Partial<SubletExpense>) => {
@@ -1024,6 +1242,10 @@ function SubletPropertyCard({
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white/30 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.06] hover:text-white/60 transition-all">
             <EyeOff className="w-3.5 h-3.5" />
           </button>
+          <button onClick={() => setPrintOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 transition-all">
+            <Download className="w-3.5 h-3.5" /> PDF
+          </button>
           <div className="text-right">
             <p className={`font-bold text-lg leading-none ${netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {netProfit >= 0 ? '+' : ''}{formatCurrency(netProfit)}
@@ -1040,6 +1262,7 @@ function SubletPropertyCard({
           <div className="w-[120px] px-4 py-2 text-white/25 text-[10px] font-medium flex-shrink-0">Plateforme</div>
           <div className="flex-1 px-3 py-2 text-white/25 text-[10px] font-medium">Montant brut (€)</div>
           <div className="flex-1 px-3 py-2 text-white/25 text-[10px] font-medium">Frais ménage (€)</div>
+          <div className="w-[60px] px-3 py-2 text-white/25 text-[10px] font-medium text-center flex-shrink-0">Nuits</div>
           <div className="w-[110px] px-4 py-2 text-white/25 text-[10px] font-medium text-right flex-shrink-0">Net</div>
           <div className="w-[90px] flex-shrink-0" />
         </div>
@@ -1082,10 +1305,11 @@ function SubletPropertyCard({
         {expense ? (
           <div className="bg-[#141414] rounded-xl p-3 space-y-2">
             {([
-              ['🏠 Loyer',       expense.loyer],
-              ['⚡ Électricité', expense.electricite],
-              ['📶 Wi-Fi',       expense.wifi],
-              ['📦 Autres',      expense.autresCharges],
+              ['🏠 Loyer',        expense.loyer],
+              ['⚡ Électricité',  expense.electricite],
+              ['📶 Wi-Fi',        expense.wifi],
+              ['🛡 Assurance',    expense.assurance ?? 0],
+              ['📦 Autres',       expense.autresCharges],
             ] as [string, number][]).filter(([, v]) => v > 0).map(([label, value]) => (
               <div key={label} className="flex justify-between">
                 <span className="text-white/40 text-xs">{label}</span>
@@ -1120,6 +1344,11 @@ function SubletPropertyCard({
         isOpen={expenseModalOpen} onClose={() => setExpenseModalOpen(false)}
         onSave={handleSaveExpense} initial={expense}
         property={property} month={month} year={year}
+      />
+      <SubletPrintModal
+        isOpen={printOpen} onClose={() => setPrintOpen(false)}
+        property={property} revenues={revenues} expense={expense}
+        month={month} year={year}
       />
     </div>
   )
@@ -1372,7 +1601,7 @@ export default function FacturationPage() {
     const gross = p.revenues.reduce((sum, r) => sum + r.platformAmount, 0)
     const cleaning = p.revenues.reduce((sum, r) => sum + r.cleaningFees, 0)
     const exp = p.subletExpenses[0] ?? null
-    const charges = exp ? exp.loyer + exp.electricite + exp.wifi + exp.autresCharges : 0
+    const charges = exp ? exp.loyer + exp.electricite + exp.wifi + exp.autresCharges + (exp.assurance ?? 0) : 0
     return s + (gross - cleaning - charges)
   }, 0)
   const totalMenage = cleaningMarginProps.reduce((s, p) => {

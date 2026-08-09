@@ -118,6 +118,38 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const { propertyId, month, year, platform, platformAmount, cleaningFees, commissionRate, notes } = body
+    const nbNuits = Number(body.nbNuits) || 0
+
+    if (process.env.TURSO_DATABASE_URL) {
+      const { createClient } = require('@libsql/client')
+      const client = createClient({
+        url: process.env.TURSO_DATABASE_URL,
+        authToken: process.env.TURSO_AUTH_TOKEN || '',
+      })
+      try {
+        const rs = await client.execute({
+          sql: `INSERT INTO PropertyRevenue (propertyId, month, year, platform, platformAmount, cleaningFees, commissionRate, nbNuits, notes, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(propertyId, month, year, platform) DO UPDATE SET
+                  platformAmount = excluded.platformAmount,
+                  cleaningFees   = excluded.cleaningFees,
+                  commissionRate = excluded.commissionRate,
+                  nbNuits        = excluded.nbNuits,
+                  notes          = excluded.notes,
+                  updatedAt      = CURRENT_TIMESTAMP
+                RETURNING *`,
+          args: [
+            Number(propertyId), Number(month), Number(year), String(platform),
+            Number(platformAmount) || 0, Number(cleaningFees) || 0,
+            Number(commissionRate) || 0, nbNuits, notes ?? null,
+          ],
+        })
+        const row = toRows(rs)[0] ?? {}
+        return NextResponse.json({ ...row, nbSejours: 0, nbNuits: Number(row.nbNuits) || 0 })
+      } finally {
+        client.close()
+      }
+    }
 
     const key = {
       propertyId_month_year_platform: {
@@ -136,8 +168,8 @@ export async function POST(req: NextRequest) {
     try {
       revenue = await prisma.propertyRevenue.upsert({
         where: key,
-        update: { ...base, nbSejours: Number(body.nbSejours) || 0, nbNuits: Number(body.nbNuits) || 0 },
-        create: { propertyId: Number(propertyId), month: Number(month), year: Number(year), platform: String(platform), ...base, nbSejours: Number(body.nbSejours) || 0, nbNuits: Number(body.nbNuits) || 0 },
+        update: { ...base, nbNuits },
+        create: { propertyId: Number(propertyId), month: Number(month), year: Number(year), platform: String(platform), ...base, nbNuits },
       })
     } catch {
       revenue = await (prisma as any).propertyRevenue.upsert({
