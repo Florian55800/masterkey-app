@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   ChevronLeft, ChevronRight, Edit2, Trash2, Plus, Printer,
   Trophy, TrendingUp, Home, X, Check, AlertCircle, Euro,
-  Building2, Zap, Wifi, MoreHorizontal, Download, EyeOff, Eye
+  Building2, Zap, Wifi, MoreHorizontal, Download, EyeOff, Eye, MapPin
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -652,137 +652,181 @@ function fmt(n: number) {
     .replace(/ /g, ' ')
 }
 
+async function loadLogoBase64(): Promise<string | null> {
+  try {
+    const res = await fetch('/mk-logo.png')
+    if (!res.ok) return null
+    const blob = await res.blob()
+    return new Promise<string>(resolve => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result as string)
+      reader.readAsDataURL(blob)
+    })
+  } catch { return null }
+}
+
 async function downloadPDF(property: Property, revenues: PropertyRevenue[], month: number, year: number) {
   const { default: jsPDF } = await import('jspdf')
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const logoB64 = await loadLogoBase64()
   const totals = propertyTotals(revenues)
   const today = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
   const W = 210, mg = 14, cW = W - mg * 2
   let y = 0
 
-  const text  = (t: string, x: number, yy: number, opts?: { align?: 'left'|'right'|'center', maxWidth?: number }) => doc.text(t, x, yy, opts)
+  const text  = (t: string, x: number, yy: number, opts?: { align?: 'left'|'right'|'center'; maxWidth?: number }) => doc.text(t, x, yy, opts)
   const font  = (style: 'normal'|'bold', size: number) => { doc.setFont('helvetica', style); doc.setFontSize(size) }
   const color = (r: number, g: number, b: number) => doc.setTextColor(r, g, b)
   const fill  = (r: number, g: number, b: number) => doc.setFillColor(r, g, b)
-  const stroke= (r: number, g: number, b: number) => doc.setDrawColor(r, g, b)
+  const stroke = (r: number, g: number, b: number) => doc.setDrawColor(r, g, b)
+  const trunc = (s: string, maxW: number): string => {
+    if (doc.getTextWidth(s) <= maxW) return s
+    let t = s
+    while (t.length > 1 && doc.getTextWidth(t + '…') > maxW) t = t.slice(0, -1)
+    return t + '…'
+  }
 
-  // bande or haut
-  fill(212,175,55); doc.rect(0,0,W,1.5,'F')
+  // Barre noire haut
+  fill(12,12,12); doc.rect(0,0,W,2.5,'F')
 
-  // header
-  y = 11
-  font('bold', 20); color(26,26,26); text('Master', mg, y)
-  color(212,175,55); text('Key', mg + doc.getTextWidth('Master'), y)
-  font('normal', 8); color(160,160,160); text('Conciergerie & Gestion Locative', mg, y+5)
-  font('bold', 12); color(212,175,55); text(`Relevé — ${MONTHS_FR[month]} ${year}`, W-mg, y, { align:'right' })
-  font('normal', 8); color(160,160,160); text(`Édité le ${today}`, W-mg, y+5, { align:'right' })
+  // Header
+  y = 14
+  if (logoB64) {
+    doc.addImage(logoB64, 'PNG', mg, 4, 18, 9)
+    font('bold', 14); color(12,12,12)
+    text('MasterKey Conciergerie', mg + 21, y)
+    font('normal', 7.5); color(155,155,155)
+    text('Gestion Locative', mg + 21, y + 5)
+  } else {
+    font('bold', 17); color(12,12,12)
+    text('MasterKey Conciergerie', mg, y)
+    font('normal', 7.5); color(155,155,155)
+    text('Gestion Locative', mg, y + 5)
+  }
+  font('bold', 11); color(12,12,12)
+  text(`Relevé — ${MONTHS_FR[month]} ${year}`, W-mg, y, { align:'right' })
+  font('normal', 7.5); color(155,155,155)
+  text(`Édité le ${today}`, W-mg, y+5, { align:'right' })
 
-  y += 9; stroke(212,175,55); doc.setLineWidth(0.4); doc.line(mg,y,W-mg,y); y += 6
+  y += 9; stroke(190,190,190); doc.setLineWidth(0.3); doc.line(mg,y,W-mg,y); y += 6
 
-  // bloc propriété
-  fill(249,249,249); stroke(230,230,230); doc.setLineWidth(0.25)
-  doc.roundedRect(mg, y, cW, 20, 2, 2, 'FD')
-  fill(212,175,55); doc.rect(mg, y, 2, 20, 'F')
-  const propFields = [
+  // Bloc propriété
+  fill(248,248,248); stroke(220,220,220); doc.setLineWidth(0.2)
+  doc.roundedRect(mg, y, cW, 21, 2, 2, 'FD')
+  fill(12,12,12); doc.rect(mg, y, 2.5, 21, 'F')
+  const propFields: [string, string][] = [
     ['LOGEMENT', property.name],
     ['ADRESSE', `${property.address}, ${property.city}`],
     ['PROPRIÉTAIRE', property.owner.name],
     ['COMMISSION', `${property.commissionRate} %`],
   ]
-  const fw = cW / propFields.length
+  const fw = cW / 4
   propFields.forEach(([lbl, val], i) => {
-    const x = mg + 3 + i * fw
-    font('bold', 7); color(180,180,180); text(lbl, x, y+7)
-    font('bold', 9); color(26,26,26); text(val, x, y+14, { maxWidth: fw-4 })
+    const x = mg + 4.5 + i * fw
+    font('bold', 6.5); color(175,175,175); text(lbl, x, y+7)
+    font('bold', 8.5); color(15,15,15)
+    text(trunc(val, fw - 6), x, y+15)
   })
-  y += 25
+  y += 26
 
-  // ── Taux d'occupation global (affiché seulement si des nuits sont renseignées) ──
+  // Taux d'occupation
   const daysInMonth = new Date(year, month, 0).getDate()
   const totalNuits = revenues.reduce((s, r) => s + (r.nbNuits ?? 0), 0)
   if (totalNuits > 0) {
     const tauxOcc = daysInMonth > 0 ? Math.round((totalNuits / daysInMonth) * 100) : 0
-    fill(255,251,235); stroke(253,230,138); doc.setLineWidth(0.2)
-    doc.roundedRect(mg, y, cW, 13, 2, 2, 'FD')
-    font('bold', 8.5); color(146,112,10)
-    text(`Taux d'occupation : ${tauxOcc} %  (${totalNuits} nuits / ${daysInMonth} jours)`, mg+4, y+8.5)
-    y += 18
+    fill(236,236,236); stroke(210,210,210); doc.setLineWidth(0.15)
+    doc.roundedRect(mg, y, cW, 12, 2, 2, 'FD')
+    font('bold', 8.5); color(15,15,15)
+    text(`Taux d'occupation : ${tauxOcc} %  (${totalNuits} nuits / ${daysInMonth} jours)`, mg+4, y+8)
+    y += 17
   }
 
-  // tableau header
-  const cols = ['Plateforme','Montant brut','Frais ménage','Com. %','Base calcul','Part MasterKey','Part propriétaire']
+  // Tableau header
+  const cols = ['Plateforme', 'Montant brut', 'Frais ménage', 'Com. %', 'Base', 'Part MasterKey', 'Part propriétaire']
   const colWidths = [28, 26, 26, 17, 26, 29, 30]
   const rowH = 8
 
-  fill(26,26,26); doc.rect(mg, y, cW, rowH, 'F')
-  font('bold', 7.5); color(255,255,255)
+  fill(12,12,12); doc.rect(mg, y, cW, rowH, 'F')
+  font('bold', 7); color(255,255,255)
   let cx = mg + 2
-  cols.forEach((c, i) => { text(c, cx + (i>0 ? colWidths[i]-1 : 0), y+5.5, { align: i>0 ? 'right' : 'left' }); cx += colWidths[i] })
+  cols.forEach((c, i) => {
+    text(c, cx + (i>0 ? colWidths[i]-1 : 0), y+5.5, { align: i>0 ? 'right' : 'left' })
+    cx += colWidths[i]
+  })
   y += rowH
 
-  // lignes données avec code couleur plateforme
+  // Lignes données — Airbnb rose vif, Booking bleu vif
   revenues.forEach((r, ri) => {
     const { base, partMK, partProprio } = calcRevenue(r)
     const isAirbnb  = r.platform === 'airbnb'
     const isBooking = r.platform === 'booking'
-    const bg: [number,number,number] = isAirbnb ? [255,241,242] : isBooking ? [239,246,255] : ri%2===0 ? [255,255,255] : [250,250,250]
-    fill(...bg); stroke(230,230,230); doc.setLineWidth(0.15)
+    const bg: [number,number,number] = isAirbnb ? [255,150,170] : isBooking ? [80,165,255] : ri%2===0 ? [255,255,255] : [248,248,248]
+    fill(...bg); stroke(210,210,210); doc.setLineWidth(0.12)
     doc.rect(mg, y, cW, rowH, 'FD')
     cx = mg + 2
-    const cells = [PLATFORM_LABELS[r.platform]??r.platform, fmt(r.platformAmount), r.cleaningFees>0?fmt(r.cleaningFees):'—', `${r.commissionRate}%`, fmt(base), fmt(partMK), fmt(partProprio)]
+    const cells = [
+      PLATFORM_LABELS[r.platform] ?? r.platform,
+      fmt(r.platformAmount),
+      r.cleaningFees > 0 ? fmt(r.cleaningFees) : '—',
+      `${r.commissionRate}%`,
+      fmt(base),
+      fmt(partMK),
+      fmt(partProprio),
+    ]
     cells.forEach((cell, ci) => {
-      font(ci===0?'bold':'normal', 8.5)
-      if (ci===0) { color(isAirbnb?225:isBooking?37:26, isAirbnb?29:isBooking?99:26, isAirbnb?72:isBooking?235:26) }
-      else if (ci===5) color(146,112,10)
-      else if (ci===6) color(22,101,52)
-      else if (ci>=2&&ci<=3) color(130,130,130)
-      else color(26,26,26)
-      text(cell, cx+(ci>0?colWidths[ci]-1:0), y+5.5, { align:ci>0?'right':'left' })
+      font(ci===0 ? 'bold' : 'normal', 7.5)
+      if (ci === 0) color(isAirbnb ? 120 : isBooking ? 0 : 20, isAirbnb ? 0 : isBooking ? 20 : 20, isAirbnb ? 30 : isBooking ? 130 : 20)
+      else if (ci === 5) color(0, 25, 140)
+      else if (ci === 6) color(10, 100, 40)
+      else if (ci >= 2 && ci <= 3) color(90, 90, 90)
+      else color(20, 20, 20)
+      text(trunc(cell, colWidths[ci] - 3), cx + (ci>0 ? colWidths[ci]-1 : 0), y+5.5, { align: ci>0 ? 'right' : 'left' })
       cx += colWidths[ci]
     })
     y += rowH
   })
-  // ligne TOTAL
-  fill(240,240,240); stroke(230,230,230); doc.setLineWidth(0.15)
+
+  // Ligne TOTAL
+  fill(228,228,228); stroke(210,210,210); doc.setLineWidth(0.12)
   doc.rect(mg, y, cW, rowH, 'FD')
   cx = mg + 2
   ;['TOTAL', fmt(totals.platformAmount), fmt(totals.cleaningFees), '', fmt(totals.base), fmt(totals.partMK), fmt(totals.partProprio)].forEach((cell, ci) => {
-    font('bold', 8.5)
-    if (ci===5) color(146,112,10)
-    else if (ci===6) color(22,101,52)
-    else color(26,26,26)
-    text(cell, cx+(ci>0?colWidths[ci]-1:0), y+5.5, { align:ci>0?'right':'left' })
+    font('bold', 7.5)
+    if (ci === 5) color(0, 25, 140)
+    else if (ci === 6) color(10, 100, 40)
+    else color(20, 20, 20)
+    text(cell, cx + (ci>0 ? colWidths[ci]-1 : 0), y+5.5, { align: ci>0 ? 'right' : 'left' })
     cx += colWidths[ci]
   })
-  y += rowH
-  y += 6
+  y += rowH + 6
 
-  // cartes synthèse
-  const cards = [
-    { lbl:'Total facturé',    val:fmt(totals.platformAmount), bg:[245,245,245], fg:[26,26,26] },
-    { lbl:'Frais ménage',     val:fmt(totals.cleaningFees),   bg:[245,245,245], fg:[26,26,26] },
-    { lbl:'Base commission',  val:fmt(totals.base),           bg:[245,245,245], fg:[26,26,26] },
-    { lbl:'Part MasterKey',   val:fmt(totals.partMK),         bg:[255,251,235], fg:[146,112,10] },
-    { lbl:'Part propriétaire',val:fmt(totals.partProprio),    bg:[240,253,244], fg:[22,101,52] },
-  ] as { lbl:string; val:string; bg:[number,number,number]; fg:[number,number,number] }[]
-  const cCardW = cW/cards.length - 2
-  cards.forEach((c,i) => {
-    const x = mg + i*(cCardW+2)
-    fill(...c.bg); stroke(220,220,220); doc.setLineWidth(0.2)
+  // Cartes synthèse — noir et blanc
+  const cards: { lbl: string; val: string; bg: [number,number,number]; fg: [number,number,number] }[] = [
+    { lbl:'Total facturé',    val:fmt(totals.platformAmount), bg:[242,242,242], fg:[20,20,20] },
+    { lbl:'Frais ménage',     val:fmt(totals.cleaningFees),   bg:[242,242,242], fg:[20,20,20] },
+    { lbl:'Base commission',  val:fmt(totals.base),           bg:[242,242,242], fg:[20,20,20] },
+    { lbl:'Part MasterKey',   val:fmt(totals.partMK),         bg:[220,230,255], fg:[0,25,140] },
+    { lbl:'Part propriétaire',val:fmt(totals.partProprio),    bg:[220,245,228], fg:[10,100,40] },
+  ]
+  const cCardW = cW / cards.length - 2
+  cards.forEach((c, i) => {
+    const x = mg + i * (cCardW + 2)
+    fill(...c.bg); stroke(210,210,210); doc.setLineWidth(0.15)
     doc.roundedRect(x, y, cCardW, 17, 2, 2, 'FD')
-    font('normal',7); color(150,150,150); text(c.lbl.toUpperCase(), x+cCardW/2, y+6, {align:'center'})
-    font('bold',10); color(...c.fg); text(c.val, x+cCardW/2, y+13, {align:'center'})
+    font('normal', 6); color(140,140,140)
+    text(c.lbl.toUpperCase(), x+cCardW/2, y+6, { align:'center' })
+    font('bold', 8.5); color(...c.fg)
+    text(trunc(c.val, cCardW - 3), x+cCardW/2, y+13, { align:'center' })
   })
   y += 22
 
-  // footer
-  stroke(220,220,220); doc.setLineWidth(0.2); doc.line(mg,y,W-mg,y); y+=4
-  font('normal',7.5); color(180,180,180)
-  text('MasterKey — Conciergerie & Gestion Locative', mg, y)
-  text(`Document confidentiel · ${today}`, W-mg, y, {align:'right'})
+  // Footer
+  stroke(205,205,205); doc.setLineWidth(0.15); doc.line(mg,y,W-mg,y); y += 4
+  font('normal', 7); color(165,165,165)
+  text('MasterKey Conciergerie — Gestion Locative', mg, y)
+  text(`Document confidentiel · ${today}`, W-mg, y, { align:'right' })
 
-  // bande or bas
-  fill(212,175,55); doc.rect(0,294.5,W,1.5,'F')
+  fill(12,12,12); doc.rect(0,294.5,W,2.5,'F')
 
   doc.save(`MasterKey_${property.name.replace(/\s+/g,'_')}_${MONTHS_FR[month]}_${year}.pdf`)
 }
@@ -793,6 +837,7 @@ async function downloadPDF(property: Property, revenues: PropertyRevenue[], mont
 async function downloadSubletPDF(property: Property, revenues: PropertyRevenue[], expense: SubletExpense | null, month: number, year: number) {
   const { default: jsPDF } = await import('jspdf')
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const logoB64 = await loadLogoBase64()
   const today = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
   const W = 210, mg = 14, cW = W - mg * 2
   let y = 0
@@ -801,95 +846,120 @@ async function downloadSubletPDF(property: Property, revenues: PropertyRevenue[]
   const font  = (style: 'normal'|'bold', size: number) => { doc.setFont('helvetica', style); doc.setFontSize(size) }
   const color = (r: number, g: number, b: number) => doc.setTextColor(r, g, b)
   const fill  = (r: number, g: number, b: number) => doc.setFillColor(r, g, b)
-  const stroke= (r: number, g: number, b: number) => doc.setDrawColor(r, g, b)
+  const stroke = (r: number, g: number, b: number) => doc.setDrawColor(r, g, b)
+  const trunc = (s: string, maxW: number): string => {
+    if (doc.getTextWidth(s) <= maxW) return s
+    let t = s
+    while (t.length > 1 && doc.getTextWidth(t + '…') > maxW) t = t.slice(0, -1)
+    return t + '…'
+  }
 
-  fill(59,130,246); doc.rect(0,0,W,1.5,'F')
+  // Barre noire haut
+  fill(12,12,12); doc.rect(0,0,W,2.5,'F')
 
-  y = 11
-  font('bold', 20); color(26,26,26); txt('Master', mg, y)
-  color(212,175,55); txt('Key', mg + doc.getTextWidth('Master'), y)
-  font('normal', 8); color(160,160,160); txt('Conciergerie & Gestion Locative', mg, y+5)
-  font('bold', 12); color(59,130,246); txt(`Bilan Sous-location — ${MONTHS_FR[month]} ${year}`, W-mg, y, { align:'right' })
-  font('normal', 8); color(160,160,160); txt(`Édité le ${today}`, W-mg, y+5, { align:'right' })
+  // Header
+  y = 14
+  if (logoB64) {
+    doc.addImage(logoB64, 'PNG', mg, 4, 18, 9)
+    font('bold', 14); color(12,12,12)
+    txt('MasterKey Conciergerie', mg + 21, y)
+    font('normal', 7.5); color(155,155,155)
+    txt('Gestion Locative', mg + 21, y + 5)
+  } else {
+    font('bold', 17); color(12,12,12)
+    txt('MasterKey Conciergerie', mg, y)
+    font('normal', 7.5); color(155,155,155)
+    txt('Gestion Locative', mg, y + 5)
+  }
+  font('bold', 11); color(12,12,12)
+  txt(`Bilan Sous-location — ${MONTHS_FR[month]} ${year}`, W-mg, y, { align:'right' })
+  font('normal', 7.5); color(155,155,155)
+  txt(`Édité le ${today}`, W-mg, y+5, { align:'right' })
 
-  y += 9; stroke(59,130,246); doc.setLineWidth(0.4); doc.line(mg,y,W-mg,y); y += 6
+  y += 9; stroke(190,190,190); doc.setLineWidth(0.3); doc.line(mg,y,W-mg,y); y += 6
 
-  fill(249,249,249); stroke(230,230,230); doc.setLineWidth(0.25)
-  doc.roundedRect(mg, y, cW, 20, 2, 2, 'FD')
-  fill(59,130,246); doc.rect(mg, y, 2, 20, 'F')
-  const propFields = [
+  // Bloc propriété
+  fill(248,248,248); stroke(220,220,220); doc.setLineWidth(0.2)
+  doc.roundedRect(mg, y, cW, 21, 2, 2, 'FD')
+  fill(12,12,12); doc.rect(mg, y, 2.5, 21, 'F')
+  const propFields: [string, string][] = [
     ['LOGEMENT', property.name],
     ['ADRESSE', `${property.address}, ${property.city}`],
     ['PROPRIÉTAIRE', property.owner.name],
     ['TYPE', 'Sous-location'],
   ]
-  const fw = cW / propFields.length
+  const fw = cW / 4
   propFields.forEach(([lbl, val], i) => {
-    const x = mg + 3 + i * fw
-    font('bold', 7); color(180,180,180); txt(lbl, x, y+7)
-    font('bold', 9); color(26,26,26); txt(val, x, y+14, { maxWidth: fw-4 })
+    const x = mg + 4.5 + i * fw
+    font('bold', 6.5); color(175,175,175); txt(lbl, x, y+7)
+    font('bold', 8.5); color(15,15,15)
+    txt(trunc(val, fw - 6), x, y+15)
   })
-  y += 25
+  y += 26
 
+  // Taux d'occupation
   const daysInMonth = new Date(year, month, 0).getDate()
   const totalNuits  = revenues.reduce((s, r) => s + (r.nbNuits ?? 0), 0)
   if (totalNuits > 0) {
     const tauxOcc = Math.round((totalNuits / daysInMonth) * 100)
-    fill(239,246,255); stroke(219,234,254); doc.setLineWidth(0.2)
-    doc.roundedRect(mg, y, cW, 13, 2, 2, 'FD')
-    font('bold', 8.5); color(37,99,235)
-    txt(`Taux d'occupation : ${tauxOcc} %  (${totalNuits} nuits / ${daysInMonth} jours)`, mg+4, y+8.5)
-    y += 18
+    fill(236,236,236); stroke(210,210,210); doc.setLineWidth(0.15)
+    doc.roundedRect(mg, y, cW, 12, 2, 2, 'FD')
+    font('bold', 8.5); color(15,15,15)
+    txt(`Taux d'occupation : ${tauxOcc} %  (${totalNuits} nuits / ${daysInMonth} jours)`, mg+4, y+8)
+    y += 17
   }
 
   // Tableau revenus
-  const rCols = ['Plateforme','Nuits','Montant brut','Frais ménage','Net plateforme']
+  const rCols = ['Plateforme', 'Nuits', 'Montant brut', 'Frais ménage', 'Net plateforme']
   const rColW = [32, 16, 38, 38, 58]
   const rowH  = 8
 
-  fill(26,26,26); doc.rect(mg, y, cW, rowH, 'F')
-  font('bold', 7.5); color(255,255,255)
+  fill(12,12,12); doc.rect(mg, y, cW, rowH, 'F')
+  font('bold', 7); color(255,255,255)
   let cx = mg + 2
   rCols.forEach((c, i) => { txt(c, cx+(i>0?rColW[i]-1:0), y+5.5, { align:i>0?'right':'left' }); cx += rColW[i] })
   y += rowH
 
-  const totalGross     = revenues.reduce((s, r) => s + r.platformAmount, 0)
-  const totalCleaning  = revenues.reduce((s, r) => s + r.cleaningFees, 0)
-  const totalRevNet    = totalGross - totalCleaning
+  const totalGross    = revenues.reduce((s, r) => s + r.platformAmount, 0)
+  const totalCleaning = revenues.reduce((s, r) => s + r.cleaningFees, 0)
+  const totalRevNet   = totalGross - totalCleaning
 
+  // Lignes — Airbnb rose vif, Booking bleu vif
   revenues.forEach((r, ri) => {
     const net = r.platformAmount - r.cleaningFees
     const isAirbnb  = r.platform === 'airbnb'
     const isBooking = r.platform === 'booking'
-    const bg: [number,number,number] = isAirbnb ? [255,241,242] : isBooking ? [239,246,255] : ri%2===0 ? [255,255,255] : [250,250,250]
-    fill(...bg); stroke(230,230,230); doc.setLineWidth(0.15)
+    const bg: [number,number,number] = isAirbnb ? [255,150,170] : isBooking ? [80,165,255] : ri%2===0 ? [255,255,255] : [248,248,248]
+    fill(...bg); stroke(210,210,210); doc.setLineWidth(0.12)
     doc.rect(mg, y, cW, rowH, 'FD')
     cx = mg + 2
-    font('bold', 8.5)
-    color(isAirbnb?225:isBooking?37:26, isAirbnb?29:isBooking?99:26, isAirbnb?72:isBooking?235:26)
-    txt(PLATFORM_LABELS[r.platform] ?? r.platform, cx, y+5.5)
+    font('bold', 7.5)
+    color(isAirbnb ? 120 : isBooking ? 0 : 20, isAirbnb ? 0 : isBooking ? 20 : 20, isAirbnb ? 30 : isBooking ? 130 : 20)
+    txt(trunc(PLATFORM_LABELS[r.platform] ?? r.platform, rColW[0] - 3), cx, y+5.5)
     cx += rColW[0]
-    font('normal', 8.5); color(100,100,100)
+    font('normal', 7.5); color(80,80,80)
     txt(r.nbNuits > 0 ? String(r.nbNuits) : '—', cx+rColW[1]-1, y+5.5, { align:'right' })
     cx += rColW[1]
-    color(26,26,26); txt(r.platformAmount>0?fmt(r.platformAmount):'—', cx+rColW[2]-1, y+5.5, { align:'right' }); cx += rColW[2]
-    color(r.cleaningFees>0?200:130, r.cleaningFees>0?60:130, r.cleaningFees>0?60:130)
-    txt(r.cleaningFees>0?`- ${fmt(r.cleaningFees)}`:'—', cx+rColW[3]-1, y+5.5, { align:'right' }); cx += rColW[3]
-    color(22,101,52); font('bold', 8.5); txt(fmt(net), cx+rColW[4]-1, y+5.5, { align:'right' })
+    color(20,20,20); txt(r.platformAmount>0 ? fmt(r.platformAmount) : '—', cx+rColW[2]-1, y+5.5, { align:'right' }); cx += rColW[2]
+    color(r.cleaningFees>0 ? 180 : 130, r.cleaningFees>0 ? 40 : 130, r.cleaningFees>0 ? 40 : 130)
+    txt(r.cleaningFees>0 ? `- ${fmt(r.cleaningFees)}` : '—', cx+rColW[3]-1, y+5.5, { align:'right' }); cx += rColW[3]
+    color(10,100,40); font('bold', 7.5); txt(fmt(net), cx+rColW[4]-1, y+5.5, { align:'right' })
     y += rowH
   })
 
-  fill(240,240,240); stroke(230,230,230); doc.rect(mg, y, cW, rowH, 'FD')
-  cx = mg + 2; font('bold', 8.5); color(26,26,26)
+  // Ligne total revenus
+  fill(228,228,228); stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, rowH, 'FD')
+  cx = mg + 2; font('bold', 7.5); color(20,20,20)
   txt('TOTAL REVENUS', cx, y+5.5); cx += rColW[0] + rColW[1]
   txt(fmt(totalGross), cx+rColW[2]-1, y+5.5, { align:'right' }); cx += rColW[2]
-  color(200,60,60); txt(`- ${fmt(totalCleaning)}`, cx+rColW[3]-1, y+5.5, { align:'right' }); cx += rColW[3]
-  color(22,101,52); txt(fmt(totalRevNet), cx+rColW[4]-1, y+5.5, { align:'right' })
+  color(180,40,40); txt(`- ${fmt(totalCleaning)}`, cx+rColW[3]-1, y+5.5, { align:'right' }); cx += rColW[3]
+  color(10,100,40); txt(fmt(totalRevNet), cx+rColW[4]-1, y+5.5, { align:'right' })
   y += rowH + 5
 
   if (expense) {
-    fill(26,26,26); doc.rect(mg, y, cW, 7, 'F')
-    font('bold', 7.5); color(255,255,255); txt('CHARGES MENSUELLES', mg+2, y+5)
+    // Section charges
+    fill(12,12,12); doc.rect(mg, y, cW, 7, 'F')
+    font('bold', 7); color(255,255,255); txt('CHARGES MENSUELLES', mg+2, y+5)
     y += 7
 
     const chargeItems = [
@@ -903,52 +973,57 @@ async function downloadSubletPDF(property: Property, revenues: PropertyRevenue[]
     const totalCharges = chargeItems.reduce((s, [, v]) => s + v, 0)
 
     chargeItems.forEach(([label, value], ri) => {
-      fill(ri%2===0?255:250, ri%2===0?255:250, ri%2===0?255:250)
-      stroke(230,230,230); doc.setLineWidth(0.15); doc.rect(mg, y, cW, rowH, 'FD')
-      font('normal', 8.5); color(26,26,26); txt(label, mg+2, y+5.5)
-      color(200,60,60); font('bold', 8.5); txt(`- ${fmt(value)}`, W-mg-2, y+5.5, { align:'right' })
+      fill(ri%2===0 ? 255 : 250, ri%2===0 ? 255 : 250, ri%2===0 ? 255 : 250)
+      stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, rowH, 'FD')
+      font('normal', 7.5); color(20,20,20); txt(label, mg+2, y+5.5)
+      color(180,40,40); font('bold', 7.5); txt(`- ${fmt(value)}`, W-mg-2, y+5.5, { align:'right' })
       y += rowH
     })
 
-    fill(240,240,240); stroke(230,230,230); doc.rect(mg, y, cW, rowH, 'FD')
-    font('bold', 8.5); color(26,26,26); txt('TOTAL CHARGES', mg+2, y+5.5)
-    color(200,60,60); txt(`- ${fmt(totalCharges)}`, W-mg-2, y+5.5, { align:'right' })
+    fill(228,228,228); stroke(210,210,210); doc.setLineWidth(0.12); doc.rect(mg, y, cW, rowH, 'FD')
+    font('bold', 7.5); color(20,20,20); txt('TOTAL CHARGES', mg+2, y+5.5)
+    color(180,40,40); txt(`- ${fmt(totalCharges)}`, W-mg-2, y+5.5, { align:'right' })
     y += rowH + 5
 
+    // Résultat net
     const netProfit  = totalRevNet - totalCharges
     const isPositive = netProfit >= 0
-    fill(isPositive?240:254, isPositive?253:242, isPositive?244:242)
-    stroke(isPositive?187:252, isPositive?247:165, isPositive?208:165)
-    doc.setLineWidth(0.3); doc.roundedRect(mg, y, cW, 14, 2, 2, 'FD')
-    font('bold', 10); color(isPositive?22:185, isPositive?101:28, isPositive?52:26)
-    txt(`RÉSULTAT NET : ${isPositive?'+':''}${fmt(netProfit)}`, W/2, y+9, { align:'center' })
+    fill(isPositive ? 220 : 254, isPositive ? 245 : 228, isPositive ? 228 : 228)
+    stroke(isPositive ? 170 : 220, isPositive ? 220 : 150, isPositive ? 190 : 150)
+    doc.setLineWidth(0.25); doc.roundedRect(mg, y, cW, 14, 2, 2, 'FD')
+    font('bold', 10); color(isPositive ? 10 : 170, isPositive ? 100 : 30, isPositive ? 40 : 30)
+    txt(`RÉSULTAT NET : ${isPositive ? '+' : ''}${fmt(netProfit)}`, W/2, y+9, { align:'center' })
     y += 19
 
+    // Cartes synthèse
     const totalChargesAll = expense.loyer + expense.electricite + expense.wifi + (expense.assurance ?? 0) + expense.autresCharges
-    const net2  = totalRevNet - totalChargesAll
-    const cards = [
-      { lbl:'Revenus bruts',   val:fmt(totalGross),     bg:[245,245,245] as [number,number,number], fg:[26,26,26] as [number,number,number] },
-      { lbl:'Revenus nets',    val:fmt(totalRevNet),    bg:[240,253,244] as [number,number,number], fg:[22,101,52] as [number,number,number] },
-      { lbl:'Charges totales', val:fmt(totalChargesAll),bg:[254,242,242] as [number,number,number], fg:[185,28,26] as [number,number,number] },
-      { lbl:'Résultat net',    val:`${net2>=0?'+':''}${fmt(net2)}`, bg:net2>=0?[240,253,244] as [number,number,number]:[254,242,242] as [number,number,number], fg:net2>=0?[22,101,52] as [number,number,number]:[185,28,26] as [number,number,number] },
+    const net2 = totalRevNet - totalChargesAll
+    const slCards: { lbl: string; val: string; bg: [number,number,number]; fg: [number,number,number] }[] = [
+      { lbl:'Revenus bruts',   val:fmt(totalGross),     bg:[242,242,242], fg:[20,20,20] },
+      { lbl:'Revenus nets',    val:fmt(totalRevNet),    bg:[220,245,228], fg:[10,100,40] },
+      { lbl:'Charges totales', val:fmt(totalChargesAll),bg:[255,228,228], fg:[170,30,30] },
+      { lbl:'Résultat net',    val:`${net2>=0?'+':''}${fmt(net2)}`, bg:net2>=0?[220,245,228]:[255,228,228], fg:net2>=0?[10,100,40]:[170,30,30] },
     ]
-    const cCardW = cW/cards.length - 2
-    cards.forEach((c, i) => {
-      const x = mg + i*(cCardW+2)
-      fill(...c.bg); stroke(220,220,220); doc.setLineWidth(0.2)
+    const cCardW = cW / slCards.length - 2
+    slCards.forEach((c, i) => {
+      const x = mg + i * (cCardW + 2)
+      fill(...c.bg); stroke(210,210,210); doc.setLineWidth(0.15)
       doc.roundedRect(x, y, cCardW, 17, 2, 2, 'FD')
-      font('normal', 7); color(150,150,150); txt(c.lbl.toUpperCase(), x+cCardW/2, y+6, {align:'center'})
-      font('bold', 10); color(...c.fg); txt(c.val, x+cCardW/2, y+13, {align:'center'})
+      font('normal', 6); color(140,140,140)
+      txt(c.lbl.toUpperCase(), x+cCardW/2, y+6, { align:'center' })
+      font('bold', 8.5); color(...c.fg)
+      txt(trunc(c.val, cCardW - 3), x+cCardW/2, y+13, { align:'center' })
     })
     y += 22
   }
 
-  stroke(220,220,220); doc.setLineWidth(0.2); doc.line(mg,y,W-mg,y); y += 4
-  font('normal', 7.5); color(180,180,180)
-  txt('MasterKey — Conciergerie & Gestion Locative', mg, y)
-  txt(`Document confidentiel · ${today}`, W-mg, y, {align:'right'})
+  // Footer
+  stroke(205,205,205); doc.setLineWidth(0.15); doc.line(mg,y,W-mg,y); y += 4
+  font('normal', 7); color(165,165,165)
+  txt('MasterKey Conciergerie — Gestion Locative', mg, y)
+  txt(`Document confidentiel · ${today}`, W-mg, y, { align:'right' })
 
-  fill(59,130,246); doc.rect(0,294.5,W,1.5,'F')
+  fill(12,12,12); doc.rect(0,294.5,W,2.5,'F')
 
   doc.save(`MasterKey_SousLoc_${property.name.replace(/\s+/g,'_')}_${MONTHS_FR[month]}_${year}.pdf`)
 }
@@ -1604,6 +1679,20 @@ export default function FacturationPage() {
     const charges = exp ? exp.loyer + exp.electricite + exp.wifi + exp.autresCharges + (exp.assurance ?? 0) : 0
     return s + (gross - cleaning - charges)
   }, 0)
+
+  const conciergerieByCity = Array.from(
+    visibleConciergerie.reduce((map, p) => {
+      const city = (p.city || 'Autre').trim()
+      return map.set(city, [...(map.get(city) ?? []), p])
+    }, new Map<string, Property[]>())
+  ).sort(([a], [b]) => a.localeCompare(b, 'fr'))
+
+  const sousLocByCity = Array.from(
+    visibleSousLoc.reduce((map, p) => {
+      const city = (p.city || 'Autre').trim()
+      return map.set(city, [...(map.get(city) ?? []), p])
+    }, new Map<string, Property[]>())
+  ).sort(([a], [b]) => a.localeCompare(b, 'fr'))
   const totalMenage = cleaningMarginProps.reduce((s, p) => {
     const m = p.cleaningMargin
     if (!m) return s
@@ -1771,9 +1860,25 @@ export default function FacturationPage() {
                   <p>Aucun logement en conciergerie</p>
                 </div>
               ) : (
-                visibleConciergerie.map(p => (
-                  <PropertyRevenueCard key={p.id} property={p} month={month} year={year} onReload={load} onHide={() => hideProperty(p.id)} />
-                ))
+                conciergerieByCity.map(([city, cityProps]) => {
+                  const cityTotal = cityProps.reduce((s, p) => s + propertyTotals(p.revenues).partMK, 0)
+                  return (
+                    <div key={city} className="space-y-3">
+                      <div className="flex items-center justify-between px-1 pt-1">
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-white/25" />
+                          <span className="text-white/40 text-xs font-semibold uppercase tracking-wider">{city}</span>
+                        </div>
+                        {cityTotal > 0 && (
+                          <span className="text-[#D4AF37]/60 text-xs font-semibold">{formatCurrency(cityTotal)}</span>
+                        )}
+                      </div>
+                      {cityProps.map(p => (
+                        <PropertyRevenueCard key={p.id} property={p} month={month} year={year} onReload={load} onHide={() => hideProperty(p.id)} />
+                      ))}
+                    </div>
+                  )
+                })
               )}
 
               {visibleConciergerie.length > 0 && totalBrutConcierge > 0 && (
@@ -1818,9 +1923,33 @@ export default function FacturationPage() {
                   <p>Aucun logement en sous-location</p>
                 </div>
               ) : (
-                visibleSousLoc.map(p => (
-                  <SubletPropertyCard key={p.id} property={p} month={month} year={year} onReload={load} onHide={() => hideProperty(p.id)} />
-                ))
+                sousLocByCity.map(([city, cityProps]) => {
+                  const cityNet = cityProps.reduce((s, p) => {
+                    const gross = p.revenues.reduce((sum, r) => sum + r.platformAmount, 0)
+                    const cleaning = p.revenues.reduce((sum, r) => sum + r.cleaningFees, 0)
+                    const exp = p.subletExpenses[0] ?? null
+                    const charges = exp ? exp.loyer + exp.electricite + exp.wifi + exp.autresCharges + (exp.assurance ?? 0) : 0
+                    return s + (gross - cleaning - charges)
+                  }, 0)
+                  return (
+                    <div key={city} className="space-y-3">
+                      <div className="flex items-center justify-between px-1 pt-1">
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-white/25" />
+                          <span className="text-white/40 text-xs font-semibold uppercase tracking-wider">{city}</span>
+                        </div>
+                        {cityNet !== 0 && (
+                          <span className={`text-xs font-semibold ${cityNet >= 0 ? 'text-green-400/60' : 'text-red-400/60'}`}>
+                            {cityNet >= 0 ? '+' : ''}{formatCurrency(cityNet)}
+                          </span>
+                        )}
+                      </div>
+                      {cityProps.map(p => (
+                        <SubletPropertyCard key={p.id} property={p} month={month} year={year} onReload={load} onHide={() => hideProperty(p.id)} />
+                      ))}
+                    </div>
+                  )
+                })
               )}
             </div>
           )}

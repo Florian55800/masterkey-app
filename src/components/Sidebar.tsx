@@ -131,19 +131,29 @@ export function Sidebar() {
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-5 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{
-              background: 'linear-gradient(135deg, rgba(212,175,55,0.2) 0%, rgba(212,175,55,0.08) 100%)',
-              border: '1px solid rgba(212,175,55,0.25)',
-              boxShadow: '0 0 16px rgba(212,175,55,0.15)',
-            }}
-          >
-            <span className="text-sm font-bold text-gold-gradient">MK</span>
+          <div className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden bg-white">
+            {/* Place your logo at /public/mk-logo.png to display it here */}
+            <img
+              src="/mk-logo.png"
+              alt="MK"
+              className="w-full h-full object-contain"
+              onError={e => {
+                const el = e.currentTarget
+                el.style.display = 'none'
+                const parent = el.parentElement
+                if (parent) {
+                  parent.style.background = 'linear-gradient(135deg, rgba(212,175,55,0.2) 0%, rgba(212,175,55,0.08) 100%)'
+                  parent.style.border = '1px solid rgba(212,175,55,0.25)'
+                  const span = document.createElement('span')
+                  span.className = 'text-sm font-bold text-[#D4AF37]'
+                  span.textContent = 'MK'
+                  parent.appendChild(span)
+                }
+              }}
+            />
           </div>
           <div>
-            <p className="text-white font-semibold text-sm tracking-tight">MasterKey</p>
-            <p className="text-white/30 text-xs">Conciergerie</p>
+            <p className="text-white font-semibold text-sm tracking-tight">MasterKey Conciergerie</p>
           </div>
         </div>
 
@@ -267,18 +277,25 @@ export function Sidebar() {
             style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
           >
             <div className="flex items-center gap-3">
-              <div
-                className="w-8 h-8 rounded-xl flex items-center justify-center"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(212,175,55,0.2) 0%, rgba(212,175,55,0.08) 100%)',
-                  border: '1px solid rgba(212,175,55,0.25)',
-                }}
-              >
-                <span className="text-xs font-bold text-gold-gradient">MK</span>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center overflow-hidden bg-white flex-shrink-0">
+                <img src="/mk-logo.png" alt="MK" className="w-full h-full object-contain"
+                  onError={e => {
+                    const el = e.currentTarget
+                    el.style.display = 'none'
+                    const parent = el.parentElement
+                    if (parent) {
+                      parent.style.background = 'linear-gradient(135deg, rgba(212,175,55,0.2) 0%, rgba(212,175,55,0.08) 100%)'
+                      parent.style.border = '1px solid rgba(212,175,55,0.25)'
+                      const span = document.createElement('span')
+                      span.className = 'text-xs font-bold text-[#D4AF37]'
+                      span.textContent = 'MK'
+                      parent.appendChild(span)
+                    }
+                  }}
+                />
               </div>
               <div>
-                <p className="text-white font-semibold text-sm">MasterKey</p>
-                <p className="text-white/30 text-xs">Conciergerie</p>
+                <p className="text-white font-semibold text-sm">MasterKey Conciergerie</p>
               </div>
             </div>
             <button
