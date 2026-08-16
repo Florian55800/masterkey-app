@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, CreditCard, RefreshCw, Home, TrendingDown, Check, Clock, BarChart2, CalendarDays, Repeat, AlertCircle } from 'lucide-react'
+import { Plus, Trash2, Edit2, CreditCard, RefreshCw, Home, TrendingDown, Check, Clock, BarChart2, CalendarDays, Repeat, AlertCircle } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -25,6 +25,7 @@ interface Expense {
   category: string
   description: string | null
   amount: number
+  tva?: number
   isRecurring: boolean
   payDate: string | null
   paymentDay: number | null
@@ -77,7 +78,7 @@ export default function DepensesPage() {
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
-  const [form, setForm] = useState({ category: 'logiciel', description: '', amount: '', isRecurring: false, payDate: new Date().toISOString().split('T')[0], paymentDay: '' })
+  const [form, setForm] = useState({ category: 'logiciel', description: '', amount: '', tva: '', isRecurring: false, payDate: new Date().toISOString().split('T')[0], paymentDay: '' })
   const [allExpenses, setAllExpenses] = useState<Expense[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -197,6 +198,7 @@ export default function DepensesPage() {
       category: expense.category,
       description: expense.description ?? '',
       amount: String(expense.amount),
+      tva: expense.tva ? String(expense.tva) : '',
       isRecurring: expense.isRecurring,
       payDate: expense.payDate ? expense.payDate.split('T')[0] : new Date().toISOString().split('T')[0],
       paymentDay: expense.paymentDay ? String(expense.paymentDay) : '',
@@ -211,11 +213,12 @@ export default function DepensesPage() {
     setError('')
     const refreshAll = () => fetch('/api/expenses').then(r => r.json()).then(d => setAllExpenses(Array.isArray(d) ? d : [])).catch(() => {})
     try {
+      const payload = { ...form, tva: parseFloat(form.tva) || 0 }
       if (editingExpense) {
         const res = await fetch(`/api/expenses/${editingExpense.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(form),
+          body: JSON.stringify(payload),
         })
         if (!res.ok) { const d = await res.json(); setError(d.error || 'Erreur'); return }
         if (selectedReportId) await loadExpenses(selectedReportId)
@@ -224,7 +227,7 @@ export default function DepensesPage() {
         const res = await fetch('/api/expenses', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...form, reportId: selectedReportId }),
+          body: JSON.stringify({ ...payload, reportId: selectedReportId }),
         })
         if (!res.ok) { const d = await res.json(); setError(d.error || 'Erreur'); return }
         if (selectedReportId) await loadExpenses(selectedReportId)
@@ -232,7 +235,7 @@ export default function DepensesPage() {
       }
       setIsModalOpen(false)
       setEditingExpense(null)
-      setForm({ category: 'logiciel', description: '', amount: '', isRecurring: false, payDate: new Date().toISOString().split('T')[0], paymentDay: '' })
+      setForm({ category: 'logiciel', description: '', amount: '', tva: '', isRecurring: false, payDate: new Date().toISOString().split('T')[0], paymentDay: '' })
     } catch { setError('Erreur de connexion') }
     finally { setSaving(false) }
   }
@@ -335,6 +338,11 @@ export default function DepensesPage() {
 
   // ── Conciergerie computed ──────────────────────────────────────────────────
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0)
+  const totalExpensesHT = expenses.reduce((s, e) => {
+    const tva = e.tva ?? 0
+    return s + (tva > 0 ? e.amount / (1 + tva / 100) : e.amount)
+  }, 0)
+  const hasTvaExpenses = expenses.some(e => (e.tva ?? 0) > 0)
   const recurringExpenses = expenses.filter((e) => e.isRecurring)
   const oneTimeExpenses = expenses.filter((e) => !e.isRecurring)
   const totalRecurring = recurringExpenses.reduce((s, e) => s + e.amount, 0)
@@ -486,52 +494,85 @@ export default function DepensesPage() {
                               <th className="text-left pb-3 pr-4">Description</th>
                               <th className="text-left pb-3 pr-4">Type</th>
                               <th className="text-left pb-3 pr-4">Date paiement</th>
-                              <th className="text-right pb-3 pr-4">Montant</th>
-                              <th className="pb-3 w-8"></th>
+                              <th className="text-right pb-3 pr-2">TTC</th>
+                              <th className="text-right pb-3 pr-2">TVA%</th>
+                              <th className="text-right pb-3 pr-4">HT</th>
+                              <th className="pb-3 w-14"></th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-[#2e2e2e]">
-                            {expenses.map((expense) => (
-                              <tr key={expense.id} className="group hover:bg-[#1b1b1b] transition-colors">
-                                <td className="py-3 pr-4">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full flex-shrink-0"
-                                      style={{ backgroundColor: EXPENSE_CATEGORIES.find((c) => c.value === expense.category)?.color }} />
-                                    <span className="text-white text-sm">{getCategoryLabel(expense.category)}</span>
-                                  </div>
-                                </td>
-                                <td className="py-3 pr-4 text-gray-400 text-sm">{expense.description || '—'}</td>
-                                <td className="py-3 pr-4">
-                                  <div className="flex flex-col gap-1">
-                                    {expense.isRecurring
-                                      ? <Badge variant="info" className="flex items-center gap-1 w-fit"><RefreshCw className="w-2.5 h-2.5" />Récurrent</Badge>
-                                      : <Badge variant="default">Ponctuel</Badge>}
-                                    {expense.isRecurring && expense.paymentDay && (
-                                      <span className="text-[10px] text-white/30">le {expense.paymentDay} du mois</span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="py-3 pr-4 text-gray-400 text-sm">
-                                  {expense.payDate
-                                    ? new Date(expense.payDate).toLocaleDateString('fr-FR')
-                                    : <span className="text-white/20">—</span>}
-                                </td>
-                                <td className="py-3 pr-4 text-right text-white font-medium text-sm">{formatCurrency(expense.amount)}</td>
-                                <td className="py-3">
-                                  <button onClick={() => handleDeleteExpense(expense.id)}
-                                    className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all p-1">
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
+                            {expenses.map((expense) => {
+                              const tva = expense.tva ?? 0
+                              const ht = tva > 0 ? expense.amount / (1 + tva / 100) : null
+                              return (
+                                <tr key={expense.id} className="group hover:bg-[#1b1b1b] transition-colors">
+                                  <td className="py-3 pr-4">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-2 h-2 rounded-full flex-shrink-0"
+                                        style={{ backgroundColor: EXPENSE_CATEGORIES.find((c) => c.value === expense.category)?.color }} />
+                                      <span className="text-white text-sm">{getCategoryLabel(expense.category)}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 pr-4 text-gray-400 text-sm">{expense.description || '—'}</td>
+                                  <td className="py-3 pr-4">
+                                    <div className="flex flex-col gap-1">
+                                      {expense.isRecurring
+                                        ? <Badge variant="info" className="flex items-center gap-1 w-fit"><RefreshCw className="w-2.5 h-2.5" />Récurrent</Badge>
+                                        : <Badge variant="default">Ponctuel</Badge>}
+                                      {expense.isRecurring && expense.paymentDay && (
+                                        <span className="text-[10px] text-white/30">le {expense.paymentDay} du mois</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-3 pr-4 text-gray-400 text-sm">
+                                    {expense.payDate
+                                      ? new Date(expense.payDate).toLocaleDateString('fr-FR')
+                                      : <span className="text-white/20">—</span>}
+                                  </td>
+                                  <td className="py-3 pr-2 text-right text-white font-medium text-sm">{formatCurrency(expense.amount)}</td>
+                                  <td className="py-3 pr-2 text-right text-gray-500 text-sm">{tva > 0 ? `${tva}%` : '—'}</td>
+                                  <td className="py-3 pr-4 text-right text-sm">
+                                    {ht !== null
+                                      ? <span className="text-[#D4AF37] font-medium">{formatCurrency(ht)}</span>
+                                      : <span className="text-gray-600">—</span>}
+                                  </td>
+                                  <td className="py-3">
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                      <button onClick={() => openEditExpense(expense)}
+                                        className="text-gray-500 hover:text-blue-400 transition-colors p-1">
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button onClick={() => handleDeleteExpense(expense.id)}
+                                        className="text-gray-500 hover:text-red-400 transition-colors p-1">
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )
+                            })}
                           </tbody>
                           <tfoot>
                             <tr className="border-t-2 border-[#2e2e2e]">
                               <td colSpan={4} className="py-3 text-gray-400 text-sm font-medium">Total</td>
-                              <td className="py-3 text-right text-[#D4AF37] font-bold">{formatCurrency(totalExpenses)}</td>
+                              <td className="py-3 pr-2 text-right text-[#D4AF37] font-bold">{formatCurrency(totalExpenses)}</td>
+                              <td></td>
+                              <td className="py-3 pr-4 text-right">
+                                {hasTvaExpenses && (
+                                  <span className="text-[#D4AF37]/70 font-semibold text-sm">{formatCurrency(totalExpensesHT)}</span>
+                                )}
+                              </td>
                               <td></td>
                             </tr>
+                            {hasTvaExpenses && (
+                              <tr>
+                                <td colSpan={4} className="pt-1 pb-2 text-gray-500 text-xs">dont TVA</td>
+                                <td colSpan={3} className="pt-1 pb-2 text-right text-gray-500 text-xs pr-4">
+                                  {formatCurrency(totalExpenses - totalExpensesHT)}
+                                </td>
+                                <td></td>
+                              </tr>
+                            )}
                           </tfoot>
                         </table>
                       </div>
@@ -934,20 +975,32 @@ export default function DepensesPage() {
         </div>
       </Modal>
 
-      {/* Add Expense Modal (conciergerie) */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Ajouter une dépense">
+      {/* Add / Edit Expense Modal (conciergerie) */}
+      <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingExpense(null) }}
+        title={editingExpense ? 'Modifier la dépense' : 'Ajouter une dépense'}>
         <div className="space-y-4">
           <Select label="Catégorie" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
             {EXPENSE_CATEGORIES.map((cat) => <option key={cat.value} value={cat.value}>{cat.label}</option>)}
           </Select>
           <Input label="Description (optionnel)" value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Ex: Abonnement Lodgify" />
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Montant (€)" type="number" min="0" step="0.01" value={form.amount}
-              onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="150" />
-            <Input label="Date de paiement" type="date" value={form.payDate}
-              onChange={(e) => setForm({ ...form, payDate: e.target.value })} />
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <Input label="Montant TTC (€)" type="number" min="0" step="0.01" value={form.amount}
+                onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="150" />
+            </div>
+            <div>
+              <Input label="TVA (%)" type="number" min="0" max="100" step="0.1" value={form.tva}
+                onChange={(e) => setForm({ ...form, tva: e.target.value })} placeholder="20" />
+              {form.tva && parseFloat(form.tva) > 0 && form.amount && (
+                <p className="text-xs text-[#D4AF37] mt-1">
+                  HT : {formatCurrency(parseFloat(form.amount) / (1 + parseFloat(form.tva) / 100))}
+                </p>
+              )}
+            </div>
           </div>
+          <Input label="Date de paiement" type="date" value={form.payDate}
+            onChange={(e) => setForm({ ...form, payDate: e.target.value })} />
           <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl bg-[#1b1b1b] border border-[#2e2e2e] hover:border-[#D4AF37]/30 transition-colors">
             <input type="checkbox" checked={form.isRecurring}
               onChange={(e) => setForm({ ...form, isRecurring: e.target.checked })} className="w-4 h-4 rounded" />
@@ -963,8 +1016,8 @@ export default function DepensesPage() {
           )}
           {error && <p className="text-red-400 text-sm bg-red-400/10 px-3 py-2 rounded-lg">{error}</p>}
           <div className="flex gap-3 justify-end">
-            <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Annuler</Button>
-            <Button isLoading={saving} onClick={handleAddExpense}>Ajouter</Button>
+            <Button variant="ghost" onClick={() => { setIsModalOpen(false); setEditingExpense(null) }}>Annuler</Button>
+            <Button isLoading={saving} onClick={handleAddExpense}>{editingExpense ? 'Enregistrer' : 'Ajouter'}</Button>
           </div>
         </div>
       </Modal>

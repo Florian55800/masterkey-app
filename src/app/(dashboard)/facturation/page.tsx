@@ -1843,6 +1843,13 @@ export default function FacturationPage() {
   const hiddenSousLoc       = sousLocationProps.filter(p => hiddenProps.has(hideKey(p.id)))
 
   const totalBrutConcierge = visibleConciergerie.reduce((s, p) => s + propertyTotals(p.revenues).partMK, 0)
+  const totalHTConcierge = typeof window !== 'undefined'
+    ? visibleConciergerie.reduce((s, p) => {
+        const partMK = propertyTotals(p.revenues).partMK
+        const tva = parseFloat(localStorage.getItem(`propTva_${p.id}`) ?? '0') || 0
+        return s + (tva > 0 ? partMK / (1 + tva / 100) : partMK)
+      }, 0)
+    : totalBrutConcierge
   const totalBrutSousLoc = visibleSousLoc.reduce((s, p) => {
     const gross = p.revenues.reduce((sum, r) => sum + r.platformAmount, 0)
     const cleaning = p.revenues.reduce((sum, r) => sum + r.cleaningFees, 0)
@@ -2054,8 +2061,19 @@ export default function FacturationPage() {
 
               {visibleConciergerie.length > 0 && totalBrutConcierge > 0 && (
                 <div className="flex items-center justify-between bg-[#D4AF37]/5 border border-[#D4AF37]/15 rounded-2xl px-6 py-4">
-                  <span className="text-white/50 font-medium">TOTAL BRUT MENSUEL — CONCIERGERIE</span>
-                  <span className="text-[#D4AF37] font-bold text-2xl">{formatCurrency(totalBrutConcierge)}</span>
+                  <span className="text-white/50 font-medium">TOTAL MENSUEL — CONCIERGERIE</span>
+                  <div className="flex items-center gap-8">
+                    {totalHTConcierge < totalBrutConcierge - 0.01 && (
+                      <div className="text-right">
+                        <p className="text-white/30 text-xs mb-0.5">HT</p>
+                        <p className="text-white/70 font-bold text-lg">{formatCurrency(totalHTConcierge)}</p>
+                      </div>
+                    )}
+                    <div className="text-right">
+                      <p className="text-white/30 text-xs mb-0.5">{totalHTConcierge < totalBrutConcierge - 0.01 ? 'TTC' : 'Total'}</p>
+                      <p className="text-[#D4AF37] font-bold text-2xl">{formatCurrency(totalBrutConcierge)}</p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
