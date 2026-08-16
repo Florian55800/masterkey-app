@@ -19,7 +19,7 @@ export async function PUT(
 ) {
   const id = Number(params.id)
   const body = await request.json()
-  const { category, description, amount, isRecurring, payDate, paymentDay } = body
+  const { category, description, amount, tva, isRecurring, payDate, paymentDay } = body
 
   if (process.env.TURSO_DATABASE_URL) {
     const { createClient } = require('@libsql/client')
@@ -33,6 +33,7 @@ export async function PUT(
       if (category !== undefined)    { sets.push('category = ?');    args.push(category) }
       if (description !== undefined) { sets.push('description = ?'); args.push(description || null) }
       if (amount !== undefined)      { sets.push('amount = ?');      args.push(Number(amount)) }
+      if (tva !== undefined)         { sets.push('tva = ?');         args.push(Number(tva) || 0) }
       if (isRecurring !== undefined) { sets.push('isRecurring = ?'); args.push(isRecurring ? 1 : 0) }
       if (payDate !== undefined)     { sets.push('payDate = ?');     args.push(payDate || null) }
       if (paymentDay !== undefined)  { sets.push('paymentDay = ?');  args.push(paymentDay ? Number(paymentDay) : null) }
@@ -40,7 +41,10 @@ export async function PUT(
         args.push(id)
         await client.execute({ sql: `UPDATE "Expense" SET ${sets.join(', ')} WHERE id = ?`, args })
       }
-      const rs = await client.execute({ sql: `SELECT * FROM "Expense" WHERE id = ?`, args: [id] })
+      const rs = await client.execute({
+        sql: `SELECT *, COALESCE(tva, 0) as tva FROM "Expense" WHERE id = ?`,
+        args: [id],
+      })
       const rows = toRows(rs)
       if (rows.length === 0) return NextResponse.json({ error: 'Introuvable' }, { status: 404 })
       return NextResponse.json(rows[0])

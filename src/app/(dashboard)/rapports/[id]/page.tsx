@@ -21,6 +21,7 @@ interface Expense {
   category: string
   description: string | null
   amount: number
+  tva: number
   isRecurring: boolean
 }
 
@@ -57,12 +58,9 @@ export default function ReportDetailPage() {
   const [report, setReport] = useState<Report | null>(null)
   const [loading, setLoading] = useState(true)
   const [expenseModal, setExpenseModal] = useState(false)
-  const [expenseForm, setExpenseForm] = useState({
-    category: 'logiciel',
-    description: '',
-    amount: '',
-    isRecurring: false,
-  })
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
+  const blankExpenseForm = { category: 'logiciel', description: '', amount: '', tva: '', isRecurring: false }
+  const [expenseForm, setExpenseForm] = useState(blankExpenseForm)
   const [savingExpense, setSavingExpense] = useState(false)
   const [editingNotes, setEditingNotes] = useState(false)
   const [notesValue, setNotesValue] = useState('')
@@ -84,20 +82,46 @@ export default function ReportDetailPage() {
     setLoading(false)
   }
 
-  const handleAddExpense = async () => {
+  const openAddExpense = () => {
+    setEditingExpense(null)
+    setExpenseForm(blankExpenseForm)
+    setExpenseModal(true)
+  }
+
+  const openEditExpense = (expense: Expense) => {
+    setEditingExpense(expense)
+    setExpenseForm({
+      category: expense.category,
+      description: expense.description ?? '',
+      amount: String(expense.amount),
+      tva: expense.tva ? String(expense.tva) : '',
+      isRecurring: expense.isRecurring,
+    })
+    setExpenseModal(true)
+  }
+
+  const handleSaveExpense = async () => {
     if (!report) return
     setSavingExpense(true)
     try {
-      const res = await fetch('/api/expenses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...expenseForm, reportId: report.id }),
-      })
-      if (res.ok) {
-        await loadReport()
-        setExpenseModal(false)
-        setExpenseForm({ category: 'logiciel', description: '', amount: '', isRecurring: false })
+      if (editingExpense) {
+        await fetch(`/api/expenses/${editingExpense.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...expenseForm, tva: parseFloat(expenseForm.tva) || 0 }),
+        })
+      } else {
+        const res = await fetch('/api/expenses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...expenseForm, tva: parseFloat(expenseForm.tva) || 0, reportId: report.id }),
+        })
+        if (!res.ok) return
       }
+      await loadReport()
+      setExpenseModal(false)
+      setExpenseForm(blankExpenseForm)
+      setEditingExpense(null)
     } finally {
       setSavingExpense(false)
     }
@@ -246,7 +270,7 @@ export default function ReportDetailPage() {
       <Card>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-white font-semibold">Dépenses ({report.expenses.length})</h3>
-          <Button size="sm" onClick={() => setExpenseModal(true)}>
+          <Button size="sm" onClick={openAddExpense}>
             <Plus className="w-3.5 h-3.5" />
             Ajouter
           </Button>
@@ -262,40 +286,62 @@ export default function ReportDetailPage() {
                   <th className="text-left pb-3 pr-4">Catégorie</th>
                   <th className="text-left pb-3 pr-4">Description</th>
                   <th className="text-left pb-3 pr-4">Type</th>
-                  <th className="text-right pb-3">Montant</th>
-                  <th className="pb-3 w-8"></th>
+                  <th className="text-right pb-3 pr-4">TTC</th>
+                  <th className="text-right pb-3 pr-4">TVA%</th>
+                  <th className="text-right pb-3">HT</th>
+                  <th className="pb-3 w-16"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#2e2e2e]">
-                {report.expenses.map((expense) => (
-                  <tr key={expense.id} className="group">
-                    <td className="py-3 pr-4">
-                      <span className="text-white text-sm">{getCategoryLabel(expense.category)}</span>
-                    </td>
-                    <td className="py-3 pr-4 text-gray-400 text-sm">{expense.description || '—'}</td>
-                    <td className="py-3 pr-4">
-                      <Badge variant={expense.isRecurring ? 'info' : 'default'}>
-                        {expense.isRecurring ? 'Récurrent' : 'Ponctuel'}
-                      </Badge>
-                    </td>
-                    <td className="py-3 text-right text-white font-medium text-sm">
-                      {formatCurrency(expense.amount)}
-                    </td>
-                    <td className="py-3">
-                      <button
-                        onClick={() => handleDeleteExpense(expense.id)}
-                        className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-all ml-2"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {report.expenses.map((expense) => {
+                  const tva = expense.tva ?? 0
+                  const ht = tva > 0 ? expense.amount / (1 + tva / 100) : null
+                  return (
+                    <tr key={expense.id} className="group">
+                      <td className="py-3 pr-4">
+                        <span className="text-white text-sm">{getCategoryLabel(expense.category)}</span>
+                      </td>
+                      <td className="py-3 pr-4 text-gray-400 text-sm">{expense.description || '—'}</td>
+                      <td className="py-3 pr-4">
+                        <Badge variant={expense.isRecurring ? 'info' : 'default'}>
+                          {expense.isRecurring ? 'Récurrent' : 'Ponctuel'}
+                        </Badge>
+                      </td>
+                      <td className="py-3 pr-4 text-right text-white font-medium text-sm">
+                        {formatCurrency(expense.amount)}
+                      </td>
+                      <td className="py-3 pr-4 text-right text-gray-500 text-sm">
+                        {tva > 0 ? `${tva}%` : '—'}
+                      </td>
+                      <td className="py-3 text-right text-sm">
+                        {ht !== null ? (
+                          <span className="text-[#D4AF37] font-medium">{formatCurrency(ht)}</span>
+                        ) : (
+                          <span className="text-gray-600">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 pl-2">
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          <button onClick={() => openEditExpense(expense)}
+                            className="text-gray-500 hover:text-blue-400 transition-colors">
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => handleDeleteExpense(expense.id)}
+                            className="text-gray-500 hover:text-red-400 transition-colors">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
                 <tr className="border-t border-[#D4AF37]/20">
                   <td colSpan={3} className="py-3 text-gray-400 text-sm font-medium">Total</td>
-                  <td className="py-3 text-right text-[#D4AF37] font-bold">
+                  <td className="py-3 text-right text-[#D4AF37] font-bold pr-4">
                     {formatCurrency(totalExpenses)}
                   </td>
+                  <td></td>
+                  <td></td>
                   <td></td>
                 </tr>
               </tbody>
@@ -382,8 +428,12 @@ export default function ReportDetailPage() {
         )}
       </Card>
 
-      {/* Add Expense Modal */}
-      <Modal isOpen={expenseModal} onClose={() => setExpenseModal(false)} title="Ajouter une dépense">
+      {/* Add / Edit Expense Modal */}
+      <Modal
+        isOpen={expenseModal}
+        onClose={() => { setExpenseModal(false); setEditingExpense(null) }}
+        title={editingExpense ? 'Modifier la dépense' : 'Ajouter une dépense'}
+      >
         <div className="space-y-4">
           <Select
             label="Catégorie"
@@ -402,13 +452,29 @@ export default function ReportDetailPage() {
             placeholder="Ex: Abonnement mensuel"
           />
 
-          <Input
-            label="Montant (€)"
-            type="number"
-            value={expenseForm.amount}
-            onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
-            placeholder="150"
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Montant TTC (€)"
+              type="number"
+              value={expenseForm.amount}
+              onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+              placeholder="150"
+            />
+            <div>
+              <Input
+                label="TVA (%)"
+                type="number"
+                value={expenseForm.tva}
+                onChange={(e) => setExpenseForm({ ...expenseForm, tva: e.target.value })}
+                placeholder="20"
+              />
+              {expenseForm.tva && parseFloat(expenseForm.tva) > 0 && expenseForm.amount && (
+                <p className="text-xs text-[#D4AF37] mt-1">
+                  HT : {formatCurrency(parseFloat(expenseForm.amount) / (1 + parseFloat(expenseForm.tva) / 100))}
+                </p>
+              )}
+            </div>
+          </div>
 
           <label className="flex items-center gap-3 cursor-pointer">
             <input
@@ -421,8 +487,10 @@ export default function ReportDetailPage() {
           </label>
 
           <div className="flex gap-3 justify-end">
-            <Button variant="ghost" onClick={() => setExpenseModal(false)}>Annuler</Button>
-            <Button isLoading={savingExpense} onClick={handleAddExpense}>Ajouter</Button>
+            <Button variant="ghost" onClick={() => { setExpenseModal(false); setEditingExpense(null) }}>Annuler</Button>
+            <Button isLoading={savingExpense} onClick={handleSaveExpense}>
+              {editingExpense ? 'Enregistrer' : 'Ajouter'}
+            </Button>
           </div>
         </div>
       </Modal>
