@@ -13,9 +13,12 @@ function toRows(rs: { columns: string[]; rows: unknown[][] }): Record<string, un
   })
 }
 
+let migrationDone = false
 async function runMigration(client: any) {
-  try { await client.execute({ sql: `ALTER TABLE MonthlyReport ADD COLUMN caBrutHT REAL DEFAULT 0`, args: [] }) } catch { /* already exists */ }
-  try { await client.execute({ sql: `ALTER TABLE MonthlyReport ADD COLUMN commissionsHT REAL DEFAULT 0`, args: [] }) } catch { /* already exists */ }
+  if (migrationDone) return
+  try { await client.execute({ sql: `ALTER TABLE MonthlyReport ADD COLUMN caBrutHT REAL DEFAULT 0`, args: [] }) } catch {}
+  try { await client.execute({ sql: `ALTER TABLE MonthlyReport ADD COLUMN commissionsHT REAL DEFAULT 0`, args: [] }) } catch {}
+  migrationDone = true
 }
 
 export async function GET() {
@@ -27,6 +30,8 @@ export async function GET() {
     })
     try {
       await runMigration(client)
+
+      // ── 1 query : all reports ─────────────────────────────────────────────
       const rsReports = await client.execute(
         `SELECT id, month, year, caBrut, COALESCE(caBrutHT, 0) as caBrutHT,
                 commissions, COALESCE(commissionsHT, 0) as commissionsHT,
@@ -39,19 +44,30 @@ export async function GET() {
       )
       const reports = toRows(rsReports)
 
-      // Charger les dépenses pour chaque rapport
-      const withExpenses = await Promise.all(
-        reports.map(async (r) => {
-          const rsExp = await client.execute({
-            sql: `SELECT id, reportId, category, description, amount, isRecurring, payDate, paymentDay, createdAt
-                  FROM Expense WHERE reportId = ?`,
-            args: [r.id],
-          })
-          return { ...r, expenses: toRows(rsExp), teamGoals: [] }
+      let withExpenses: any[]
+      if (reports.length === 0) {
+        withExpenses = []
+      } else {
+        // ── 1 query : all expenses for all reports ────────────────────────
+        const reportIds = reports.map(r => r.id as number)
+        const ph = reportIds.map(() => '?').join(',')
+        const rsExp = await client.execute({
+          sql: `SELECT id, reportId, category, description, amount, isRecurring, payDate, paymentDay, createdAt
+                FROM Expense WHERE reportId IN (${ph}) ORDER BY createdAt ASC`,
+          args: reportIds,
         })
-      )
+        const expByReport = new Map<number, any[]>()
+        for (const e of toRows(rsExp)) {
+          const rid = Number(e.reportId)
+          if (!expByReport.has(rid)) expByReport.set(rid, [])
+          expByReport.get(rid)!.push(e)
+        }
+        withExpenses = reports.map(r => ({ ...r, expenses: expByReport.get(Number(r.id)) ?? [], teamGoals: [] }))
+      }
 
-      return NextResponse.json(withExpenses)
+      const res = NextResponse.json(withExpenses)
+      res.headers.set('Cache-Control', 'private, max-age=20, stale-while-revalidate=60')
+      return res
     } catch (error) {
       console.error('Reports GET Turso error:', error)
       return NextResponse.json({ error: String(error) }, { status: 500 })

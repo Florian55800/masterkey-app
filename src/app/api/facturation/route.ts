@@ -13,12 +13,19 @@ function toRows(rs: { columns: string[]; rows: unknown[][] }): Record<string, un
   })
 }
 
+// Run once per process lifetime — ALTER TABLE is idempotent but still costs a round-trip
+let migrationDone = false
+async function ensureMigration(client: any) {
+  if (migrationDone) return
+  try { await client.execute({ sql: `ALTER TABLE "Property" ADD COLUMN splitPayment INTEGER DEFAULT 0`, args: [] }) } catch {}
+  migrationDone = true
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const month = parseInt(searchParams.get('month') ?? '0')
   const year  = parseInt(searchParams.get('year')  ?? '0')
 
-  // ── Production : SQL brut via libsql (contourne Prisma) ──────────────────
   if (process.env.TURSO_DATABASE_URL) {
     const { createClient } = require('@libsql/client')
     const client = createClient({
@@ -26,9 +33,9 @@ export async function GET(req: NextRequest) {
       authToken: process.env.TURSO_AUTH_TOKEN || '',
     })
     try {
-      // 1. Récupérer toutes les propriétés en conciergerie
-      try { await client.execute({ sql: `ALTER TABLE "Property" ADD COLUMN splitPayment INTEGER DEFAULT 0`, args: [] }) } catch { /* exists */ }
+      await ensureMigration(client)
 
+      // ── 1 query : all conciergerie properties ─────────────────────────────
       const propRS = await client.execute({
         sql: `SELECT p.id, p.name, p.address, p.city, p.type, p.typeGestion,
                      p.commissionRate, p.status, COALESCE(p.splitPayment, 0) as splitPayment,
@@ -40,56 +47,62 @@ export async function GET(req: NextRequest) {
         args: [],
       })
       const props = toRows(propRS)
+      if (props.length === 0) {
+        const res = NextResponse.json([])
+        res.headers.set('Cache-Control', 'private, max-age=20, stale-while-revalidate=60')
+        return res
+      }
 
-      // 2. Tester si les colonnes nbSejours/nbNuits existent
-      let hasNbCols = false
-      try {
-        await client.execute({ sql: `SELECT nbSejours FROM PropertyRevenue LIMIT 1`, args: [] })
-        hasNbCols = true
-      } catch { hasNbCols = false }
+      // ── 1 query : all revenues for all properties ─────────────────────────
+      const propIds = props.map(p => p.id as number)
+      const ph = propIds.map(() => '?').join(',')
+      const revRS = await client.execute({
+        sql: month && year
+          ? `SELECT id, propertyId, month, year, platform, platformAmount, cleaningFees,
+                    commissionRate, notes,
+                    COALESCE(nbSejours, 0) as nbSejours, COALESCE(nbNuits, 0) as nbNuits
+             FROM PropertyRevenue
+             WHERE propertyId IN (${ph}) AND month = ? AND year = ?
+             ORDER BY year DESC, month DESC`
+          : `SELECT id, propertyId, month, year, platform, platformAmount, cleaningFees,
+                    commissionRate, notes,
+                    COALESCE(nbSejours, 0) as nbSejours, COALESCE(nbNuits, 0) as nbNuits
+             FROM PropertyRevenue
+             WHERE propertyId IN (${ph})
+             ORDER BY year DESC, month DESC`,
+        args: month && year ? [...propIds, month, year] : propIds,
+      })
 
-      // 3. Pour chaque propriété, récupérer ses revenus
-      const revSql = hasNbCols
-        ? `SELECT id, propertyId, month, year, platform, platformAmount, cleaningFees,
-                  commissionRate, notes, nbSejours, nbNuits, createdAt, updatedAt
-           FROM PropertyRevenue
-           WHERE propertyId = ?${month && year ? ' AND month = ? AND year = ?' : ''}
-           ORDER BY year DESC, month DESC${month && year ? '' : ' LIMIT 50'}`
-        : `SELECT id, propertyId, month, year, platform, platformAmount, cleaningFees,
-                  commissionRate, notes, 0 as nbSejours, 0 as nbNuits, createdAt, updatedAt
-           FROM PropertyRevenue
-           WHERE propertyId = ?${month && year ? ' AND month = ? AND year = ?' : ''}
-           ORDER BY year DESC, month DESC${month && year ? '' : ' LIMIT 50'}`
-
-      const result = await Promise.all(props.map(async (p) => {
-        const args = month && year ? [p.id, month, year] : [p.id]
-        const revsRS = await client.execute({ sql: revSql, args })
-        const revenues = toRows(revsRS).map(r => ({
+      // Group by propertyId
+      const revsByProp = new Map<number, any[]>()
+      for (const r of toRows(revRS)) {
+        const pid = Number(r.propertyId)
+        if (!revsByProp.has(pid)) revsByProp.set(pid, [])
+        revsByProp.get(pid)!.push({
           id: r.id, propertyId: r.propertyId,
-          month: r.month, year: r.year,
-          platform: r.platform,
+          month: r.month, year: r.year, platform: r.platform,
           platformAmount: Number(r.platformAmount) || 0,
-          cleaningFees: Number(r.cleaningFees) || 0,
+          cleaningFees:   Number(r.cleaningFees)   || 0,
           commissionRate: Number(r.commissionRate) || 0,
           notes: r.notes ?? null,
           nbSejours: Number(r.nbSejours) || 0,
-          nbNuits: Number(r.nbNuits) || 0,
-          createdAt: r.createdAt,
-          updatedAt: r.updatedAt,
-        }))
+          nbNuits:   Number(r.nbNuits)   || 0,
+        })
+      }
 
-        return {
-          id: p.id, name: p.name, address: p.address, city: p.city,
-          type: p.type, typeGestion: p.typeGestion,
-          commissionRate: Number(p.commissionRate) || 0,
-          status: p.status,
-          splitPayment: Boolean(p.splitPayment),
-          owner: { id: p.owner_id, name: p.owner_name },
-          revenues,
-        }
+      const result = props.map(p => ({
+        id: p.id, name: p.name, address: p.address, city: p.city,
+        type: p.type, typeGestion: p.typeGestion,
+        commissionRate: Number(p.commissionRate) || 0,
+        status: p.status,
+        splitPayment: Boolean(p.splitPayment),
+        owner: { id: p.owner_id, name: p.owner_name },
+        revenues: revsByProp.get(Number(p.id)) ?? [],
       }))
 
-      return NextResponse.json(result)
+      const res = NextResponse.json(result)
+      res.headers.set('Cache-Control', 'private, max-age=20, stale-while-revalidate=60')
+      return res
     } catch (error) {
       console.error('Facturation GET error:', error)
       return NextResponse.json({ error: String(error) }, { status: 500 })
@@ -98,7 +111,6 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ── Dev local : Prisma ────────────────────────────────────────────────────
   try {
     const properties = await prisma.property.findMany({
       where: { typeGestion: 'conciergerie' },

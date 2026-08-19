@@ -35,21 +35,20 @@ function mapExpense(e: Record<string, unknown>) {
   }
 }
 
+let migrationDone = false
 async function runMigration(client: any) {
+  if (migrationDone) return
   const newCols = [
-    'revenueTva REAL DEFAULT 0',
-    'loyerTva REAL DEFAULT 0',
-    'electriciteTva REAL DEFAULT 0',
-    'wifiTva REAL DEFAULT 0',
-    'assuranceTva REAL DEFAULT 0',
-    'autresChargesTva REAL DEFAULT 0',
+    'revenueTva REAL DEFAULT 0', 'loyerTva REAL DEFAULT 0',
+    'electriciteTva REAL DEFAULT 0', 'wifiTva REAL DEFAULT 0',
+    'assuranceTva REAL DEFAULT 0', 'autresChargesTva REAL DEFAULT 0',
     'isRecurring INTEGER DEFAULT 0',
   ]
   for (const col of newCols) {
-    try {
-      await client.execute({ sql: `ALTER TABLE SubletExpense ADD COLUMN ${col}`, args: [] })
-    } catch { /* column already exists */ }
+    try { await client.execute({ sql: `ALTER TABLE SubletExpense ADD COLUMN ${col}`, args: [] }) } catch {}
   }
+  try { await client.execute({ sql: `ALTER TABLE "Property" ADD COLUMN splitPayment INTEGER DEFAULT 0`, args: [] }) } catch {}
+  migrationDone = true
 }
 
 export async function GET(req: NextRequest) {
@@ -66,8 +65,7 @@ export async function GET(req: NextRequest) {
     try {
       await runMigration(client)
 
-      try { await client.execute({ sql: `ALTER TABLE "Property" ADD COLUMN splitPayment INTEGER DEFAULT 0`, args: [] }) } catch { /* exists */ }
-
+      // ── 1 query : all sous-location properties ────────────────────────────
       const propRS = await client.execute({
         sql: `SELECT p.id, p.name, p.address, p.city, p.type, p.typeGestion,
                      p.commissionRate, p.status, COALESCE(p.splitPayment, 0) as splitPayment,
@@ -79,84 +77,92 @@ export async function GET(req: NextRequest) {
         args: [],
       })
       const props = toRows(propRS)
+      if (props.length === 0) {
+        const res = NextResponse.json([])
+        res.headers.set('Cache-Control', 'private, max-age=20, stale-while-revalidate=60')
+        return res
+      }
 
-      let hasNbCols = false
-      try {
-        await client.execute({ sql: `SELECT nbSejours FROM PropertyRevenue LIMIT 1`, args: [] })
-        hasNbCols = true
-      } catch { hasNbCols = false }
+      const propIds = props.map(p => p.id as number)
+      const ph = propIds.map(() => '?').join(',')
 
-      const revSql = hasNbCols
-        ? `SELECT id, propertyId, month, year, platform, platformAmount, cleaningFees,
-                  commissionRate, notes, nbSejours, nbNuits
-           FROM PropertyRevenue
-           WHERE propertyId = ?${month && year ? ' AND month = ? AND year = ?' : ''}
-           ORDER BY year DESC, month DESC${month && year ? '' : ' LIMIT 50'}`
-        : `SELECT id, propertyId, month, year, platform, platformAmount, cleaningFees,
-                  commissionRate, notes, 0 as nbSejours, 0 as nbNuits
-           FROM PropertyRevenue
-           WHERE propertyId = ?${month && year ? ' AND month = ? AND year = ?' : ''}
-           ORDER BY year DESC, month DESC${month && year ? '' : ' LIMIT 50'}`
+      const EXP_COLS = `id, propertyId, month, year, loyer, electricite, wifi,
+        autresCharges, COALESCE(assurance, 0) as assurance, nbSejours, nbNuits, notes,
+        COALESCE(revenueTva, 0) as revenueTva, COALESCE(loyerTva, 0) as loyerTva,
+        COALESCE(electriciteTva, 0) as electriciteTva, COALESCE(wifiTva, 0) as wifiTva,
+        COALESCE(assuranceTva, 0) as assuranceTva, COALESCE(autresChargesTva, 0) as autresChargesTva,
+        COALESCE(isRecurring, 0) as isRecurring`
 
-      const expSql = `SELECT id, propertyId, month, year, loyer, electricite, wifi,
-                             autresCharges, COALESCE(assurance, 0) as assurance, nbSejours, nbNuits, notes,
-                             COALESCE(revenueTva, 0) as revenueTva,
-                             COALESCE(loyerTva, 0) as loyerTva,
-                             COALESCE(electriciteTva, 0) as electriciteTva,
-                             COALESCE(wifiTva, 0) as wifiTva,
-                             COALESCE(assuranceTva, 0) as assuranceTva,
-                             COALESCE(autresChargesTva, 0) as autresChargesTva,
-                             COALESCE(isRecurring, 0) as isRecurring
-                      FROM SubletExpense
-                      WHERE propertyId = ?${month && year ? ' AND month = ? AND year = ?' : ''}
-                      ORDER BY year DESC, month DESC${month && year ? '' : ' LIMIT 12'}`
+      // ── 2 queries in parallel : all revenues + all expenses ───────────────
+      const [revsRS, expRS] = await Promise.all([
+        client.execute({
+          sql: month && year
+            ? `SELECT id, propertyId, month, year, platform, platformAmount, cleaningFees,
+                      commissionRate, notes,
+                      COALESCE(nbSejours, 0) as nbSejours, COALESCE(nbNuits, 0) as nbNuits
+               FROM PropertyRevenue WHERE propertyId IN (${ph}) AND month = ? AND year = ?
+               ORDER BY year DESC, month DESC`
+            : `SELECT id, propertyId, month, year, platform, platformAmount, cleaningFees,
+                      commissionRate, notes,
+                      COALESCE(nbSejours, 0) as nbSejours, COALESCE(nbNuits, 0) as nbNuits
+               FROM PropertyRevenue WHERE propertyId IN (${ph})
+               ORDER BY year DESC, month DESC`,
+          args: month && year ? [...propIds, month, year] : propIds,
+        }),
+        client.execute({
+          sql: month && year
+            ? `SELECT ${EXP_COLS} FROM SubletExpense WHERE propertyId IN (${ph}) AND month = ? AND year = ? ORDER BY year DESC, month DESC`
+            : `SELECT ${EXP_COLS} FROM SubletExpense WHERE propertyId IN (${ph}) ORDER BY year DESC, month DESC`,
+          args: month && year ? [...propIds, month, year] : propIds,
+        }),
+      ])
 
-      const result = await Promise.all(props.map(async (p) => {
-        const args = month && year ? [p.id, month, year] : [p.id]
-
-        const [revsRS, expRS] = await Promise.all([
-          client.execute({ sql: revSql, args }),
-          client.execute({ sql: expSql, args }),
-        ])
-
-        const revenues = toRows(revsRS).map(r => ({
+      // Group by propertyId
+      const revsByProp = new Map<number, any[]>()
+      for (const r of toRows(revsRS)) {
+        const pid = Number(r.propertyId)
+        if (!revsByProp.has(pid)) revsByProp.set(pid, [])
+        revsByProp.get(pid)!.push({
           id: r.id, propertyId: r.propertyId,
-          month: r.month, year: r.year,
-          platform: r.platform,
+          month: r.month, year: r.year, platform: r.platform,
           platformAmount: Number(r.platformAmount) || 0,
-          cleaningFees: Number(r.cleaningFees) || 0,
+          cleaningFees:   Number(r.cleaningFees)   || 0,
           commissionRate: Number(r.commissionRate) || 0,
           notes: r.notes ?? null,
           nbSejours: Number(r.nbSejours) || 0,
-          nbNuits: Number(r.nbNuits) || 0,
-        }))
+          nbNuits:   Number(r.nbNuits)   || 0,
+        })
+      }
 
-        const subletExpenses = toRows(expRS).map(mapExpense)
+      const expByProp = new Map<number, any[]>()
+      for (const e of toRows(expRS)) {
+        const pid = Number(e.propertyId)
+        if (!expByProp.has(pid)) expByProp.set(pid, [])
+        expByProp.get(pid)!.push(mapExpense(e))
+      }
 
-        // If no expense for this month, look for a recurring template
-        let recurringTemplate = null
-        if (subletExpenses.length === 0 && month && year) {
-          try {
-            const recRS = await client.execute({
-              sql: `SELECT id, propertyId, month, year, loyer, electricite, wifi,
-                           autresCharges, COALESCE(assurance, 0) as assurance, nbSejours, nbNuits, notes,
-                           COALESCE(revenueTva, 0) as revenueTva,
-                           COALESCE(loyerTva, 0) as loyerTva,
-                           COALESCE(electriciteTva, 0) as electriciteTva,
-                           COALESCE(wifiTva, 0) as wifiTva,
-                           COALESCE(assuranceTva, 0) as assuranceTva,
-                           COALESCE(autresChargesTva, 0) as autresChargesTva,
-                           COALESCE(isRecurring, 0) as isRecurring
-                    FROM SubletExpense
-                    WHERE propertyId = ? AND isRecurring = 1
-                    ORDER BY year DESC, month DESC LIMIT 1`,
-              args: [p.id],
-            })
-            const recRows = toRows(recRS)
-            if (recRows.length > 0) recurringTemplate = mapExpense(recRows[0])
-          } catch { /* ignore */ }
+      // ── 1 optional query : recurring templates for props with no expense ──
+      const recurringByProp = new Map<number, any>()
+      if (month && year) {
+        const noExpIds = propIds.filter(id => !expByProp.has(id))
+        if (noExpIds.length > 0) {
+          const rph = noExpIds.map(() => '?').join(',')
+          const recRS = await client.execute({
+            sql: `SELECT ${EXP_COLS} FROM SubletExpense
+                  WHERE propertyId IN (${rph}) AND isRecurring = 1
+                  ORDER BY year DESC, month DESC`,
+            args: noExpIds,
+          })
+          for (const r of toRows(recRS)) {
+            const pid = Number(r.propertyId)
+            if (!recurringByProp.has(pid)) recurringByProp.set(pid, mapExpense(r))
+          }
         }
+      }
 
+      const result = props.map(p => {
+        const pid = Number(p.id)
+        const subletExpenses = expByProp.get(pid) ?? []
         return {
           id: p.id, name: p.name, address: p.address, city: p.city,
           type: p.type, typeGestion: p.typeGestion,
@@ -164,13 +170,15 @@ export async function GET(req: NextRequest) {
           status: p.status,
           splitPayment: Boolean(p.splitPayment),
           owner: { id: p.owner_id, name: p.owner_name },
-          revenues,
+          revenues: revsByProp.get(pid) ?? [],
           subletExpenses,
-          recurringTemplate,
+          recurringTemplate: subletExpenses.length === 0 ? (recurringByProp.get(pid) ?? null) : null,
         }
-      }))
+      })
 
-      return NextResponse.json(result)
+      const res = NextResponse.json(result)
+      res.headers.set('Cache-Control', 'private, max-age=20, stale-while-revalidate=60')
+      return res
     } catch (error) {
       console.error('Sous-location GET error:', error)
       return NextResponse.json({ error: String(error) }, { status: 500 })
