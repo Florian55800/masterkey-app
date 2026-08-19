@@ -27,7 +27,11 @@ export async function GET(
     })
     try {
       const [rsReport, rsExp] = await Promise.all([
-        client.execute({ sql: `SELECT * FROM MonthlyReport WHERE id = ?`, args: [id] }),
+        client.execute({
+          sql: `SELECT *, COALESCE(caBrutHT, 0) as caBrutHT, COALESCE(commissionsHT, 0) as commissionsHT
+                FROM MonthlyReport WHERE id = ?`,
+          args: [id],
+        }),
         client.execute({ sql: `SELECT * FROM Expense WHERE reportId = ? ORDER BY createdAt ASC`, args: [id] }),
       ])
       const rows = toRows(rsReport)
@@ -57,7 +61,7 @@ export async function PUT(
 ) {
   const id = Number(params.id)
   const body = await request.json()
-  const { caBrut, commissions, activeProperties, totalNights, newSignatures, lostProperties, netProfit, notes, targetMargin } = body
+  const { caBrut, caBrutHT, commissions, commissionsHT, activeProperties, totalNights, newSignatures, lostProperties, netProfit, notes, targetMargin } = body
 
   if (process.env.TURSO_DATABASE_URL) {
     const { createClient } = require('@libsql/client')
@@ -69,7 +73,9 @@ export async function PUT(
       const sets: string[] = ['updatedAt = datetime(\'now\')']
       const args: unknown[] = []
       if (caBrut !== undefined)           { sets.push('caBrut = ?');           args.push(Number(caBrut)) }
+      if (caBrutHT !== undefined)         { sets.push('caBrutHT = ?');         args.push(Number(caBrutHT) || 0) }
       if (commissions !== undefined)      { sets.push('commissions = ?');      args.push(Number(commissions)) }
+      if (commissionsHT !== undefined)    { sets.push('commissionsHT = ?');    args.push(Number(commissionsHT) || 0) }
       if (activeProperties !== undefined) { sets.push('activeProperties = ?'); args.push(Number(activeProperties)) }
       if (totalNights !== undefined)      { sets.push('totalNights = ?');      args.push(Number(totalNights)) }
       if (newSignatures !== undefined)    { sets.push('newSignatures = ?');    args.push(Number(newSignatures)) }
@@ -79,7 +85,11 @@ export async function PUT(
       if (targetMargin !== undefined)     { sets.push('targetMargin = ?');     args.push(targetMargin !== null ? Number(targetMargin) : null) }
       args.push(id)
       await client.execute({ sql: `UPDATE MonthlyReport SET ${sets.join(', ')} WHERE id = ?`, args })
-      const rs = await client.execute({ sql: `SELECT * FROM MonthlyReport WHERE id = ?`, args: [id] })
+      const rs = await client.execute({
+        sql: `SELECT *, COALESCE(caBrutHT, 0) as caBrutHT, COALESCE(commissionsHT, 0) as commissionsHT
+              FROM MonthlyReport WHERE id = ?`,
+        args: [id],
+      })
       const rows = toRows(rs)
       if (rows.length === 0) return NextResponse.json({ error: 'Rapport introuvable' }, { status: 404 })
       return NextResponse.json(rows[0])

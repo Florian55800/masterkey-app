@@ -13,6 +13,11 @@ function toRows(rs: { columns: string[]; rows: unknown[][] }): Record<string, un
   })
 }
 
+async function runMigration(client: any) {
+  try { await client.execute({ sql: `ALTER TABLE MonthlyReport ADD COLUMN caBrutHT REAL DEFAULT 0`, args: [] }) } catch { /* already exists */ }
+  try { await client.execute({ sql: `ALTER TABLE MonthlyReport ADD COLUMN commissionsHT REAL DEFAULT 0`, args: [] }) } catch { /* already exists */ }
+}
+
 export async function GET() {
   if (process.env.TURSO_DATABASE_URL) {
     const { createClient } = require('@libsql/client')
@@ -21,8 +26,11 @@ export async function GET() {
       authToken: process.env.TURSO_AUTH_TOKEN || '',
     })
     try {
+      await runMigration(client)
       const rsReports = await client.execute(
-        `SELECT id, month, year, caBrut, commissions, activeProperties, totalNights,
+        `SELECT id, month, year, caBrut, COALESCE(caBrutHT, 0) as caBrutHT,
+                commissions, COALESCE(commissionsHT, 0) as commissionsHT,
+                activeProperties, totalNights,
                 newSignatures, lostProperties, netProfit, notes, targetMargin, isPlaceholder,
                 createdAt, updatedAt
          FROM MonthlyReport
@@ -72,7 +80,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const {
-      month, year, caBrut, commissions, activeProperties,
+      month, year, caBrut, caBrutHT, commissions, commissionsHT, activeProperties,
       totalNights, newSignatures, lostProperties, netProfit, notes, targetMargin,
     } = body
 
@@ -83,6 +91,7 @@ export async function POST(request: NextRequest) {
         authToken: process.env.TURSO_AUTH_TOKEN || '',
       })
       try {
+        await runMigration(client)
         // Vérifier si le rapport existe déjà
         const existing = await client.execute({
           sql: `SELECT id FROM MonthlyReport WHERE month = ? AND year = ?`,
@@ -92,13 +101,15 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Un rapport existe déjà pour ce mois' }, { status: 409 })
         }
         const rs = await client.execute({
-          sql: `INSERT INTO MonthlyReport (month, year, caBrut, commissions, activeProperties, totalNights,
-                  newSignatures, lostProperties, netProfit, notes, targetMargin, isPlaceholder, createdAt, updatedAt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))
+          sql: `INSERT INTO MonthlyReport (month, year, caBrut, caBrutHT, commissions, commissionsHT,
+                  activeProperties, totalNights, newSignatures, lostProperties, netProfit,
+                  notes, targetMargin, isPlaceholder, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))
                 RETURNING *`,
           args: [
             Number(month), Number(year),
-            Number(caBrut) || 0, Number(commissions) || 0,
+            Number(caBrut) || 0, Number(caBrutHT) || 0,
+            Number(commissions) || 0, Number(commissionsHT) || 0,
             Number(activeProperties) || 0, Number(totalNights) || 0,
             Number(newSignatures) || 0, Number(lostProperties) || 0,
             Number(netProfit) || 0,

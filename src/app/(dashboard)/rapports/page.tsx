@@ -18,7 +18,9 @@ interface Report {
   month: number
   year: number
   caBrut: number
+  caBrutHT: number
   commissions: number
+  commissionsHT: number
   activeProperties: number
   totalNights: number
   newSignatures: number
@@ -41,7 +43,9 @@ export default function RapportsPage() {
     month: String(new Date().getMonth() + 1),
     year: String(new Date().getFullYear()),
     caBrut: '',
+    caBrutHT: '',
     commissions: '',
+    commissionsHT: '',
     activeProperties: '',
     totalNights: '',
     newSignatures: '',
@@ -106,7 +110,9 @@ export default function RapportsPage() {
       month: String(month ?? new Date().getMonth() + 1),
       year: String(selectedYear),
       caBrut: '',
+      caBrutHT: '',
       commissions: '',
+      commissionsHT: '',
       activeProperties: '',
       totalNights: '',
       newSignatures: '',
@@ -125,7 +131,9 @@ export default function RapportsPage() {
       month: String(report.month),
       year: String(report.year),
       caBrut: String(report.caBrut),
+      caBrutHT: report.caBrutHT ? String(report.caBrutHT) : '',
       commissions: String(report.commissions),
+      commissionsHT: report.commissionsHT ? String(report.commissionsHT) : '',
       activeProperties: String(report.activeProperties),
       totalNights: String(report.totalNights),
       newSignatures: String(report.newSignatures),
@@ -237,16 +245,28 @@ export default function RapportsPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-2 mb-4">
+                  <div className="space-y-1.5 mb-4">
                     <div className="flex justify-between">
-                      <span className="text-gray-400 text-sm">CA Brut</span>
+                      <span className="text-gray-400 text-sm">CA Brut TTC</span>
                       <span className="text-[#D4AF37] font-semibold text-sm">{formatCurrency(report.caBrut)}</span>
                     </div>
+                    {report.caBrutHT > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 text-xs pl-2">↳ HT</span>
+                        <span className="text-[#D4AF37]/60 text-xs">{formatCurrency(report.caBrutHT)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
-                      <span className="text-gray-400 text-sm">Dépenses</span>
+                      <span className="text-gray-400 text-sm">Dépenses TTC</span>
                       <span className="text-white text-sm">{formatCurrency(report.commissions)}</span>
                     </div>
-                    <div className="flex justify-between">
+                    {report.commissionsHT > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 text-xs pl-2">↳ HT</span>
+                        <span className="text-white/50 text-xs">{formatCurrency(report.commissionsHT)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between pt-0.5 border-t border-white/5">
                       <span className="text-gray-400 text-sm">Bénéfice</span>
                       <span className={`font-semibold text-sm ${report.netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                         {formatCurrency(report.netProfit)}
@@ -372,20 +392,38 @@ export default function RapportsPage() {
           )}
 
           <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="CA (€)"
-              type="number"
-              value={form.caBrut}
-              onChange={(e) => updateFinances('caBrut', e.target.value)}
-              placeholder="10000"
-            />
-            <Input
-              label="Dépenses (€)"
-              type="number"
-              value={form.commissions}
-              onChange={(e) => updateFinances('commissions', e.target.value)}
-              placeholder="2000"
-            />
+            <div className="space-y-2">
+              <Input
+                label="CA TTC (€)"
+                type="number"
+                value={form.caBrut}
+                onChange={(e) => updateFinances('caBrut', e.target.value)}
+                placeholder="10000"
+              />
+              <Input
+                label="CA HT (€)"
+                type="number"
+                value={form.caBrutHT}
+                onChange={(e) => setForm(f => ({ ...f, caBrutHT: e.target.value }))}
+                placeholder="8333"
+              />
+            </div>
+            <div className="space-y-2">
+              <Input
+                label="Dépenses TTC (€)"
+                type="number"
+                value={form.commissions}
+                onChange={(e) => updateFinances('commissions', e.target.value)}
+                placeholder="2000"
+              />
+              <Input
+                label="Dépenses HT (€)"
+                type="number"
+                value={form.commissionsHT}
+                onChange={(e) => setForm(f => ({ ...f, commissionsHT: e.target.value }))}
+                placeholder="1666"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

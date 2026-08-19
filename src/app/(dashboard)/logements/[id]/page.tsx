@@ -51,6 +51,7 @@ interface PropertyDetail {
   photo: string | null
   dateSigned: string
   status: string
+  splitPayment: boolean
   owner: Owner
   monthlyStats: MonthlyStat[]
 }
@@ -578,6 +579,9 @@ export default function PropertyDetailPage() {
   const [savedKeybox, setSavedKeybox] = useState(false)
   const [showKeybox, setShowKeybox] = useState(false)
 
+  // Split de paiement
+  const [splitPayment, setSplitPayment] = useState(false)
+
   // Print modal (rapport propriétaire)
   const [printModalOpen, setPrintModalOpen] = useState(false)
   const [selectedMonthKey, setSelectedMonthKey] = useState('')
@@ -600,6 +604,7 @@ export default function PropertyDetailPage() {
       setProperty(data)
       setDescription(data.description ?? '')
       setKeyboxCode(data.keyboxCode ?? '')
+      setSplitPayment(Boolean(data.splitPayment))
 
       // Default selected month for print = last month with data
       const activeMonths = data.monthlyStats.filter((m) => m.totalGross > 0)
@@ -659,6 +664,16 @@ export default function PropertyDetailPage() {
     } finally {
       setSavingKeybox(false)
     }
+  }
+
+  const handleToggleSplitPayment = async (value: boolean) => {
+    if (!property) return
+    setSplitPayment(value)
+    await fetch(`/api/properties/${property.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ splitPayment: value }),
+    })
   }
 
   // ── Derived data ───────────────────────────────────────────────────────────
@@ -884,6 +899,31 @@ export default function PropertyDetailPage() {
             focus:outline-none focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/20 transition-colors
             text-sm leading-relaxed min-h-[100px] overflow-hidden"
         />
+      </Card>
+
+      {/* ── Split de paiement ──────────────────────────────────────────────── */}
+      <Card>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-purple-400 text-sm font-bold">$</span>
+            </div>
+            <div>
+              <p className="text-white font-semibold">Split de paiement</p>
+              <p className="text-white/30 text-xs">Le paiement plateforme est partagé entre propriétaire et MasterKey</p>
+            </div>
+          </div>
+          <button
+            onClick={() => handleToggleSplitPayment(!splitPayment)}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 ease-in-out focus:outline-none ${
+              splitPayment ? 'bg-purple-500 border-purple-500' : 'bg-[#2e2e2e] border-[#2e2e2e]'
+            }`}
+          >
+            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${
+              splitPayment ? 'translate-x-5' : 'translate-x-0'
+            }`} />
+          </button>
+        </div>
       </Card>
 
       {/* ── Boîte à clés ───────────────────────────────────────────────────── */}

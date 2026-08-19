@@ -66,9 +66,11 @@ export async function GET(req: NextRequest) {
     try {
       await runMigration(client)
 
+      try { await client.execute({ sql: `ALTER TABLE "Property" ADD COLUMN splitPayment INTEGER DEFAULT 0`, args: [] }) } catch { /* exists */ }
+
       const propRS = await client.execute({
         sql: `SELECT p.id, p.name, p.address, p.city, p.type, p.typeGestion,
-                     p.commissionRate, p.status,
+                     p.commissionRate, p.status, COALESCE(p.splitPayment, 0) as splitPayment,
                      o.id as owner_id, o.name as owner_name
               FROM Property p
               LEFT JOIN Owner o ON o.id = p.ownerId
@@ -160,6 +162,7 @@ export async function GET(req: NextRequest) {
           type: p.type, typeGestion: p.typeGestion,
           commissionRate: Number(p.commissionRate) || 0,
           status: p.status,
+          splitPayment: Boolean(p.splitPayment),
           owner: { id: p.owner_id, name: p.owner_name },
           revenues,
           subletExpenses,

@@ -62,6 +62,7 @@ interface Property {
   typeGestion: string
   commissionRate: number
   status: string
+  splitPayment: boolean
   owner: Owner
   revenues: PropertyRevenue[]
   subletExpenses: SubletExpense[]
@@ -1284,10 +1285,13 @@ function PropertyRevenueCard({
             <Building2 className="w-4 h-4 text-[#D4AF37]" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <p className="text-white font-semibold">{property.name}</p>
               {property.status !== 'active' && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">Inactif</span>
+              )}
+              {property.splitPayment && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">Split</span>
               )}
             </div>
             <p className="text-white/30 text-xs">{property.owner.name} · {property.commissionRate}% comm.</p>
@@ -1454,10 +1458,13 @@ function SubletPropertyCard({
             <Home className="w-4 h-4 text-blue-400" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <p className="text-white font-semibold">{property.name}</p>
               {property.status !== 'active' && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">Inactif</span>
+              )}
+              {property.splitPayment && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">Split</span>
               )}
             </div>
             <p className="text-white/30 text-xs">{property.owner.name} · Sous-location</p>
@@ -1711,16 +1718,50 @@ function CleaningMarginRow({
 
 // ─── Classement ───────────────────────────────────────────────────────────────
 
-function ClassementTab({ properties, month, year }: { properties: Property[]; month: number; year: number }) {
-  const ranked = properties
+function ClassementTab({
+  properties,
+  sousLocationProperties,
+  month,
+  year,
+}: {
+  properties: Property[]
+  sousLocationProperties: Property[]
+  month: number
+  year: number
+}) {
+  const concEntries = properties
     .map(p => {
       const totals = propertyTotals(p.revenues)
-      return { property: p, partMK: totals.partMK, partProprio: totals.partProprio, platformAmount: totals.platformAmount }
+      return {
+        property: p,
+        value: totals.partMK,
+        secondary: totals.partProprio,
+        type: 'conciergerie' as const,
+      }
     })
-    .filter(r => r.partMK > 0)
-    .sort((a, b) => b.partMK - a.partMK)
+    .filter(r => r.value > 0)
 
-  const maxMK = ranked[0]?.partMK ?? 1
+  const slEntries = sousLocationProperties
+    .map(p => {
+      const gross    = p.revenues.reduce((s, r) => s + r.platformAmount, 0)
+      const cleaning = p.revenues.reduce((s, r) => s + r.cleaningFees, 0)
+      const exp      = p.subletExpenses[0] ?? p.recurringTemplate ?? null
+      const charges  = exp ? exp.loyer + exp.electricite + exp.wifi + exp.autresCharges + (exp.assurance ?? 0) : 0
+      return {
+        property: p,
+        value: gross - cleaning - charges,
+        secondary: null as number | null,
+        type: 'sous-location' as const,
+      }
+    })
+    .filter(r =>
+      r.property.revenues.length > 0 ||
+      r.property.subletExpenses.length > 0 ||
+      r.property.recurringTemplate !== null
+    )
+
+  const ranked = [...concEntries, ...slEntries].sort((a, b) => b.value - a.value)
+  const maxAbs = Math.max(...ranked.map(r => Math.abs(r.value)), 1)
 
   if (ranked.length === 0) {
     return (
@@ -1741,40 +1782,59 @@ function ClassementTab({ properties, month, year }: { properties: Property[]; mo
         <span className="text-white/30 text-sm ml-auto">{ranked.length} logements</span>
       </div>
 
-      {ranked.map(({ property, partMK, partProprio, platformAmount }, i) => (
-        <div
-          key={property.id}
-          className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
-            i === 0 ? 'border-[#D4AF37]/20 bg-[#D4AF37]/5' : 'border-white/[0.04] bg-[#181818]'
-          }`}
-        >
-          <span className="text-xl flex-shrink-0">{medals[i] ?? `#${i + 1}`}</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-white font-medium">{property.name}</p>
-            <p className="text-white/30 text-xs">{property.owner.name} · {property.city}</p>
-            {/* Bar */}
-            <div className="h-1.5 bg-[#1b1b1b] rounded-full mt-2 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${i === 0 ? 'bg-[#D4AF37]' : 'bg-white/20'}`}
-                style={{ width: `${(partMK / maxMK) * 100}%` }}
-              />
+      {ranked.map(({ property, value, secondary, type }, i) => {
+        const isFirst = i === 0
+        const isNeg   = value < 0
+        const isSL    = type === 'sous-location'
+        return (
+          <div
+            key={`${type}-${property.id}`}
+            className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
+              isFirst ? 'border-[#D4AF37]/20 bg-[#D4AF37]/5' : 'border-white/[0.04] bg-[#181818]'
+            }`}
+          >
+            <span className="text-xl flex-shrink-0">{medals[i] ?? `#${i + 1}`}</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-white font-medium">{property.name}</p>
+                <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium border ${
+                  isSL
+                    ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                    : 'bg-[#D4AF37]/10 text-[#D4AF37] border-[#D4AF37]/20'
+                }`}>
+                  {isSL ? 'Sous-loc' : 'Conciergerie'}
+                </span>
+              </div>
+              <p className="text-white/30 text-xs">{property.owner.name} · {property.city}</p>
+              <div className="h-1.5 bg-[#1b1b1b] rounded-full mt-2 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    isNeg ? 'bg-red-500/50' : isFirst ? 'bg-[#D4AF37]' : isSL ? 'bg-emerald-500/40' : 'bg-white/20'
+                  }`}
+                  style={{ width: `${(Math.abs(value) / maxAbs) * 100}%` }}
+                />
+              </div>
             </div>
+            <div className="text-right flex-shrink-0">
+              <p className={`font-bold text-lg ${isNeg ? 'text-red-400' : isFirst ? 'text-[#D4AF37]' : 'text-white'}`}>
+                {formatCurrency(value)}
+              </p>
+              <p className="text-white/30 text-[10px]">{isSL ? 'Bénéfice net' : 'Part MasterKey'}</p>
+            </div>
+            {secondary !== null && (
+              <div className="text-right flex-shrink-0 hidden sm:block">
+                <p className="text-green-400 font-semibold text-sm">{formatCurrency(secondary)}</p>
+                <p className="text-white/30 text-[10px]">Part proprio</p>
+              </div>
+            )}
           </div>
-          <div className="text-right flex-shrink-0">
-            <p className={`font-bold text-lg ${i === 0 ? 'text-[#D4AF37]' : 'text-white'}`}>{formatCurrency(partMK)}</p>
-            <p className="text-white/30 text-[10px]">Part MasterKey</p>
-          </div>
-          <div className="text-right flex-shrink-0 hidden sm:block">
-            <p className="text-green-400 font-semibold text-sm">{formatCurrency(partProprio)}</p>
-            <p className="text-white/30 text-[10px]">Part proprio</p>
-          </div>
-        </div>
-      ))}
+        )
+      })}
 
       {/* Grand total */}
       <div className="flex items-center justify-between bg-[#D4AF37]/5 border border-[#D4AF37]/15 rounded-2xl px-5 py-4 mt-4">
-        <span className="text-white/60 font-medium">TOTAL BRUT</span>
-        <span className="text-[#D4AF37] font-bold text-2xl">{formatCurrency(ranked.reduce((s, r) => s + r.partMK, 0))}</span>
+        <span className="text-white/60 font-medium">TOTAL</span>
+        <span className="text-[#D4AF37] font-bold text-2xl">{formatCurrency(ranked.reduce((s, r) => s + r.value, 0))}</span>
       </div>
     </div>
   )
@@ -1794,6 +1854,7 @@ export default function FacturationPage() {
   const [seeding, setSeeding] = useState(false)
   const [seedMsg, setSeedMsg] = useState<string | null>(null)
   const [hiddenProps, setHiddenProps] = useState<Set<string>>(new Set())
+  const [menageTvaInput, setMenageTvaInput] = useState('')
 
   const hideKey = (propertyId: number) => `${propertyId}-${month}-${year}`
   const hideProperty = (propertyId: number) => {
@@ -1827,6 +1888,10 @@ export default function FacturationPage() {
     setLoading(true)
     load()
   }, [load])
+
+  useEffect(() => {
+    setMenageTvaInput(localStorage.getItem('menageTva') ?? '')
+  }, [])
 
   const prevMonth = () => {
     if (month === 1) { setMonth(12); setYear(y => y - 1) }
@@ -1876,6 +1941,8 @@ export default function FacturationPage() {
     if (!m) return s
     return s + (m.receivedPlatform + m.receivedOwner - m.paidCleaner)
   }, 0)
+  const menageTvaRate = Math.max(0, Math.min(100, parseFloat(menageTvaInput) || 0))
+  const totalMenageHT = menageTvaRate > 0 ? totalMenage / (1 + menageTvaRate / 100) : totalMenage
   const totalBrutGlobal = totalBrutConcierge + totalBrutSousLoc + totalMenage
 
   const handleSeed = async () => {
@@ -2151,11 +2218,34 @@ export default function FacturationPage() {
                   <p className="text-white/30 text-xs mt-0.5">Saisissez ce que vous avez perçu et payé pour calculer votre marge</p>
                 </div>
                 {totalMenage !== 0 && (
-                  <div className={`rounded-2xl px-4 py-2 text-center border ${totalMenage >= 0 ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
-                    <p className="text-white/40 text-[10px] uppercase tracking-wider mb-0.5">Marge totale</p>
-                    <p className={`font-bold text-xl ${totalMenage >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {totalMenage >= 0 ? '+' : ''}{formatCurrency(totalMenage)}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <label className="text-white/30 text-[10px]">TVA %</label>
+                      <input
+                        type="number"
+                        value={menageTvaInput}
+                        onChange={e => setMenageTvaInput(e.target.value)}
+                        onBlur={() => localStorage.setItem('menageTva', menageTvaInput)}
+                        placeholder="20"
+                        className="w-16 bg-[#1b1b1b] border border-[#2e2e2e] rounded-lg px-2 py-1 text-white text-xs text-center focus:outline-none focus:border-[#D4AF37]"
+                      />
+                    </div>
+                    <div className={`rounded-2xl px-4 py-2 border ${totalMenage >= 0 ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+                      {totalMenageHT < totalMenage - 0.01 && (
+                        <div className="text-center mb-1">
+                          <p className="text-white/30 text-[10px] uppercase tracking-wider">HT</p>
+                          <p className={`font-bold text-sm ${totalMenage >= 0 ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
+                            {totalMenage >= 0 ? '+' : ''}{formatCurrency(totalMenageHT)}
+                          </p>
+                        </div>
+                      )}
+                      <p className="text-white/40 text-[10px] uppercase tracking-wider mb-0.5 text-center">
+                        {totalMenageHT < totalMenage - 0.01 ? 'TTC' : 'Marge totale'}
+                      </p>
+                      <p className={`font-bold text-xl ${totalMenage >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {totalMenage >= 0 ? '+' : ''}{formatCurrency(totalMenage)}
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -2173,7 +2263,7 @@ export default function FacturationPage() {
           )}
 
           {tab === 'classement' && (
-            <ClassementTab properties={visibleConciergerie} month={month} year={year} />
+            <ClassementTab properties={visibleConciergerie} sousLocationProperties={visibleSousLoc} month={month} year={year} />
           )}
 
           {tab === 'rapports' && <RapportsInline />}
