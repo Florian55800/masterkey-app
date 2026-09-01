@@ -48,9 +48,7 @@ export async function GET(req: NextRequest) {
       })
       const props = toRows(propRS)
       if (props.length === 0) {
-        const res = NextResponse.json([])
-        res.headers.set('Cache-Control', 'private, max-age=20, stale-while-revalidate=60')
-        return res
+        return NextResponse.json([])
       }
 
       // ── 1 query : all revenues for all properties ─────────────────────────
@@ -100,9 +98,7 @@ export async function GET(req: NextRequest) {
         revenues: revsByProp.get(Number(p.id)) ?? [],
       }))
 
-      const res = NextResponse.json(result)
-      res.headers.set('Cache-Control', 'private, max-age=20, stale-while-revalidate=60')
-      return res
+      return NextResponse.json(result)
     } catch (error) {
       console.error('Facturation GET error:', error)
       return NextResponse.json({ error: String(error) }, { status: 500 })

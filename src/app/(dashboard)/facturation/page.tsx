@@ -1867,9 +1867,9 @@ export default function FacturationPage() {
   const load = useCallback(async () => {
     try {
       const [cRes, sRes, mRes] = await Promise.all([
-        fetch(`/api/facturation?month=${month}&year=${year}`),
-        fetch(`/api/facturation/sous-location?month=${month}&year=${year}`),
-        fetch(`/api/facturation/menage?month=${month}&year=${year}`),
+        fetch(`/api/facturation?month=${month}&year=${year}`, { cache: 'no-store' }),
+        fetch(`/api/facturation/sous-location?month=${month}&year=${year}`, { cache: 'no-store' }),
+        fetch(`/api/facturation/menage?month=${month}&year=${year}`, { cache: 'no-store' }),
       ])
       const [cData, sData, mData] = await Promise.all([cRes.json(), sRes.json(), mRes.json()])
       setConciergerieProps(Array.isArray(cData) ? cData : [])

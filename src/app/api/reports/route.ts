@@ -65,9 +65,7 @@ export async function GET() {
         withExpenses = reports.map(r => ({ ...r, expenses: expByReport.get(Number(r.id)) ?? [], teamGoals: [] }))
       }
 
-      const res = NextResponse.json(withExpenses)
-      res.headers.set('Cache-Control', 'private, max-age=20, stale-while-revalidate=60')
-      return res
+      return NextResponse.json(withExpenses)
     } catch (error) {
       console.error('Reports GET Turso error:', error)
       return NextResponse.json({ error: String(error) }, { status: 500 })

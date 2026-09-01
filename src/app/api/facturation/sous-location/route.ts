@@ -78,9 +78,7 @@ export async function GET(req: NextRequest) {
       })
       const props = toRows(propRS)
       if (props.length === 0) {
-        const res = NextResponse.json([])
-        res.headers.set('Cache-Control', 'private, max-age=20, stale-while-revalidate=60')
-        return res
+        return NextResponse.json([])
       }
 
       const propIds = props.map(p => p.id as number)
@@ -176,9 +174,7 @@ export async function GET(req: NextRequest) {
         }
       })
 
-      const res = NextResponse.json(result)
-      res.headers.set('Cache-Control', 'private, max-age=20, stale-while-revalidate=60')
-      return res
+      return NextResponse.json(result)
     } catch (error) {
       console.error('Sous-location GET error:', error)
       return NextResponse.json({ error: String(error) }, { status: 500 })
