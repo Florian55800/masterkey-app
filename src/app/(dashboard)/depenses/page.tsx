@@ -82,6 +82,7 @@ export default function DepensesPage() {
   const [allExpenses, setAllExpenses] = useState<Expense[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [targetReportId, setTargetReportId] = useState<number | null>(null)
   const [isNewReportModalOpen, setIsNewReportModalOpen] = useState(false)
   const [newReportForm, setNewReportForm] = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear() })
   const [newReportSaving, setNewReportSaving] = useState(false)
@@ -194,6 +195,7 @@ export default function DepensesPage() {
 
   const openEditExpense = (expense: Expense) => {
     setEditingExpense(expense)
+    setTargetReportId(expense.reportId)
     setForm({
       category: expense.category,
       description: expense.description ?? '',
@@ -208,7 +210,8 @@ export default function DepensesPage() {
   }
 
   const handleAddExpense = async () => {
-    if (!selectedReportId && !editingExpense) return
+    const effectiveReportId = targetReportId ?? selectedReportId
+    if (!effectiveReportId && !editingExpense) return
     setSaving(true)
     setError('')
     const refreshAll = () => fetch('/api/expenses').then(r => r.json()).then(d => setAllExpenses(Array.isArray(d) ? d : [])).catch(() => {})
@@ -221,16 +224,25 @@ export default function DepensesPage() {
           body: JSON.stringify(payload),
         })
         if (!res.ok) { const d = await res.json(); setError(d.error || 'Erreur'); return }
+        // Reload whichever report is currently displayed
         if (selectedReportId) await loadExpenses(selectedReportId)
         await refreshAll()
       } else {
         const res = await fetch('/api/expenses', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...payload, reportId: selectedReportId }),
+          body: JSON.stringify({ ...payload, reportId: effectiveReportId }),
         })
         if (!res.ok) { const d = await res.json(); setError(d.error || 'Erreur'); return }
-        if (selectedReportId) await loadExpenses(selectedReportId)
+        // If the expense was added to the currently viewed report, refresh it
+        if (effectiveReportId === selectedReportId) {
+          await loadExpenses(selectedReportId!)
+        } else if (effectiveReportId !== null) {
+          // Switch to the target report so the user sees the newly added expense
+          setSelectedReportId(effectiveReportId)
+          setSelectedReport(reports.find(r => r.id === effectiveReportId) ?? null)
+          await loadExpenses(effectiveReportId)
+        }
         await refreshAll()
       }
       setIsModalOpen(false)
@@ -371,7 +383,7 @@ export default function DepensesPage() {
           <p className="text-gray-400 mt-1">Gestion et analyse des dépenses</p>
         </div>
         {mainTab === 'conciergerie' && (
-          <Button onClick={() => setIsModalOpen(true)} disabled={!selectedReportId}>
+          <Button onClick={() => { setTargetReportId(selectedReportId); setIsModalOpen(true) }} disabled={reports.length === 0}>
             <Plus className="w-4 h-4" />Ajouter dépense
           </Button>
         )}
@@ -979,6 +991,21 @@ export default function DepensesPage() {
       <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingExpense(null) }}
         title={editingExpense ? 'Modifier la dépense' : 'Ajouter une dépense'}>
         <div className="space-y-4">
+          {!editingExpense && (
+            <div>
+              <label className="text-xs text-gray-400 block mb-1.5">Mois concerné</label>
+              <select
+                value={targetReportId ?? ''}
+                onChange={e => setTargetReportId(Number(e.target.value))}
+                className="w-full bg-[#1b1b1b] border border-white/[0.08] rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#D4AF37]/40">
+                {reports.map(r => (
+                  <option key={r.id} value={r.id}>
+                    {getMonthName(r.month)} {r.year}{r.id === selectedReportId ? ' (affiché)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <Select label="Catégorie" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
             {EXPENSE_CATEGORIES.map((cat) => <option key={cat.value} value={cat.value}>{cat.label}</option>)}
           </Select>
