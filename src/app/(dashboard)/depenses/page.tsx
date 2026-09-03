@@ -153,14 +153,53 @@ export default function DepensesPage() {
       const created = await res.json()
       if (!res.ok) { setNewReportError(created.error || 'Erreur'); return }
       setIsNewReportModalOpen(false)
-      // Recharger la liste puis sélectionner le nouveau rapport
+
+      // ── Copier les dépenses récurrentes du rapport le plus récent ──────────
+      // Trouver le rapport précédent le plus récent parmi ceux déjà chargés
+      const sortedReports = [...reports].sort((a, b) =>
+        b.year !== a.year ? b.year - a.year : b.month - a.month
+      )
+      const sourceReport = sortedReports[0] // le plus récent avant création
+      if (sourceReport) {
+        const expRes = await fetch(`/api/expenses?reportId=${sourceReport.id}`)
+        const expData = await expRes.json()
+        const recurring: Expense[] = Array.isArray(expData) ? expData.filter((e: Expense) => e.isRecurring) : []
+        if (recurring.length > 0) {
+          // Calculer la payDate ajustée au nouveau mois
+          const pad2 = (n: number) => String(n).padStart(2, '0')
+          const daysInMonth = new Date(newReportForm.year, newReportForm.month, 0).getDate()
+          await Promise.all(recurring.map(e => {
+            let payDate: string | null = null
+            if (e.paymentDay) {
+              const day = Math.min(e.paymentDay, daysInMonth)
+              payDate = `${newReportForm.year}-${pad2(newReportForm.month)}-${pad2(day)}`
+            }
+            return fetch('/api/expenses', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                reportId: created.id,
+                category: e.category,
+                description: e.description,
+                amount: e.amount,
+                tva: e.tva ?? 0,
+                isRecurring: true,
+                payDate,
+                paymentDay: e.paymentDay ?? null,
+              }),
+            })
+          }))
+        }
+      }
+
+      // Recharger la liste et afficher le nouveau rapport
       const listRes = await fetch('/api/reports')
       const listData = await listRes.json()
       const arr = Array.isArray(listData) ? listData : []
       setReports(arr)
       setSelectedReportId(created.id)
       setSelectedReport(created)
-      setExpenses([])
+      await loadExpenses(created.id)
     } catch { setNewReportError('Erreur de connexion') }
     finally { setNewReportSaving(false) }
   }
@@ -885,7 +924,7 @@ export default function DepensesPage() {
       {/* New Report Modal */}
       <Modal isOpen={isNewReportModalOpen} onClose={() => setIsNewReportModalOpen(false)} title="Ouvrir un nouveau mois">
         <div className="space-y-4">
-          <p className="text-gray-400 text-sm">Crée un rapport vide pour le mois choisi. Tu pourras ensuite y ajouter des dépenses.</p>
+          <p className="text-gray-400 text-sm">Crée un rapport pour le mois choisi. Les dépenses récurrentes du mois précédent seront copiées automatiquement.</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-gray-400 block mb-1.5">Mois</label>

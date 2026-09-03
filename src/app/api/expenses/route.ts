@@ -31,20 +31,20 @@ export async function GET(request: NextRequest) {
     })
     try {
       await runMigration(client)
+      const cols = `e.id, e.reportId, e.category, e.description, e.amount,
+                   COALESCE(e.tva, 0) as tva, e.isRecurring,
+                   e.payDate, e.paymentDay,
+                   r.month, r.year, r.caBrut`
       const rs = await client.execute(
         reportId
           ? {
-              sql: `SELECT e.id, e.reportId, e.category, e.description, e.amount,
-                           COALESCE(e.tva, 0) as tva, e.isRecurring,
-                           r.month, r.year, r.caBrut
+              sql: `SELECT ${cols}
                     FROM "Expense" e JOIN "MonthlyReport" r ON r.id = e.reportId
                     WHERE e.reportId = ? ORDER BY e.createdAt DESC`,
               args: [Number(reportId)],
             }
           : {
-              sql: `SELECT e.id, e.reportId, e.category, e.description, e.amount,
-                           COALESCE(e.tva, 0) as tva, e.isRecurring,
-                           r.month, r.year, r.caBrut
+              sql: `SELECT ${cols}
                     FROM "Expense" e JOIN "MonthlyReport" r ON r.id = e.reportId
                     ORDER BY r.year DESC, r.month DESC, e.createdAt DESC`,
               args: [],
@@ -59,9 +59,12 @@ export async function GET(request: NextRequest) {
   const expenses = await prisma.expense.findMany({
     where: reportId ? { reportId: Number(reportId) } : undefined,
     include: { report: { select: { month: true, year: true, caBrut: true } } },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ report: { year: 'desc' } }, { report: { month: 'desc' } }, { createdAt: 'desc' }],
   })
-  return NextResponse.json(expenses.map(e => ({ ...e, month: e.report.month, year: e.report.year, caBrut: e.report.caBrut })))
+  return NextResponse.json(expenses.map(e => ({
+    ...e, tva: (e as any).tva ?? 0,
+    month: e.report.month, year: e.report.year, caBrut: e.report.caBrut,
+  })))
 }
 
 export async function POST(request: NextRequest) {
