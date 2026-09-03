@@ -83,6 +83,7 @@ export default function DepensesPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [targetReportId, setTargetReportId] = useState<number | null>(null)
+  const [copyingRecurring, setCopyingRecurring] = useState(false)
   const [isNewReportModalOpen, setIsNewReportModalOpen] = useState(false)
   const [newReportForm, setNewReportForm] = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear() })
   const [newReportSaving, setNewReportSaving] = useState(false)
@@ -332,6 +333,58 @@ export default function DepensesPage() {
     if (selectedReportId) await loadExpenses(selectedReportId)
   }
 
+  const handleCopyRecurring = async () => {
+    if (!selectedReport) return
+    setCopyingRecurring(true)
+    try {
+      // Trouver le rapport précédent (le plus récent avant le mois affiché)
+      const sorted = [...reports].sort((a, b) =>
+        b.year !== a.year ? b.year - a.year : b.month - a.month
+      )
+      const currentIdx = sorted.findIndex(r => r.id === selectedReportId)
+      const sourceReport = sorted[currentIdx + 1] ?? null
+      if (!sourceReport) { alert('Aucun rapport précédent trouvé.'); return }
+
+      const expRes = await fetch(`/api/expenses?reportId=${sourceReport.id}`)
+      const expData = await expRes.json()
+      const recurring: Expense[] = Array.isArray(expData) ? expData.filter((e: Expense) => e.isRecurring) : []
+      if (recurring.length === 0) { alert('Aucune dépense récurrente dans le mois précédent.'); return }
+
+      // Exclure celles déjà présentes (même catégorie + même description)
+      const alreadyKeys = new Set(expenses.filter(e => e.isRecurring).map(e => `${e.category}|${e.description ?? ''}`))
+      const toAdd = recurring.filter(e => !alreadyKeys.has(`${e.category}|${e.description ?? ''}`))
+      if (toAdd.length === 0) { alert('Toutes les dépenses récurrentes sont déjà présentes.'); return }
+
+      const pad2 = (n: number) => String(n).padStart(2, '0')
+      const daysInMonth = new Date(selectedReport.year, selectedReport.month, 0).getDate()
+
+      await Promise.all(toAdd.map(e => {
+        let payDate: string | null = null
+        if (e.paymentDay) {
+          const day = Math.min(e.paymentDay, daysInMonth)
+          payDate = `${selectedReport.year}-${pad2(selectedReport.month)}-${pad2(day)}`
+        }
+        return fetch('/api/expenses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reportId: selectedReportId,
+            category: e.category,
+            description: e.description,
+            amount: e.amount,
+            tva: e.tva ?? 0,
+            isRecurring: true,
+            payDate,
+            paymentDay: e.paymentDay ?? null,
+          }),
+        })
+      }))
+
+      await loadExpenses(selectedReportId!)
+    } catch { alert('Erreur lors de la copie.') }
+    finally { setCopyingRecurring(false) }
+  }
+
   const loadAdvances = async () => {
     setLoadingAdvances(true)
     try {
@@ -524,12 +577,22 @@ export default function DepensesPage() {
                 </Card>
                 <div className="xl:col-span-2">
                   <Card>
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                       <h3 className="text-white font-semibold">
                         Détail des dépenses
                         {selectedReport && <span className="text-gray-400 font-normal ml-2">— {getMonthName(selectedReport.month)} {selectedReport.year}</span>}
                       </h3>
-                      <span className="text-gray-400 text-sm">{expenses.length} ligne(s)</span>
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={handleCopyRecurring}
+                          disabled={copyingRecurring}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border border-blue-500/20 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all disabled:opacity-40"
+                          title="Copier les dépenses récurrentes du mois précédent">
+                          <RefreshCw className={`w-3.5 h-3.5 ${copyingRecurring ? 'animate-spin' : ''}`} />
+                          {copyingRecurring ? 'Copie…' : 'Copier récurrentes'}
+                        </button>
+                        <span className="text-gray-400 text-sm">{expenses.length} ligne(s)</span>
+                      </div>
                     </div>
                     {expenses.length === 0 ? (
                       <div className="text-center py-8">
